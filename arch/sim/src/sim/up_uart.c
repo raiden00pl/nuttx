@@ -75,6 +75,11 @@ static void tty_txint(struct uart_dev_s *dev, bool enable);
 static bool tty_txready(struct uart_dev_s *dev);
 static bool tty_txempty(struct uart_dev_s *dev);
 
+#ifdef CONFIG_SERIAL_TXDMA
+static void tty_dma_txavailable(struct uart_dev_s *dev);
+static void tty_dma_send(struct uart_dev_s *dev);
+#endif
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -94,6 +99,12 @@ static const struct uart_ops_s g_tty_ops =
   .txint          = tty_txint,
   .txready        = tty_txready,
   .txempty        = tty_txempty,
+
+#ifdef CONFIG_SERIAL_TXDMA
+  .dmatxavail     = tty_dma_txavailable,
+  .dmasend        = tty_dma_send,
+#endif
+
 };
 #endif
 
@@ -334,6 +345,7 @@ static void tty_detach(struct uart_dev_s *dev)
 
 static int tty_ioctl(struct file *filep, int cmd, unsigned long arg)
 {
+  int ret = -ENOTTY;
 #ifdef CONFIG_SERIAL_TERMIOS
   struct inode *inode = filep->f_inode;
   struct uart_dev_s *dev = inode->i_private;
@@ -348,16 +360,62 @@ static int tty_ioctl(struct file *filep, int cmd, unsigned long arg)
   switch (cmd)
     {
       case TCGETS:
-        return simuart_getcflag(dev->isconsole ? 0 : priv->fd,
-                                &termiosp->c_cflag);
+        {
+          ret = simuart_getcflag(dev->isconsole ? 0 : priv->fd,
+                                 &termiosp->c_cflag);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          ret = simuart_getoflag(dev->isconsole ? 0 : priv->fd,
+                                 &termiosp->c_oflag);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          ret = simuart_getspeed(dev->isconsole ? 0 : priv->fd,
+                                 &termiosp->c_speed);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          break;
+        }
 
       case TCSETS:
-        return simuart_setcflag(dev->isconsole ? 0 : priv->fd,
-                               termiosp->c_cflag);
+        {
+          ret = simuart_setcflag(dev->isconsole ? 0 : priv->fd,
+                                 termiosp->c_cflag);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          ret = simuart_setoflag(dev->isconsole ? 0 : priv->fd,
+                                 termiosp->c_oflag);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          ret = simuart_setspeed(dev->isconsole ? 0 : priv->fd,
+                                 termiosp->c_speed);
+          if (ret < 0)
+            {
+              goto errout;
+            }
+
+          break;
+        }
     }
+
+errout:
 #endif
 
-  return -ENOTTY;
+  return ret;
 }
 
 /****************************************************************************
@@ -459,10 +517,16 @@ static void tty_send(struct uart_dev_s *dev, int ch)
 
 static void tty_txint(struct uart_dev_s *dev, bool enable)
 {
+#warning move to separate function
+#ifdef CONFIG_SERIAL_TXDMA
+  /* nothing */
+
+#else
   if (enable)
     {
       uart_xmitchars(dev);
     }
+#endif
 }
 
 /****************************************************************************
@@ -490,6 +554,32 @@ static bool tty_txempty(struct uart_dev_s *dev)
 {
   return true;
 }
+
+#  ifdef CONFIG_SERIAL_TXDMA
+
+static void tty_dma_txavailable(struct uart_dev_s *dev)
+{
+  uart_xmitchars_dma(dev);
+}
+
+static void tty_dma_send(struct uart_dev_s *dev)
+{
+  struct tty_priv_s *priv = dev->priv;
+
+#warning TODO: nbuffer and nlength support
+
+  dev->dmatx.nbytes = 0;
+
+  simuart_dmasend(dev->isconsole ? 1 : priv->fd, dev->dmatx.buffer, dev->dmatx.length);
+
+  dev->dmatx.nbytes += dev->dmatx.length;
+
+  /* Adjust the pointers */
+
+  uart_xmitchars_done(dev);
+}
+#  endif
+
 #endif
 
 /****************************************************************************

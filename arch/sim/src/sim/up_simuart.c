@@ -57,6 +57,7 @@ static void setrawmode(int fd)
 
   raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR |
                    ICRNL | IXON);
+  /* raw.c_oflag &= ~OPOST; */
   raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
   raw.c_cflag &= ~(CSIZE | PARENB);
   raw.c_cflag |= CS8;
@@ -140,6 +141,15 @@ int simuart_putc(int fd, int ch)
 }
 
 /****************************************************************************
+ * Name: simuart_dmasend
+ ****************************************************************************/
+
+int simuart_dmasend(int fd, uint8_t *buff, size_t len)
+{
+  return write(fd, buff, len);
+}
+
+/****************************************************************************
  * Name: simuart_getc
  ****************************************************************************/
 
@@ -187,6 +197,99 @@ int simuart_setcflag(int fd, unsigned int cflag)
   if (!ret)
     {
       t.c_cflag = cflag;
+      ret = tcsetattr(fd, TCSANOW, &t);
+    }
+
+  if (ret < 0)
+    {
+      ret = -errno;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: simuart_getoflag
+ ****************************************************************************/
+
+int simuart_getoflag(int fd, unsigned int *oflag)
+{
+  struct termios t;
+  int ret;
+
+  ret = tcgetattr(fd, &t);
+  if (ret < 0)
+    {
+      ret = -errno;
+    }
+  else
+    {
+      *oflag = t.c_oflag;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: simuart_setoflag
+ ****************************************************************************/
+
+int simuart_setoflag(int fd, unsigned int oflag)
+{
+  struct termios t;
+  int ret;
+
+  ret = tcgetattr(fd, &t);
+  if (!ret)
+    {
+      t.c_oflag = oflag;
+      ret = tcsetattr(fd, TCSANOW, &t);
+    }
+
+  if (ret < 0)
+    {
+      ret = -errno;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: simuart_getspeed
+ ****************************************************************************/
+
+int simuart_getspeed(int fd, unsigned int *speed)
+{
+  struct termios t;
+  int ret;
+
+  ret = tcgetattr(fd, &t);
+  if (ret < 0)
+    {
+      ret = -errno;
+    }
+  else
+    {
+      *speed = cfgetispeed(&t);
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: simuart_setspeed
+ ****************************************************************************/
+
+int simuart_setspeed(int fd, unsigned int speed)
+{
+  struct termios t;
+  int ret;
+
+  ret = tcgetattr(fd, &t);
+  if (!ret)
+    {
+      cfsetispeed(&t, speed);
+      cfsetospeed(&t, speed);
       ret = tcsetattr(fd, TCSANOW, &t);
     }
 

@@ -200,10 +200,16 @@ void simuart_start(void);
 int  simuart_open(const char *pathname);
 void simuart_close(int fd);
 int  simuart_putc(int fd, int ch);
+int  simuart_dmasend(int fd, uint8_t *buff, size_t len);
 int  simuart_getc(int fd);
 bool simuart_checkc(int fd);
+
 int  simuart_setcflag(int fd, unsigned int cflag);
 int  simuart_getcflag(int fd, unsigned int *cflag);
+int  simuart_setoflag(int fd, unsigned int oflag);
+int  simuart_getoflag(int fd, unsigned int *oflag);
+int  simuart_setspeed(int fd, unsigned int speed);
+int  simuart_getspeed(int fd, unsigned int *speed);
 
 /* up_deviceimage.c *********************************************************/
 
