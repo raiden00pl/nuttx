@@ -829,6 +829,18 @@ int foc_register(FAR const char *path, FAR struct foc_dev_s *dev)
 
   dev->ocount = 0;
 
+  /* Initialize dev info */
+
+  dev->info.phases = CONFIG_MOTOR_FOC_PHASES;
+
+#ifdef CONFIG_MOTOR_FOC_CURR_TYPE_INT32
+  dev->info.curr_type = FOC_CURR_TYPE_INT32;
+#endif
+
+#ifdef CONFIG_MOTOR_FOC_DUTY_TYPE_UB16
+  dev->info.duty_type = FOC_DUTY_TYPE_UB16;
+#endif
+
   /* Assert the lower-half interface */
 
   ret = foc_lower_ops_assert(dev->lower->ops);

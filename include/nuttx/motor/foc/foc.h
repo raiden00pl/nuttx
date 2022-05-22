@@ -59,15 +59,39 @@ enum foc_fault_e
   FOC_FAULT_BOARD   = (1 << 3), /* Board-specific fault */
 };
 
+/* Phase current type */
+
+enum foc_curr_type_e
+{
+  FOC_CURR_TYPE_UNDEF = 0,
+  FOC_CURR_TYPE_INT32 = 1
+};
+
+/* Phase duty cycle type */
+
+enum foc_duty_type_e
+{
+  FOC_DUTY_TYPE_UNDEF = 0,
+  FOC_DUTY_TYPE_UB16  = 1,
+};
+
+#ifdef CONFIG_MOTOR_FOC_CURR_TYPE_INT32
+
 /* Phase current as signed 32-bit integer */
 
 typedef int32_t foc_current_t;
+
+#endif
+
+#ifdef CONFIG_MOTOR_FOC_DUTY_TYPE_UB16
 
 /* Phase duty cycle as unsigned fixed16.
  * We use range [0.0 to 1.0] so this gives us a 16-bit resolution.
  */
 
 typedef ub16_t foc_duty_t;
+
+#endif
 
 /* FOC device configuration */
 
@@ -105,6 +129,9 @@ struct foc_hw_config_s
 struct foc_info_s
 {
   struct foc_hw_config_s hw_cfg; /* Hardware specific configuration */
+  uint8_t                phases;
+  uint8_t                curr_type;
+  uint8_t                duty_type;
 };
 
 /* FOC device upper-half */
