@@ -208,8 +208,8 @@ int  simuart_setcflag(int fd, unsigned int cflag);
 int  simuart_getcflag(int fd, unsigned int *cflag);
 int  simuart_setoflag(int fd, unsigned int oflag);
 int  simuart_getoflag(int fd, unsigned int *oflag);
-int  simuart_setspeed(int fd, unsigned int speed);
-int  simuart_getspeed(int fd, unsigned int *speed);
+int  simuart_setspeed(int fd, long unsigned int speed);
+int  simuart_getspeed(int fd, long unsigned int *speed);
 
 /* up_deviceimage.c *********************************************************/
 

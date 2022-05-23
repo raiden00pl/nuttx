@@ -258,7 +258,7 @@ int simuart_setoflag(int fd, unsigned int oflag)
  * Name: simuart_getspeed
  ****************************************************************************/
 
-int simuart_getspeed(int fd, unsigned int *speed)
+int simuart_getspeed(int fd, long unsigned int *speed)
 {
   struct termios t;
   int ret;
@@ -280,7 +280,7 @@ int simuart_getspeed(int fd, unsigned int *speed)
  * Name: simuart_setspeed
  ****************************************************************************/
 
-int simuart_setspeed(int fd, unsigned int speed)
+int simuart_setspeed(int fd, long unsigned int speed)
 {
   struct termios t;
   int ret;
