@@ -443,6 +443,16 @@ endif
 
 menu "Simulated UART"
 
+config SIM_UART_RXDMA
+	bool "Simulated UART RXDMA"
+	default n
+	select SERIAL_RXDMA
+
+config SIM_UART_TXDMA
+	bool "Simulated UART TXDMA"
+	default n
+	select SERIAL_TXDMA
+
 config SIM_UART_NUMBER
 	int "Number of simulated UART ports"
 	default 0

@@ -200,7 +200,7 @@ void simuart_start(void);
 int  simuart_open(const char *pathname);
 void simuart_close(int fd);
 int  simuart_putc(int fd, int ch);
-int  simuart_dmasend(int fd, uint8_t *buff, size_t len);
+int  simuart_dmasend(int fd, char *buff, size_t len);
 int  simuart_getc(int fd);
 bool simuart_checkc(int fd);
 

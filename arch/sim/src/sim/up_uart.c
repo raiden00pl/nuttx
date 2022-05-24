@@ -84,6 +84,17 @@ static void tty_dma_send(struct uart_dev_s *dev);
  * Private Data
  ****************************************************************************/
 
+#if defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_RXTXDMA_OPS
+#elif !defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_TXDMA_OPS
+#elif defined(CONFIG_SIM_UART_RXDMA) && !defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_RXDMA_OPS
+#else
+#  define SERIAL_HAVE_NODMA_OPS
+#endif
+
+#ifdef SERIAL_HAVE_NODMA_OPS
 static const struct uart_ops_s g_tty_ops =
 {
   .setup          = tty_setup,
@@ -99,13 +110,70 @@ static const struct uart_ops_s g_tty_ops =
   .txint          = tty_txint,
   .txready        = tty_txready,
   .txempty        = tty_txempty,
-
-#ifdef CONFIG_SERIAL_TXDMA
-  .dmatxavail     = tty_dma_txavailable,
-  .dmasend        = tty_dma_send,
+};
 #endif
 
+#ifdef SERIAL_HAVE_TXDMA_OPS
+static const struct uart_ops_s g_tty_ops =
+{
+  .setup          = tty_setup,
+  .shutdown       = tty_shutdown,
+  .attach         = tty_attach,
+  .detach         = tty_detach,
+  .ioctl          = tty_ioctl,
+  .receive        = tty_receive,
+  .rxint          = tty_rxint,
+  .rxavailable    = tty_rxavailable,
+  .rxflowcontrol  = tty_rxflowcontrol,
+  .send           = tty_send,
+  .txint          = tty_txint,
+  .txready        = tty_txready,
+  .txempty        = tty_txempty,
+  .dmatxavail     = tty_dma_txavailable,
+  .dmasend        = tty_dma_send,
 };
+#endif
+
+#ifdef SERIAL_HAVE_RXDMA_OPS
+static const struct uart_ops_s g_tty_ops =
+{
+  .setup          = tty_setup,
+  .shutdown       = tty_shutdown,
+  .attach         = tty_attach,
+  .detach         = tty_detach,
+  .ioctl          = tty_ioctl,
+  .receive        = tty_dma_receive,
+  .rxint          = tty_rxint,
+  .rxavailable    = tty_rxavailable,
+  .rxflowcontrol  = tty_rxflowcontrol,
+  .send           = tty_send,
+  .txint          = tty_txint,
+  .txready        = tty_txready,
+  .txempty        = tty_txempty,
+};
+#endif
+
+#ifdef SERIAL_HAVE_RXTXDMA_OPS
+static const struct uart_ops_s g_tty_ops =
+{
+  .setup          = tty_setup,
+  .shutdown       = tty_shutdown,
+  .attach         = tty_attach,
+  .detach         = tty_detach,
+  .ioctl          = tty_ioctl,
+  .receive        = tty_dma_receive,
+  .rxint          = tty_rxint,
+  .rxavailable    = tty_rxavailable,
+  .rxflowcontrol  = tty_rxflowcontrol,
+  .send           = tty_send,
+  .txint          = tty_txint,
+  .txready        = tty_txready,
+  .txempty        = tty_txempty,
+  .dmatxavail     = tty_dma_txavailable,
+  .dmasend        = tty_dma_send,
+};
+#endif
+
 #endif
 
 #ifdef USE_DEVCONSOLE
@@ -432,6 +500,18 @@ static int tty_receive(struct uart_dev_s *dev, uint32_t *status)
 {
   struct tty_priv_s *priv = dev->priv;
 
+  *status = 0;
+  return simuart_getc(dev->isconsole ? 0 : priv->fd);
+}
+
+/****************************************************************************
+ * Name: tty_dma_receive
+ ****************************************************************************/
+
+static int tty_dma_receive(struct uart_dev_s *dev, uint32_t *status)
+{
+  struct tty_priv_s *priv = dev->priv;
+#warning TODO
   *status = 0;
   return simuart_getc(dev->isconsole ? 0 : priv->fd);
 }

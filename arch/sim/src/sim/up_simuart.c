@@ -144,7 +144,7 @@ int simuart_putc(int fd, int ch)
  * Name: simuart_dmasend
  ****************************************************************************/
 
-int simuart_dmasend(int fd, uint8_t *buff, size_t len)
+int simuart_dmasend(int fd, char *buff, size_t len)
 {
   return write(fd, buff, len);
 }
