@@ -80,6 +80,10 @@ static void tty_dma_txavailable(struct uart_dev_s *dev);
 static void tty_dma_send(struct uart_dev_s *dev);
 #endif
 
+#ifdef CONFIG_SERIAL_RXDMA
+static int tty_dma_receive(struct uart_dev_s *dev, uint32_t *status);
+#endif
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
