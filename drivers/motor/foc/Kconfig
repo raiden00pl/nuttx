@@ -34,22 +34,4 @@ config MOTOR_FOC_DUMMY
 	---help---
 		Build a simulated lower-half FOC device
 
-choice
-	prompt "FOC currents type"
-	default MOTOR_FOC_CURR_TYPE_INT32
-
-config MOTOR_FOC_CURR_TYPE_INT32
-	bool "FOC driver use int32_t for currents"
-
-endchoice # FOC currents type
-
-choice
-	prompt "FOC duty cycles type"
-	default MOTOR_FOC_DUTY_TYPE_INT32
-
-config MOTOR_FOC_DUTY_TYPE_UB16
-	bool "FOC driver use ub16_t for duty cycles"
-
-endchoice # FOC duty cycles type
-
 endif #MOTOR_FOC
