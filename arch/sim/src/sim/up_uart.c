@@ -40,6 +40,31 @@
   #define CONFIG_SIM_UART_BUFFER_SIZE 256
 #endif
 
+#warning configure buffer size from kconf
+#define RXDMA_BUFFER_SIZE 32
+
+#warning configure each uart separately
+
+#undef SERIAL_HAVE_RXDMA
+#if defined(CONFIG_SIM_UART_RXDMA)
+#  define SERIAL_HAVE_RXDMA
+#endif
+
+#undef SERIAL_HAVE_TXDMA
+#if defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_TXDMA
+#endif
+
+#if defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_RXTXDMA_OPS
+#elif !defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_TXDMA_OPS
+#elif defined(CONFIG_SIM_UART_RXDMA) && !defined(CONFIG_SIM_UART_TXDMA)
+#  define SERIAL_HAVE_RXDMA_OPS
+#else
+#  define SERIAL_HAVE_NODMA_OPS
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -53,7 +78,14 @@ struct tty_priv_s
   /* The file descriptor. It is returned by open */
 
   int             fd;
+
+#ifdef SERIAL_HAVE_RXDMA
+  char       *const rxdma;    /* Receive DMA buffer */
+  uint32_t          rxdmanext; /* Next byte in the DMA buffer to be read */
+  uint32_t          rxdmanextrx;  /* Next byte in the DMA buffer to be write */
+#endif
 };
+
 
 /****************************************************************************
  * Private Function Prototypes
@@ -81,22 +113,16 @@ static void tty_dma_send(struct uart_dev_s *dev);
 #endif
 
 #ifdef CONFIG_SERIAL_RXDMA
+static void tty_dma_rxint(struct uart_dev_s *dev, bool enable);
+static bool tty_dma_rxavailable(struct uart_dev_s *dev);
 static int tty_dma_receive(struct uart_dev_s *dev, uint32_t *status);
 #endif
+
+static void tty_uart_recvchars(struct uart_dev_s *dev);
 
 /****************************************************************************
  * Private Data
  ****************************************************************************/
-
-#if defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
-#  define SERIAL_HAVE_RXTXDMA_OPS
-#elif !defined(CONFIG_SIM_UART_RXDMA) && defined(CONFIG_SIM_UART_TXDMA)
-#  define SERIAL_HAVE_TXDMA_OPS
-#elif defined(CONFIG_SIM_UART_RXDMA) && !defined(CONFIG_SIM_UART_TXDMA)
-#  define SERIAL_HAVE_RXDMA_OPS
-#else
-#  define SERIAL_HAVE_NODMA_OPS
-#endif
 
 #ifdef SERIAL_HAVE_NODMA_OPS
 static const struct uart_ops_s g_tty_ops =
@@ -147,8 +173,8 @@ static const struct uart_ops_s g_tty_ops =
   .detach         = tty_detach,
   .ioctl          = tty_ioctl,
   .receive        = tty_dma_receive,
-  .rxint          = tty_rxint,
-  .rxavailable    = tty_rxavailable,
+  .rxint          = tty_dma_rxint,
+  .rxavailable    = tty_dma_rxavailable,
   .rxflowcontrol  = tty_rxflowcontrol,
   .send           = tty_send,
   .txint          = tty_txint,
@@ -166,8 +192,8 @@ static const struct uart_ops_s g_tty_ops =
   .detach         = tty_detach,
   .ioctl          = tty_ioctl,
   .receive        = tty_dma_receive,
-  .rxint          = tty_rxint,
-  .rxavailable    = tty_rxavailable,
+  .rxint          = tty_dma_rxint,
+  .rxavailable    = tty_dma_rxavailable,
   .rxflowcontrol  = tty_rxflowcontrol,
   .send           = tty_send,
   .txint          = tty_txint,
@@ -183,32 +209,58 @@ static const struct uart_ops_s g_tty_ops =
 #ifdef USE_DEVCONSOLE
 static char g_console_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_console_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
+#ifdef SERIAL_HAVE_RXDMA
+static char g_console_rxdma[RXDMA_BUFFER_SIZE];
+#endif
 #endif
 
 #ifdef CONFIG_SIM_UART0_NAME
 static char g_tty0_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty0_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
+#ifdef SERIAL_HAVE_RXDMA
+static char g_tty0_rxdma[RXDMA_BUFFER_SIZE];
+#endif
 #endif
 
 #ifdef CONFIG_SIM_UART1_NAME
 static char g_tty1_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty1_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
+#ifdef SERIAL_HAVE_RXDMA
+static char g_tty1_rxdma[RXDMA_BUFFER_SIZE];
+#endif
 #endif
 
 #ifdef CONFIG_SIM_UART2_NAME
 static char g_tty2_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty2_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
+#ifdef SERIAL_HAVE_RXDMA
+static char g_tty2_rxdma[RXDMA_BUFFER_SIZE];
+#endif
 #endif
 
 #ifdef CONFIG_SIM_UART3_NAME
 static char g_tty3_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty3_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
+#ifdef SERIAL_HAVE_RXDMA
+static char g_tty3_rxdma[RXDMA_BUFFER_SIZE];
+#endif
 #endif
 
 #ifdef USE_DEVCONSOLE
+
+#ifdef SERIAL_HAVE_RXDMA
+static struct tty_priv_s g_console_priv =
+{
+  .rxdma         = g_console_rxdma
+};
+#endif
+
 static struct uart_dev_s g_console_dev =
 {
   .isconsole      = true,
+#ifdef SERIAL_HAVE_RXDMA
+  .priv           = &g_console_priv,
+#endif
   .ops            = &g_tty_ops,
   .xmit =
   {
@@ -228,6 +280,9 @@ static struct tty_priv_s g_tty0_priv =
 {
   .path           = CONFIG_SIM_UART0_NAME,
   .fd             = -1,
+#ifdef SERIAL_HAVE_RXDMA
+  .rxdma         = g_tty0_rxdma
+#endif
 };
 
 static struct uart_dev_s g_tty0_dev =
@@ -346,6 +401,11 @@ static int tty_setup(struct uart_dev_s *dev)
           return priv->fd;
         }
     }
+
+#ifdef CONFIG_SERIAL_RXDMA
+  priv->rxdmanext   = 0;
+  priv->rxdmanextrx = 0;
+#endif
 
   return OK;
 }
@@ -514,10 +574,22 @@ static int tty_receive(struct uart_dev_s *dev, uint32_t *status)
 
 static int tty_dma_receive(struct uart_dev_s *dev, uint32_t *status)
 {
-  struct tty_priv_s *priv = dev->priv;
-#warning TODO
-  *status = 0;
-  return simuart_getc(dev->isconsole ? 0 : priv->fd);
+  struct tty_priv_s *priv = (struct tty_priv_s *)dev->priv;
+  int c = 0;
+
+  if (priv->rxdmanextrx > 0)
+    {
+      c = priv->rxdma[priv->rxdmanext];
+
+      priv->rxdmanext++;
+      if (priv->rxdmanext == priv->rxdmanextrx)
+        {
+          priv->rxdmanext   = 0;
+          priv->rxdmanextrx = 0;
+        }
+    }
+
+  return c;
 }
 
 /****************************************************************************
@@ -531,6 +603,20 @@ static int tty_dma_receive(struct uart_dev_s *dev, uint32_t *status)
 static void tty_rxint(struct uart_dev_s *dev, bool enable)
 {
 }
+
+#ifdef CONFIG_SERIAL_RXDMA
+/****************************************************************************
+ * Name: tty_dma_rxint
+ *
+ * Description:
+ *   Call to enable or disable RX interrupts
+ *
+ ****************************************************************************/
+
+static void tty_dma_rxint(struct uart_dev_s *dev, bool enable)
+{
+}
+#endif
 
 /****************************************************************************
  * Name: tty_rxavailable
@@ -546,6 +632,23 @@ static bool tty_rxavailable(struct uart_dev_s *dev)
 
   return simuart_checkc(dev->isconsole ? 0 : priv->fd);
 }
+
+#ifdef CONFIG_SERIAL_RXDMA
+/****************************************************************************
+ * Name: tty_dma_rxavailable
+ *
+ * Description:
+ *   Return true if the receive fifo is not empty
+ *
+ ****************************************************************************/
+
+static bool tty_dma_rxavailable(struct uart_dev_s *dev)
+{
+  struct tty_priv_s *priv = dev->priv;
+
+  return (priv->rxdmanextrx > 0);
+}
+#endif
 
 /****************************************************************************
  * Name: tty_rxflowcontrol
@@ -639,7 +742,7 @@ static bool tty_txempty(struct uart_dev_s *dev)
   return true;
 }
 
-#  ifdef CONFIG_SERIAL_TXDMA
+#ifdef CONFIG_SERIAL_TXDMA
 
 static void tty_dma_txavailable(struct uart_dev_s *dev)
 {
@@ -662,7 +765,30 @@ static void tty_dma_send(struct uart_dev_s *dev)
 
   uart_xmitchars_done(dev);
 }
-#  endif
+#endif
+
+static void tty_uart_recvchars(struct uart_dev_s *dev)
+{
+#ifdef CONFIG_SIM_UART_RXDMA
+  struct tty_priv_s *priv = dev->priv;
+  int ret = OK;
+
+  /*  */
+
+  ret = simuart_dmaread(dev->isconsole ? 0 : priv->fd,
+                        priv->rxdma,
+                        RXDMA_BUFFER_SIZE);
+
+  if (ret > 0)
+    {
+      priv->rxdmanextrx = ret;
+    }
+
+#endif
+
+  uart_recvchars(dev);
+
+}
 
 #endif
 
@@ -712,35 +838,35 @@ void up_uartloop(void)
 #ifdef USE_DEVCONSOLE
   if (simuart_checkc(0))
     {
-      uart_recvchars(&g_console_dev);
+      tty_uart_recvchars(&g_console_dev);
     }
 #endif
 
 #ifdef CONFIG_SIM_UART0_NAME
   if (g_tty0_priv.fd > 0 && simuart_checkc(g_tty0_priv.fd))
     {
-      uart_recvchars(&g_tty0_dev);
+      tty_uart_recvchars(&g_tty0_dev);
     }
 #endif
 
 #ifdef CONFIG_SIM_UART1_NAME
   if (g_tty1_priv.fd > 0 && simuart_checkc(g_tty1_priv.fd))
     {
-      uart_recvchars(&g_tty1_dev);
+      tty_uart_recvchars(&g_tty1_dev);
     }
 #endif
 
 #ifdef CONFIG_SIM_UART2_NAME
   if (g_tty2_priv.fd > 0 && simuart_checkc(g_tty2_priv.fd))
     {
-      uart_recvchars(&g_tty2_dev);
+      tty_uart_recvchars(&g_tty2_dev);
     }
 #endif
 
 #ifdef CONFIG_SIM_UART3_NAME
   if (g_tty3_priv.fd > 0 && simuart_checkc(g_tty3_priv.fd))
     {
-      uart_recvchars(&g_tty3_dev);
+      tty_uart_recvchars(&g_tty3_dev);
     }
 #endif
 }

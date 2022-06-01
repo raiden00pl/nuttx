@@ -146,7 +146,13 @@ int simuart_putc(int fd, int ch)
 
 int simuart_dmasend(int fd, char *buff, size_t len)
 {
-  return write(fd, buff, len);
+  int ret = 0;
+
+  ret = write(fd, buff, len);
+
+  tcdrain(fd);
+
+  return ret;
 }
 
 /****************************************************************************
@@ -160,6 +166,15 @@ int simuart_getc(int fd)
 
   ret = read(fd, &ch, 1);
   return ret < 0 ? ret : ch;
+}
+
+/****************************************************************************
+ * Name: simuart_dmaread
+ ****************************************************************************/
+
+int simuart_dmaread(int fd, char *buff, size_t len)
+{
+  return read(fd, buff, len);
 }
 
 /****************************************************************************

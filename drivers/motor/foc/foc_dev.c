@@ -837,6 +837,10 @@ int foc_register(FAR const char *path, FAR struct foc_dev_s *dev)
       goto errout;
     }
 
+  /*  */
+
+  dev->info.phases = CONFIG_MOTOR_FOC_PHASES;
+
   /* Initialize semaphores */
 
   nxsem_init(&dev->closesem, 0, 1);
