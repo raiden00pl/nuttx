@@ -453,6 +453,14 @@ config SIM_UART_TXDMA
 	default n
 	select SERIAL_TXDMA
 
+if SIM_UART_RXDMA
+
+config SIM_UART_RXDMA_BUFFER_SIZE
+	int "Simulated UART RX DMA buffer size"
+	default 32
+
+endif #SIM_UART_RXDMA
+
 config SIM_UART_NUMBER
 	int "Number of simulated UART ports"
 	default 0

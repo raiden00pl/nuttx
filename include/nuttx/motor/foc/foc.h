@@ -105,7 +105,6 @@ struct foc_hw_config_s
 struct foc_info_s
 {
   struct foc_hw_config_s hw_cfg; /* Hardware specific configuration */
-  uint8_t                phases;
 };
 
 /* FOC device upper-half */

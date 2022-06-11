@@ -40,9 +40,6 @@
   #define CONFIG_SIM_UART_BUFFER_SIZE 256
 #endif
 
-#warning configure buffer size from kconf
-#define RXDMA_BUFFER_SIZE 32
-
 #warning configure each uart separately
 
 #undef SERIAL_HAVE_RXDMA
@@ -210,7 +207,7 @@ static const struct uart_ops_s g_tty_ops =
 static char g_console_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_console_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 #ifdef SERIAL_HAVE_RXDMA
-static char g_console_rxdma[RXDMA_BUFFER_SIZE];
+static char g_console_rxdma[CONFIG_SIM_UART_RXDMA_BUFFER_SIZE];
 #endif
 #endif
 
@@ -218,7 +215,7 @@ static char g_console_rxdma[RXDMA_BUFFER_SIZE];
 static char g_tty0_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty0_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 #ifdef SERIAL_HAVE_RXDMA
-static char g_tty0_rxdma[RXDMA_BUFFER_SIZE];
+static char g_tty0_rxdma[CONFIG_SIM_UART_RXDMA_BUFFER_SIZE];
 #endif
 #endif
 
@@ -226,7 +223,7 @@ static char g_tty0_rxdma[RXDMA_BUFFER_SIZE];
 static char g_tty1_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty1_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 #ifdef SERIAL_HAVE_RXDMA
-static char g_tty1_rxdma[RXDMA_BUFFER_SIZE];
+static char g_tty1_rxdma[CONFIG_SIM_UART_RXDMA_BUFFER_SIZE];
 #endif
 #endif
 
@@ -234,7 +231,7 @@ static char g_tty1_rxdma[RXDMA_BUFFER_SIZE];
 static char g_tty2_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty2_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 #ifdef SERIAL_HAVE_RXDMA
-static char g_tty2_rxdma[RXDMA_BUFFER_SIZE];
+static char g_tty2_rxdma[CONFIG_SIM_UART_RXDMA_BUFFER_SIZE];
 #endif
 #endif
 
@@ -242,7 +239,7 @@ static char g_tty2_rxdma[RXDMA_BUFFER_SIZE];
 static char g_tty3_rxbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 static char g_tty3_txbuf[CONFIG_SIM_UART_BUFFER_SIZE];
 #ifdef SERIAL_HAVE_RXDMA
-static char g_tty3_rxdma[RXDMA_BUFFER_SIZE];
+static char g_tty3_rxdma[CONFIG_SIM_UART_RXDMA_BUFFER_SIZE];
 #endif
 #endif
 
@@ -777,7 +774,7 @@ static void tty_uart_recvchars(struct uart_dev_s *dev)
 
   ret = simuart_dmaread(dev->isconsole ? 0 : priv->fd,
                         priv->rxdma,
-                        RXDMA_BUFFER_SIZE);
+                        CONFIG_SIM_UART_RXDMA_BUFFER_SIZE);
 
   if (ret > 0)
     {
