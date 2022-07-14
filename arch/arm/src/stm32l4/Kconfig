@@ -5911,6 +5911,30 @@ config STM32L4_SPI3_DMA
 	---help---
 		Use DMA to improve SPI3 transfer performance.  Cannot be used with STM32L4_SPI_INTERRUPT.
 
+config STM32L4_SPI1_COMMTYPE
+	int "SPI1 Operation mode"
+	default 0
+	range 0 3
+	depends on STM32L4_SPI1
+	---help---
+		Select full-duplex (0), simplex tx (1), simplex rx (2) or half-duplex (3)
+
+config STM32L4_SPI2_COMMTYPE
+	int "SPI2 Operation mode"
+	default 0
+	range 0 3
+	depends on STM32L4_SPI2
+	---help---
+		Select full-duplex (0), simplex tx (1), simplex rx (2) or half-duplex (3)
+
+config STM32L4_SPI3_COMMTYPE
+	int "SPI3 Operation mode"
+	default 0
+	range 0 3
+	depends on STM32L4_SPI3
+	---help---
+		Select full-duplex (0), simplex tx (1), simplex rx (2) or half-duplex (3)
+
 endmenu
 
 menu "I2C Configuration"
