@@ -102,4 +102,17 @@ int stm32l4_bringup(void);
 void weak_function stm32l4_usbinitialize(void);
 #endif
 
+/****************************************************************************
+ * Name: stm32_spidev_initialize
+ *
+ * Description:
+ *   Called to configure SPI chip select GPIO pins for the STEVAL-STLCS01V1
+ *   board.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32L4_SPI
+void stm32l4_spidev_initialize(void);
+#endif
+
 #endif /* __BOARDS_ARM_STM32L4_STEVAL_STLCS01V1_SRC_STEVAL_STLCS01V1_H */

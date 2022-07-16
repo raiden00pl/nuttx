@@ -578,11 +578,45 @@ config SENSORS_LSM303AGR
 	---help---
 		Enable driver support for the STMicro LSM303AGR.
 
+choice
+	prompt "LSM303AGR Interface"
+	default SENSORS_LSM303AGR_I2C
+	depends on SENSORS_LSM303AGR
+
+config SENSORS_LSM303AGR_I2C
+	bool "LSM303AGR I2C Interface"
+	select I2C
+	---help---
+		Enables support for the I2C interface
+
+config SENSORS_LSM303AGR_SPI
+	bool "LSM303AGR SPI Interface"
+	select SPI
+	---help---
+		Enables support for the SPI interface
+
+endchoice
+
+if SENSORS_LSM303AGR_SPI
+
+config LSM303AGR_SPI_FREQUENCY
+	int "LSM303AGR I2C frequency"
+	default 1000000
+
+config LSM303AGR_SPI_3WIRE
+	bool "LSM303AGR SPI 3-wire mode"
+	default n
+
+endif #SENSORS_LSM303AGR_SPI
+
+if SENSORS_LSM303AGR_I2C
+
 config LSM303AGR_I2C_FREQUENCY
 	int "LSM303AGR I2C frequency"
 	default 400000
 	range 1 400000
-	depends on SENSORS_LSM303AGR
+
+endif # SENSORS_LSM303AGR_I2C
 
 config SENSORS_LSM6DSL
 	bool "STMicro LSM6DSL support"
@@ -647,6 +681,46 @@ config LSM9DS1_I2C_FREQUENCY
 	default 400000
 	range 1 400000
 	depends on SENSORS_LSM9DS1 || SENSORS_LSM9DS1_UORB
+
+config SENSORS_LPS22H
+	bool "LPS22H Barometric Pressure Sensor support"
+	default n
+	---help---
+		Enable driver support for ST LPS22H barometer.
+
+if SENSORS_LPS22H
+
+choice
+	prompt "LPS22H Interface"
+	default SENSORS_LPS22H_I2C
+
+config SENSORS_LPS22H_I2C
+	bool "LPS22H I2C Interface"
+	select I2C
+	---help---
+		Enables support for the I2C interface
+
+config SENSORS_LPS22H_SPI
+	bool "LPS22H SPI Interface"
+	select SPI
+	---help---
+		Enables support for the SPI interface.
+
+endchoice
+
+if SENSORS_LPS22H_SPI
+
+config LPS22H_SPI_FREQUENCY
+	int "LPS22H SPI frequency"
+	default 1000000
+
+config LPS22H_SPI_3WIRE
+	bool "LPS22H SPI 3-wire mode"
+	default n
+
+endif #SENSORS_LPS22H_SPI
+
+endif #SENSORS_LPS22H
 
 config SENSORS_LPS25H
 	bool "STMicro LPS25H pressure sensor"

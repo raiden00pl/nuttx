@@ -57,18 +57,11 @@
 #include <nuttx/random.h>
 #include <nuttx/signal.h>
 #include <nuttx/fs/fs.h>
+#include <nuttx/spi/spi.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sensors/lsm303agr.h>
 
-#if defined(CONFIG_I2C) && defined(CONFIG_SENSORS_LSM303AGR)
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#ifndef CONFIG_LSM303AGR_I2C_FREQUENCY
-#  define CONFIG_LSM303AGR_I2C_FREQUENCY 400000
-#endif
+#ifdef CONFIG_SENSORS_LSM303AGR
 
 /****************************************************************************
  * Private Function Prototypes
@@ -146,6 +139,25 @@ static const struct lsm303agr_ops_s g_lsm303agrsensor_ops =
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: bmi160_configspi
+ *
+ * Description:
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SENSORS_LSM303AGR_SPI
+static inline void lsm303agr_configspi(FAR struct spi_dev_s *spi)
+{
+  /* Configure SPI for the LSM303AGR */
+
+  SPI_SETMODE(spi, SPIDEV_MODE3);
+  SPI_SETBITS(spi, 8);
+  SPI_HWFEATURES(spi, 0);
+  SPI_SETFREQUENCY(spi, CONFIG_LSM303AGR_SPI_FREQUENCY);
+}
+#endif
+
+/****************************************************************************
  * Name: lsm303agr_resetsensor
  *
  * Description:
@@ -173,6 +185,7 @@ static void lsm303agr_resetsensor(FAR struct lsm303agr_dev_s *priv)
  *
  ****************************************************************************/
 
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
 static int lsm303agr_readreg8(FAR struct lsm303agr_dev_s *priv,
                               uint8_t regaddr, FAR uint8_t * regval)
 {
@@ -211,6 +224,44 @@ static int lsm303agr_readreg8(FAR struct lsm303agr_dev_s *priv,
   sninfo("addr: %02x value: %02x\n", regaddr, *regval);
   return OK;
 }
+#else
+static int lsm303agr_readreg8(FAR struct lsm303agr_dev_s *priv,
+                              uint8_t regaddr, FAR uint8_t * regval)
+{
+  int spidev = 0;
+
+  if (priv->datareg == LSM303AGRACCELERO_ADDR)
+    {
+      spidev = SPIDEV_ACCELEROMETER(0);
+    }
+  else
+    {
+      spidev = SPIDEV_MAGNETOMETER(0);
+    }
+
+  /* If SPI bus is shared then lock and configure it */
+
+  SPI_LOCK(priv->spi, true);
+  lsm303agr_configspi(priv->spi);
+
+  /* Select the LSM303AGR */
+
+  SPI_SELECT(priv->spi, spidev, true);
+
+  /* Send register to read and get the next byte */
+
+  SPI_SEND(priv->spi, regaddr | 0x80);
+  SPI_RECVBLOCK(priv->spi, &regval, 1);
+
+  /* Deselect the LSM303AGR */
+
+  SPI_SELECT(priv->spi, spidev, false);
+
+  /* Unlock bus */
+
+  SPI_LOCK(priv->spi, false);
+}
+#endif
 
 /****************************************************************************
  * Name: lsm303agr_writereg8
@@ -220,6 +271,7 @@ static int lsm303agr_readreg8(FAR struct lsm303agr_dev_s *priv,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
 static int lsm303agr_writereg8(FAR struct lsm303agr_dev_s *priv,
                                uint8_t regaddr, uint8_t regval)
 {
@@ -254,6 +306,44 @@ static int lsm303agr_writereg8(FAR struct lsm303agr_dev_s *priv,
   sninfo("addr: %02x value: %02x\n", regaddr, regval);
   return OK;
 }
+#else
+static int lsm303agr_writereg8(FAR struct lsm303agr_dev_s *priv,
+                               uint8_t regaddr, uint8_t regval)
+{
+  int spidev = 0;
+
+  if (priv->datareg == LSM303AGRACCELERO_ADDR)
+    {
+      spidev = SPIDEV_ACCELEROMETER(0);
+    }
+  else
+    {
+      spidev = SPIDEV_MAGNETOMETER(0);
+    }
+
+  /* If SPI bus is shared then lock and configure it */
+
+  SPI_LOCK(priv->spi, true);
+  lsm303agr_configspi(priv->spi);
+
+  /* Select the LSM303AGR */
+
+  SPI_SELECT(priv->spi, spidev, true);
+
+  /* Send register address and set the value */
+
+  SPI_SEND(priv->spi, regaddr);
+  SPI_SEND(priv->spi, regval);
+
+  /* Deselect the LSM303AGR */
+
+  SPI_SELECT(priv->spi, spidev, false);
+
+  /* Unlock bus */
+
+  SPI_LOCK(priv->spi, false);
+}
+#endif
 
 /****************************************************************************
  * Name: lsm303agr_find_minimum
@@ -1149,12 +1239,21 @@ static int lsm303agr_ioctl(FAR struct file *filep, int cmd,
  *
  ****************************************************************************/
 
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
 static int lsm303agr_register(FAR const char *devpath,
-                              FAR struct i2c_master_s *i2c,
+                              FAR struct i2c_master_s *dev,
                               uint8_t addr,
                               FAR const struct lsm303agr_ops_s *ops,
                               uint8_t datareg,
                               struct lsm303agr_sensor_data_s sensor_data)
+#else
+static int lsm303agr_register(FAR const char *devpath,
+                              FAR FAR struct spi_dev_s *dev,
+                              uint8_t addr,
+                              FAR const struct lsm303agr_ops_s *ops,
+                              uint8_t datareg,
+                              struct lsm303agr_sensor_data_s sensor_data)
+#endif
 {
   FAR struct lsm303agr_dev_s *priv;
   int ret;
@@ -1162,7 +1261,7 @@ static int lsm303agr_register(FAR const char *devpath,
   /* Sanity check */
 
   DEBUGASSERT(devpath != NULL);
-  DEBUGASSERT(i2c != NULL);
+  DEBUGASSERT(dev != NULL);
   DEBUGASSERT(datareg == LSM303AGR_OUTX_L_A_SHIFT ||
               datareg == LSM303AGR_OUTX_L_M_SHIFT);
 
@@ -1175,11 +1274,25 @@ static int lsm303agr_register(FAR const char *devpath,
       return -ENOMEM;
     }
 
-  priv->i2c = i2c;
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
+  DEBUGASSERT(addr == LSM303AGRACCELERO_ADDR ||
+              addr == LSM303AGRMAGNETO_ADDR);
+
+  priv->i2c = dev;
   priv->addr = addr;
+#else /* CONFIG_SENSORS_LSM303AGR_SPI */
+  priv->spi = dev;
+#endif
+
   priv->ops = ops;
   priv->datareg = datareg;
   priv->sensor_data = sensor_data;
+
+#ifdef CONFIG_LSM303AGR_SPI_3WIRE
+  /* Enable SPI 3-wire interface */
+
+  lsm303agr_writereg8(priv, LSM303AGR_CTRL_REG4_A, 0);
+#endif
 
   /* Configure the device */
 
@@ -1217,26 +1330,32 @@ static int lsm303agr_register(FAR const char *devpath,
  * Input Parameters:
  *   devpath - The full path to the driver to register,
  *             e.g. "/dev/lsm303agr0".
- *   i2c     - An I2C driver instance.
+ *   dev     - An I2C/SPI driver instance.
  *   addr    - The I2C address of the LSM303AGR accelerometer.
+ *             Not used in SPI mode.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
 int lsm303agr_sensor_register(FAR const char *devpath,
-                              FAR struct i2c_master_s *i2c, uint8_t addr)
+                              FAR struct i2c_master_s *dev,
+                              FAR struct lsm303agr_acc_config_s *acc_cfg,
+                              FAR struct lsm303agr_mag_config_s *mag_cfg)
+#else
+int lsm303agr_sensor_register(FAR const char *devpath,
+                              FAR struct spi_dev_s *dev,
+                              FAR struct lsm303agr_acc_config_s *acc_cfg,
+                              FAR struct lsm303agr_mag_config_s *mag_cfg)
+#endif
 {
   struct lsm303agr_sensor_data_s sensor_data;
 
-  DEBUGASSERT(addr == LSM303AGRACCELERO_ADDR ||
-              addr == LSM303AGRMAGNETO_ADDR);
-
   sninfo("Trying to register accel\n");
 
-  return lsm303agr_register(devpath, i2c, addr, &g_lsm303agrsensor_ops,
+  return lsm303agr_register(devpath, dev, addr, &g_lsm303agrsensor_ops,
                             LSM303AGR_OUTX_L_A_SHIFT, sensor_data);
 }
-
-#endif /* CONFIG_I2C && CONFIG_SENSORS_LSM303AGR */
+#endif /* CONFIG_SENSORS_LSM303AGR */

@@ -166,10 +166,29 @@ struct lsm303agr_ops_s
                        uint32_t mode);
 };
 
+
+struct lsm303agr_mag_config_s
+{
+#ifdef CONFIG_SENSORS_LSM303AGR_SPI
+  int spi_devid;
+#endif
+};
+
+struct lsm303agr_acc_config_s
+{
+#ifdef CONFIG_SENSORS_LSM303AGR_SPI
+  int spi_devid;
+#endif
+};
+
 struct lsm303agr_dev_s
 {
+#ifdef CONFIG_SENSORS_LSM303AGR_I2C
   FAR struct i2c_master_s          *i2c;  /* I2C interface */
   uint8_t                           addr; /* I2C address */
+#else /* CONFIG_SENSORS_LSM303AGR_SPI */
+  FAR struct spi_dev_s             *spi; /* SPI interface */
+  #endif
 
   FAR const struct lsm303agr_ops_s *ops;
 

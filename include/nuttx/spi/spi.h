@@ -466,6 +466,8 @@
 #define SPIDEV_AUDIO_CTRL(n)    SPIDEV_ID(SPIDEVTYPE_AUDIO_CTRL,    (n))
 #define SPIDEV_EEPROM(n)        SPIDEV_ID(SPIDEVTYPE_EEPROM,        (n))
 #define SPIDEV_ACCELEROMETER(n) SPIDEV_ID(SPIDEVTYPE_ACCELEROMETER, (n))
+#define SPIDEV_MAGNETOMETER(n)  SPIDEV_ID(SPIDEVTYPE_MAGNETOMETER,  (n))
+#define SPIDEV_GYROSCOPE(n)     SPIDEV_ID(SPIDEVTYPE_GYROSCOPE,  (n))
 #define SPIDEV_BAROMETER(n)     SPIDEV_ID(SPIDEVTYPE_BAROMETER,     (n))
 #define SPIDEV_TEMPERATURE(n)   SPIDEV_ID(SPIDEVTYPE_TEMPERATURE,   (n))
 #define SPIDEV_IEEE802154(n)    SPIDEV_ID(SPIDEVTYPE_IEEE802154,    (n))
@@ -507,6 +509,8 @@ enum spi_devtype_e
   SPIDEVTYPE_AUDIO_CTRL,    /* Select SPI audio codec device control port */
   SPIDEVTYPE_EEPROM,        /* Select SPI EEPROM device */
   SPIDEVTYPE_ACCELEROMETER, /* Select SPI Accelerometer device */
+  SPIDEVTYPE_MAGNETOMETER,  /* Select SPI Magnetometer device */
+  SPIDEVTYPE_GYROSCOPE,     /* Select SPI Gyroscope device */
   SPIDEVTYPE_BAROMETER,     /* Select SPI Pressure/Barometer device */
   SPIDEVTYPE_TEMPERATURE,   /* Select SPI Temperature sensor device */
   SPIDEVTYPE_IEEE802154,    /* Select SPI IEEE 802.15.4 wireless device */

@@ -26,12 +26,20 @@ ifeq ($(CONFIG_ARCH_LEDS),y)
 CSRCS += stm32_autoleds.c
 endif
 
+ifeq ($(CONFIG_STM32L4_SPI),y)
+CSRCS += stm32_spi.c
+endif
+
 ifeq ($(CONFIG_BOARDCTL),y)
 CSRCS += stm32_appinit.c
 endif
 
 ifeq ($(CONFIG_STM32L4_OTGFS),y)
 CSRCS += stm32_usb.c
+endif
+
+ifeq ($(CONFIG_SENSORS_LPS22H),y)
+CSRCS += stm32_lps22h.c
 endif
 
 include $(TOPDIR)/boards/Board.mk

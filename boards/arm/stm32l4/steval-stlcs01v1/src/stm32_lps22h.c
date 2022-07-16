@@ -1,5 +1,6 @@
+
 /****************************************************************************
- * boards/arm/stm32l4/steval-stlcs01v1/src/stm32_bringup.c
+ * boards/arm/stm32l4/steval-stlcs01v1/src/stm32_lps22h.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -26,40 +27,56 @@
 #include <nuttx/config.h>
 
 #include <debug.h>
-
+#include <errno.h>
 #include <sys/types.h>
 
+#include <nuttx/spi/spi.h>
+#include <nuttx/sensors/lps22h.h>
+
 #include <arch/board/board.h>
+
+#include "stm32l4_spi.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifndef CONFIG_SENSORS_LPS22H_SPI
+#  error
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32l4_bringup
- *
- * Description:
- *   Perform architecture-specific initialization
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y :
- *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
- *
+ * Name: stm32l4_lps22h_initialize
  ****************************************************************************/
 
-int stm32l4_bringup(void)
+int stm32l4_lps22h_initialize(void)
 {
+  struct spi_dev_s *spi = NULL;
   int ret = OK;
 
-#ifdef CONFIG_SENSORS_LPS22H
-  ret = stm32l4_lps22h_initialize("/dev/lps22h0");
+  sninfo("INFO: Initializing LPS22H sensor over SPI\n");
+
+  /* Get SPI bus */
+
+  spi = stm32l4_spibus_initialize(2);
+  if (spi == NULL)
+    {
+      ret = -ENODEV;
+      goto errout;
+    }
+
+  /* Register LPS22H sensor */
+
+  ret = lps22h_register("/dev/lps22h0", spi);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize lps22h: %d\n", ret);
+      serr("ERROR: Failed to initialize lps22h: %d\n", ret);
     }
-#endif
 
+errout:
   return ret;
 }
