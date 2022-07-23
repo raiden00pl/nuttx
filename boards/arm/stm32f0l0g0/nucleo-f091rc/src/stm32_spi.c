@@ -88,6 +88,8 @@ void stm32_spidev_initialize(void)
   stm32_gpiowrite(GPIO_SX127X_CS, true);
 #  endif
 
+  stm32_configgpio(GPIO_LPS22HB_CS);
+
 #endif /* CONFIG_STM32F0L0G0_SPI1 */
 }
 
@@ -123,6 +125,11 @@ void stm32_spi1select(struct spi_dev_s *dev,
 {
   spiinfo("devid: %d CS: %s\n",
           (int)devid, selected ? "assert" : "de-assert");
+
+  if (devid == SPIDEV_BAROMETER(0))
+    {
+      stm32_gpiowrite(GPIO_LPS22HB_CS, !selected);
+    }
 
   switch (devid)
     {

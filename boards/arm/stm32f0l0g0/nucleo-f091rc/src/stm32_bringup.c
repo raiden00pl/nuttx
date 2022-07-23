@@ -31,6 +31,10 @@
 
 #include "nucleo-f091rc.h"
 
+#include <nuttx/spi/spi.h>
+#include <nuttx/sensors/lps22h.h>
+#include "stm32_spi.h"
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -71,6 +75,26 @@ int stm32_bringup(void)
              ret);
     }
 #endif /* CONFIG_LPWAN_SX127X */
+
+
+  struct spi_dev_s *spi = NULL;
+
+  /* Get SPI bus */
+
+  spi = stm32_spibus_initialize(1);
+  if (spi == NULL)
+    {
+      return -ENODEV;
+    }
+
+  /* Register LPS22H sensor */
+
+  ret = lps22h_register("/dev/lps22h0", spi);
+  if (ret < 0)
+    {
+      serr("ERROR: Failed to initialize lps22h: %d\n", ret);
+    }
+
 
   UNUSED(ret);
   return OK;

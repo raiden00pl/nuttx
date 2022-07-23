@@ -88,6 +88,9 @@
 #define GPIO_SX127X_DIO0  (GPIO_INPUT | GPIO_FLOAT | GPIO_EXTI |  \
                            GPIO_PORTA | GPIO_PIN10)
 
+#define GPIO_LPS22HB_CS     (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_HIGH | \
+                             GPIO_OUTPUT_SET | GPIO_PORTA | GPIO_PIN10)
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
