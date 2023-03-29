@@ -1,0 +1,27 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+if ARCH_BOARD_OPENH743I
+
+choice
+	prompt "OPENH743I USART console selection"
+	default OPENH743I_CONSOLE_USART1
+
+config OPENH743I_CONSOLE_NONE
+	bool "No console"
+
+config OPENH743I_CONSOLE_USART1
+	bool "Console on USART1"
+	select STM32H7_USART1
+	select USART1_SERIAL_CONSOLE
+
+config OPENH743I_CONSOLE_USART3
+	bool "Console on USART3"
+	select STM32H7_USART3
+	select USART3_SERIAL_CONSOLE
+
+endchoice # OPENH743I USART selection
+ 
+endif # ARCH_BOARD_OPENH743I
