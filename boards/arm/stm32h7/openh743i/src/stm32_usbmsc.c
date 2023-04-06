@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/arm/stm32h7/openh743i/src/stm32_bringup.c
+ * boards/arm/stm32h7/openh743i/src/stm32_usbmsc.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -24,81 +24,47 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
+#include <stdio.h>
 #include <syslog.h>
 #include <errno.h>
 
-#include <arch/board/board.h>
-
-#include <nuttx/fs/fs.h>
-
-#ifdef CONFIG_RNDIS
-#  include <nuttx/usb/rndis.h>
-#endif
+#include <nuttx/board.h>
 
 #include "openh743i.h"
 
 /****************************************************************************
- * Private Functions
+ * Pre-processor Definitions
  ****************************************************************************/
+
+#if !defined(CONFIG_USBDEV_CUSTOM_TXFIFO_SIZE) && \
+  defined(CONFIG_USBDEV_DUALSPEED)
+#  error USBMSC high-speed require custom TXFIFO configuratin that set EPIN FIFO to >=512
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32_bringup
+ * Name: board_usbmsc_initialize
  *
  * Description:
- *   Perform architecture-specific initialization
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y :
- *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y &&
- *   CONFIG_NSH_ARCHINIT:
- *     Called from the NSH library
+ *   Perform architecture specific initialization as needed to establish
+ *   the mass storage device that will be exported by the USB MSC device.
  *
  ****************************************************************************/
 
-int stm32_bringup(void)
+int board_usbmsc_initialize(int port)
 {
-  int ret = OK;
+  /* If system/usbmsc is built as an NSH command, then SD slot should
+   * already have been initialized in board_app_initialize()
+   * (see stm32_appinit.c).
+   * In this case, there is nothing further to be done here.
+   */
 
-  UNUSED(ret);
-
-#ifdef CONFIG_FS_PROCFS
-  /* Mount the procfs file system */
-
-  ret = nx_mount(NULL, STM32_PROCFS_MOUNTPOINT, "procfs", 0, NULL);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to mount the PROC filesystem: %d\n",  ret);
-    }
-#endif /* CONFIG_FS_PROCFS */
-
-#if defined(CONFIG_RNDIS) && !defined(CONFIG_RNDIS_COMPOSITE)
-  uint8_t mac[6];
-  mac[0] = 0xa0; /* TODO */
-  mac[1] = (CONFIG_NETINIT_MACADDR_2 >> (8 * 0)) & 0xff;
-  mac[2] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 3)) & 0xff;
-  mac[3] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 2)) & 0xff;
-  mac[4] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 1)) & 0xff;
-  mac[5] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 0)) & 0xff;
-  usbdev_rndis_initialize(mac);
-#endif
-
-#if defined(CONFIG_STM32H7_SDMMC) && !defined(CONFIG_CDCACM_CONSOLE)
-  /* Initialize the SDIO block driver */
-
-  ret = stm32_sdio_initialize();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to initialize MMC/SD driver: %d\n", ret);
-    }
-#endif
-
+#ifndef CONFIG_NSH_BUILTIN_APPS
+  stm32_sdio_initialize();
+#else
   return OK;
+#endif
 }

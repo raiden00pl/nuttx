@@ -34,4 +34,12 @@ ifeq ($(CONFIG_USBDEV),y)
 CSRCS += stm32_usb.c
 endif
 
+ifeq ($(CONFIG_USBMSC),y)
+CSRCS += stm32_usbmsc.c
+endif
+
+ifeq ($(CONFIG_USBDEV_COMPOSITE),y)
+CSRCS += stm32_composite.c
+endif
+
 include $(TOPDIR)/boards/Board.mk
