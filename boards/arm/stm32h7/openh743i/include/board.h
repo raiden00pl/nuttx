@@ -274,6 +274,7 @@
 #define BOARD_FLASH_WAITSTATES 2
 #define BOARD_FLASH_PROGDELAY  3
 #define STM32_PWR_VOS_SCALE    PWR_D3CR_VOS_SCALE_1
+#define STM32_VOS_OVERDRIVE    1 /* Enable VOS0 */
 
 /* SDMMC definitions ********************************************************/
 
