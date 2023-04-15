@@ -30,6 +30,8 @@
 #include <syslog.h>
 #include <errno.h>
 
+#include "stm32_gpio.h"
+
 #include "steval-eth001v1.h"
 
 #include <nuttx/fs/fs.h>
@@ -86,6 +88,13 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: stm32_adc_setup failed: %d\n", ret);
     }
+#endif
+
+#ifdef CONFIG_STM32F7_USART6
+  /* Enable RS485 interface */
+
+  stm32_configgpio(GPIO_RS485_EN);
+  stm32_gpiowrite(GPIO_RS485_EN, true);
 #endif
 
   UNUSED(ret);  /* May not be used */
