@@ -36,6 +36,10 @@
 #  include <nuttx/usb/rndis.h>
 #endif
 
+#ifdef CONFIG_STM32H7_OTGFS
+#  include "stm32_usbhost.h"
+#endif
+
 #include "openh743i.h"
 
 /****************************************************************************
@@ -97,6 +101,21 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR,
              "ERROR: Failed to initialize MMC/SD driver: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_USBHOST
+  /* Initialize USB host operation.  stm32_usbhost_initialize()
+   * starts a thread will monitor for USB connection and
+   * disconnection events.
+   */
+
+  ret = stm32_usbhost_initialize();
+  if (ret != OK)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize USB host: %d\n",
+             ret);
     }
 #endif
 

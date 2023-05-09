@@ -32,6 +32,8 @@ endif
 
 ifeq ($(CONFIG_USBDEV),y)
 CSRCS += stm32_usb.c
+else ifeq ($(CONFIG_USBHOST),y)
+CSRCS += stm32_usb.c
 endif
 
 ifeq ($(CONFIG_USBMSC),y)

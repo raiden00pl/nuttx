@@ -50,6 +50,11 @@
 
 void stm32_boardinitialize(void)
 {
+#if defined(CONFIG_STM32H7_OTGFS_HOST) || defined(CONFIG_STM32H7_OTGHS_HOST)
+  /* Initialize USB */
+
+  stm32_usbinitialize();
+#endif
 }
 
 /****************************************************************************

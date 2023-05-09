@@ -61,6 +61,23 @@
 
 #define GPIO_ULPI_RESET (GPIO_OUTPUT|GPIO_PORTE|GPIO_PIN2|GPIO_OUTPUT_CLEAR)
 
+/* USB OTG FS
+ *
+ * PA9  OTG_FS_VBUS VBUS sensing (also connected to the green LED)
+ * PE2  OTG_FS_PowerSwitchOn
+ * PE3  OTG_FS_Overcurrent
+ */
+
+#define GPIO_OTGFS_VBUS   (GPIO_INPUT|GPIO_FLOAT|GPIO_SPEED_100MHz| \
+                           GPIO_OPENDRAIN|GPIO_PORTA|GPIO_PIN9)
+
+#define GPIO_OTGFS_PWRON  (GPIO_OUTPUT|GPIO_FLOAT|GPIO_SPEED_100MHz| \
+                           GPIO_PUSHPULL|GPIO_PORTE|GPIO_PIN2)
+
+#define GPIO_OTGFS_OVER   (GPIO_INPUT|GPIO_EXTI|GPIO_FLOAT| \
+                           GPIO_SPEED_100MHz|GPIO_PUSHPULL| \
+                           GPIO_PORTE|GPIO_PIN3)
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -91,6 +108,33 @@ int stm32_bringup(void);
 
 #ifdef CONFIG_STM32H7_SDMMC
 int stm32_sdio_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_usbinitialize
+ *
+ * Description:
+ *   Called from stm32_usbinitialize very early in inialization to setup
+ *   USB-related GPIO pins for the board.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32H7_OTGFS
+void weak_function stm32_usbinitialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_usbhost_initialize
+ *
+ * Description:
+ *   Called at application startup time to initialize the USB host
+ *   functionality. This function will start a thread that will monitor for
+ *   device connection/disconnection events.
+i *
+ ****************************************************************************/
+
+#ifdef CONFIG_USBHOST
+int stm32_usbhost_initialize(void);
 #endif
 
 #endif /* __BOARDS_ARM_STM32H7_OPENH743I_SRC_OPENH743I_H */
