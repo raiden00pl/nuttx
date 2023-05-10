@@ -136,6 +136,18 @@ config USBDEV_TRACE_INITIALIDSET
 
 endif # USBDEV_TRACE
 
+menuconfig USBDEV_CUSTOM_RXFIFO_SIZE
+	bool "Custom RX Fifo size"
+	default n
+	---help---
+		Enables custom RX Fifo size
+
+config USBDEV_RXFIFO_SIZE
+	int "USBDEV_RXFIFO_SIZE"
+	default 0
+
+endif # USBDEV_CUSTOM_RXFIFO_SIZE
+
 menuconfig USBDEV_CUSTOM_TXFIFO_SIZE
 	bool "Custom TX Fifo size"
 	default n
