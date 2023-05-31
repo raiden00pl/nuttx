@@ -206,6 +206,13 @@ config BH1750FVI_I2C_FREQUENCY
 	default 400000
 	depends on SENSORS_BH1750FVI
 
+config SENSORS_BME688
+	bool "Bosch BME688 Sensor support"
+	default n
+	select I2C
+	---help---
+		Enable driver support for the Bosch BME688 sensor.
+
 config SENSORS_BMG160
 	bool "Bosch BMG160 Gyroscope Sensor support"
 	default n
