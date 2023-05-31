@@ -596,6 +596,13 @@ config SENSORS_BME680_THREAD_STACKSIZE
 
 endif # SENSORS_BME680
 
+config SENSORS_CCS811
+	bool "Bosch CCS811 Gas Sensor"
+	default n
+	select I2C
+	---help---
+		Enable driver for the Bosch BMP280 barometric pressure sensor.
+
 config SENSORS_DHTXX
 	bool "DHTxx humidity/temperature Sensor support"
 	default n
