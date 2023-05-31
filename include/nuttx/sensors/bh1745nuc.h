@@ -47,6 +47,14 @@
  * Public Types
  ****************************************************************************/
 
+struct bh1745nuc_data_s
+{
+  uint16_t red;
+  uint16_t green;
+  uint16_t blue;
+  uint16_t clear;
+};
+
 struct i2c_master_s;
 
 /****************************************************************************
@@ -61,6 +69,7 @@ extern "C"
 #define EXTERN extern
 #endif
 
+#ifndef SENSORS_BH1745NUC_UORB
 /****************************************************************************
  * Name: bh1745nuc_init
  *
@@ -99,6 +108,27 @@ int bh1745nuc_init(FAR struct i2c_master_s *i2c, int port);
 
 int bh1745nuc_register(FAR const char *devpath, int minor,
                        FAR struct i2c_master_s *i2c, int port);
+#else
+/****************************************************************************
+ * Name: bh1745nuc_register_uorb
+ *
+ * Description:
+ *   Register the BH1745NUC character device as uorb
+ *
+ * Input Parameters:
+ *   devno   - device instance
+ *   i2c     - An instance of the I2C interface to use to communicate with
+ *             BH1745NUC
+ *   addr    - I2C address
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int bh1745nuc_register_uorb(int devno, struct i2c_master_s *i2c,
+                            uint8_t addr);
+#endif
 
 #undef EXTERN
 #ifdef __cplusplus
