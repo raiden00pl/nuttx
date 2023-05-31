@@ -565,6 +565,7 @@ Implemented Drivers
 - l3gd20
 - :doc:`lis2mdl`
 - lis3dsh
+- :doc:`lps22hb`
 - lsm9ds1
 - ltr308
 - :doc:`mpu6050`

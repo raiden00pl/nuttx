@@ -49,3 +49,4 @@ tool for monitoring sensor activity at runtime.
     sensors/hts221.rst
     sensors/hdc1008.rst
     sensors/bh1745nuc.rst
+    sensors/lps22hb.rst
