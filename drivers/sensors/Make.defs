@@ -152,6 +152,10 @@ ifeq ($(CONFIG_SENSORS_BH1749NUC_UORB),y)
   CSRCS += bh1749nuc_uorb.c
 else
   CSRCS += bh1749nuc.c
+ifeq
+
+ifeq ($(CONFIG_SENSORS_BH1745NUC),y)
+  CSRCS += bh1745nuc.c
 endif
 endif
 
