@@ -28,8 +28,8 @@ set(SRCS
     nrf53_allocateheap.c
     nrf53_lowputc.c
     nrf53_gpio.c
-    nrf53_uid.c
-    nrf53_spu.c)
+    nrf53_uid.c)
+
 
 if(CONFIG_NRF53_SYSTIMER_SYSTICK)
   list(APPEND SRCS nrf53_systick.c)
@@ -40,7 +40,7 @@ if(CONFIG_NRF53_SYSTIMER_RTC)
 endif()
 
 if(CONFIG_NRF53_APPCORE)
-  list(APPEND SRCS nrf53_oscconfig.c nrf53_cpunet.c)
+  list(APPEND SRCS nrf53_oscconfig.c nrf53_cpunet.c nrf53_spu.c)
 endif()
 
 if(CONFIG_NRF53_PROGMEM)
