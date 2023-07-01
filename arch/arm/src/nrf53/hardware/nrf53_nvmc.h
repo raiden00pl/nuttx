@@ -42,7 +42,7 @@
 #define NRF53_NVMC_READYNEXT_OFFSET            0x408  /* Ready flag */
 #define NRF53_NVMC_CONFIG_OFFSET               0x504  /* Configuration register */
 #define NRF53_NVMC_ERASEALL_OFFSET             0x50c  /* Register for erasing all non-volatile user memory */
-#define NRF53_NVMC_ERASEPAGEPARTIALCFG_OFFSET  0x50c  /* Register for partial erase configuration */
+#define NRF53_NVMC_ERASEPAGEPARTIALCFG_OFFSET  0x51c  /* Register for partial erase configuration */
 #define NRF53_NVMC_ICACHECNF_OFFSET            0x540  /* I-Code cache configuration register */
 #define NRF53_NVMC_IHIT_OFFSET                 0x548  /* I-Code cache hit counter. */
 #define NRF53_NVMC_IMISS_OFFSET                0x54c  /* I-Code cache miss counter */
