@@ -45,6 +45,9 @@
 #include "nrf53_cpunet.h"
 #include "nrf53_gpio.h"
 #include "nrf53_serial.h"
+#ifndef CONFIG_ARCH_TRUSTZONE_NONSECURE
+#  include "nrf53_spu.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -74,6 +77,7 @@
 void __start(void) noinstrument_function;
 #endif
 
+#ifndef CONFIG_ARCH_TRUSTZONE_NONSECURE
 /****************************************************************************
  * Name: nrf53_approtect
  ****************************************************************************/
@@ -100,9 +104,9 @@ void nrf53_approtect(void)
 #  endif
 #endif
 }
+#endif
 
 #ifdef CONFIG_NRF53_FLASH_PREFETCH
-
 /****************************************************************************
  * Name: nrf53_enable_icache
  *
@@ -184,9 +188,15 @@ void __start(void)
 
   __asm__ __volatile__ ("\tcpsid  i\n");
 
+#ifndef CONFIG_ARCH_TRUSTZONE_NONSECURE
   /* Handle APPROTECT configuration */
 
   nrf53_approtect();
+
+  /* Configure SPU */
+
+  nrf53_spu_configure();
+#endif
 
 #ifdef CONFIG_NRF53_NET_BOOT
   /* Boot CPU NET before console init */
