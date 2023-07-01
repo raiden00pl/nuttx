@@ -98,10 +98,16 @@
 #define SPU_EXTDOMAIN_SECUREMAPPING_SECATTR  (1 << 4)
 #define SPU_EXTDOMAIN_SECUREMAPPING_LOCK     (1 << 8)
 
+#define SPU_FLASHREGION_PERM_EXEC            (1 << 0)
+#define SPU_FLASHREGION_PERM_WRITE           (1 << 1)
+#define SPU_FLASHREGION_PERM_READ            (1 << 2)
+#define SPU_FLASHREGION_PERM_SECATTR         (1 << 4)
+#define SPU_FLASHREGION_PERM_LOCK            (1 << 8)
+
 #define SPU_RAMREGION_PERM_EXEC              (1 << 0)
 #define SPU_RAMREGION_PERM_WRITE             (1 << 1)
 #define SPU_RAMREGION_PERM_READ              (1 << 2)
 #define SPU_RAMREGION_PERM_SECATTR           (1 << 4)
-#define SPU_RAMREGION_PERM_LOCK              (1 << 5)
+#define SPU_RAMREGION_PERM_LOCK              (1 << 8)
 
 #endif /* __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_SPU_H */
