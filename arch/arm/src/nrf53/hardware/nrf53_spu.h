@@ -89,6 +89,7 @@
 /* Register bit definitions *************************************************/
 
 #define SPU_RAM_REGIONS                      (64)
+#define SPU_FLASH_REGIONS                    (64)
 
 #define SPU_EXTDOMAIN_SECUREMAPPING_SHIFT    (0)
 #define SPU_EXTDOMAIN_SECUREMAPPING_MASK     (3 << SPU_EXTDOMAIN_SECUREMAPPING_SHIFT)
@@ -109,5 +110,7 @@
 #define SPU_RAMREGION_PERM_READ              (1 << 2)
 #define SPU_RAMREGION_PERM_SECATTR           (1 << 4)
 #define SPU_RAMREGION_PERM_LOCK              (1 << 8)
+
+#define SPU_PERM_SECATTR                     (1 << 4)
 
 #endif /* __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_SPU_H */

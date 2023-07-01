@@ -24,6 +24,7 @@ endchoice # NRF53 Chip Selection
 config NRF53_APPCORE
 	bool
 	default n
+	select ARCH_HAVE_TRUSTZONE
 	select ARM_HAVE_DSP
 	select ARCH_HAVE_FPU
 	select NRF53_HAVE_PWM
@@ -184,6 +185,26 @@ config NRF53_RTC
 
 menu "nRF53 Peripheral Selection"
 
+config NRF53_SERIAL0
+	bool
+	default n
+
+config NRF53_SERIAL1
+	bool
+	default n
+
+config NRF53_SERIAL2
+	bool
+	default n
+
+config NRF53_SERIAL3
+	bool
+	default n
+
+config NRF53_SERIAL4
+	bool
+	default n
+
 config NRF53_GPIOTE
 	bool "GPIOTE (GPIO interrupts)"
 	default n
@@ -192,6 +213,7 @@ config NRF53_I2C0_MASTER
 	bool "I2C0 Master"
 	default n
 	select NRF53_I2C_MASTER
+	select NRF53_SERIAL0
 
 if NRF53_HAVE_I2C123
 
@@ -199,16 +221,19 @@ config NRF53_I2C1_MASTER
 	bool "I2C1 Master"
 	default n
 	select NRF53_I2C_MASTER
+	select NRF53_SERIAL1
 
 config NRF53_I2C2_MASTER
 	bool "I2C2 Master"
 	default n
 	select NRF53_I2C_MASTER
+	select NRF53_SERIAL2
 
 config NRF53_I2C3_MASTER
 	bool "I2C3 Master"
 	default n
 	select NRF53_I2C_MASTER
+	select NRF53_SERIAL3
 
 endif # NRF53_HAVE_I2C123
 
@@ -216,6 +241,7 @@ config NRF53_SPI0_MASTER
 	bool "SPI0 Master"
 	default n
 	select NRF53_SPI_MASTER
+	select NRF53_SERIAL0
 
 if NRF53_HAVE_SPI1234
 
@@ -223,21 +249,25 @@ config NRF53_SPI1_MASTER
 	bool "SPI1 Master"
 	default n
 	select NRF53_SPI_MASTER
+	select NRF53_SERIAL1
 
 config NRF53_SPI2_MASTER
 	bool "SPI2 Master"
 	default n
 	select NRF53_SPI_MASTER
+	select NRF53_SERIAL2
 
 config NRF53_SPI3_MASTER
 	bool "SPI3 Master"
 	default n
 	select NRF53_SPI_MASTER
+	select NRF53_SERIAL3
 
 config NRF53_SPI4_MASTER
 	bool "SPI4 Master"
 	default n
 	select NRF53_SPI_MASTER
+	select NRF53_SERIAL4
 
 endif # NRF53_HAVE_SPI1234
 
@@ -246,6 +276,7 @@ config NRF53_UART0
 	default n
 	select UART0_SERIALDRIVER
 	select NRF53_UART
+	select NRF53_SERIAL0
 
 config NRF53_UART1
 	bool "UART1"
@@ -253,6 +284,7 @@ config NRF53_UART1
 	depends on NRF53_HAVE_UART1
 	select UART1_SERIALDRIVER
 	select NRF53_UART
+	select NRF53_SERIAL1
 
 config NRF53_QSPI
 	bool "QSPI"
@@ -311,6 +343,146 @@ config NRF53_USBDEV
 	select USBDEV
 
 endmenu # nRF53 Peripheral Selection
+
+menu "SPU configuration"
+
+choice
+	prompt "SPU configuration"
+	default NRF53_SPU_NONE
+	depends on ARCH_TRUSTZONE_SECURE
+
+config NRF53_SPU_CUSTOM
+	bool "Custom SPU configuration"
+	---help---
+		Enables board-specific NRF53 SPU configuration.
+
+config NRF53_SPU_NONSECURE
+	bool "Non-secure SPU configuration"
+
+config NRF53_SPU_NONE
+	bool "No SPU configuration"
+
+endchoice # SPU configuration
+
+if NRF53_SPU_NONSECURE
+
+config NRF53_OSCREG_NS
+	bool "IPC OSCILLATOR/REGULATORS non-secure"
+	default n
+
+config NRF53_POWERCLOCK_NS
+	bool "IPC POWER/CLOCK non-secure"
+	default n
+
+config NRF53_GPIO01_NS
+	bool "IPC GPIO01 non-secure"
+	default n
+
+config NRF53_NVMC_NS
+	bool "IPC NVMC non-secure"
+	default n
+
+config NRF53_SERIAL0_NS
+	bool "IPC SERIAL0 non-secure"
+	default n
+
+config NRF53_SERIAL1_NS
+	bool "IPC SERIAL1 non-secure"
+	default n
+
+config NRF53_SERIAL2_NS
+	bool "IPC SERIAL2 non-secure"
+	default n
+
+config NRF53_SERIAL3_NS
+	bool "IPC SERIAL3 non-secure"
+	default n
+
+config NRF53_SERIAL4_NS
+	bool "IPC SERIAL4 non-secure"
+	default n
+
+config NRF53_TIMER0_NS
+	bool "IPC TIMER0 non-secure"
+	default n
+
+config NRF53_TIMER1_NS
+	bool "IPC TIMER1 non-secure"
+	default n
+
+config NRF53_TIMER2_NS
+	bool "IPC TIMER2 non-secure"
+	default n
+
+config NRF53_RTC0_NS
+	bool "IPC RTC0 non-secure"
+	default n
+
+config NRF53_WDT0_NS
+	bool "IPC WDT0 non-secure"
+	default n
+
+config NRF53_WDT1_NS
+	bool "IPC WDT1 non-secure"
+	default n
+
+config NRF53_RTC0_NS
+	bool "IPC RTC0 non-secure"
+	default n
+
+config NRF53_RTC1_NS
+	bool "IPC RTC1 non-secure"
+	default n
+
+config NRF53_COMP_NS
+	bool "IPC COMP non-secure"
+	default n
+
+config NRF53_PWM0_NS
+	bool "IPC PWM0 non-secure"
+	default n
+
+config NRF53_PWM1_NS
+	bool "IPC PWM1 non-secure"
+	default n
+
+config NRF53_PWM2_NS
+	bool "IPC PWM2 non-secure"
+	default n
+
+config NRF53_PWM3_NS
+	bool "IPC PWM3 non-secure"
+	default n
+
+config NRF53_IPC_NS
+	bool "IPC non-secure"
+	default n
+
+config NRF53_QSPI_NS
+	bool "QSPI non-secure"
+	default n
+
+config NRF53_NFCT_NS
+	bool "NFCT non-secure"
+	default n
+
+config NRF53_USBD_NS
+	bool "USBD non-secure"
+	default n
+
+config NRF53_FLASH_NS_START
+	int "FLASH non-secure region start"
+	range 0 32
+	default 0
+
+config NRF53_RAM_NS_START
+	int "RAM non-secure region start"
+	range 0 32
+	default 0
+
+endif # NRF53_CONFIG_NONSECURE
+
+endmenu # "SPU configuration"
 
 menu "Clock Configuration"
 
