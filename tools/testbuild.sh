@@ -385,9 +385,10 @@ function build_cmake {
 function build {
   echo "  Building NuttX..."
   if [ ! -z ${cmake} ]; then
-      echo "  Building with cmake..."
+    echo "  Building with cmake..."
     build_cmake
   else
+    echo "  Building with make..."
     build_default
   fi
 }
