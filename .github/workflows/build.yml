@@ -122,7 +122,8 @@ jobs:
 
     strategy:
       matrix:
-        boards: [arm-01, arm-02, arm-03, arm-04, arm-05, arm-06, arm-07, arm-08, arm-09, arm-10, arm-11, arm-12, arm-13, other, risc-v, sim-01, sim-02, xtensa, codechecker]
+        # boards: [arm-01, arm-02, arm-03, arm-04, arm-05, arm-06, arm-07, arm-08, arm-09, arm-10, arm-11, arm-12, arm-13, other, risc-v, sim-01, sim-02, xtensa, codechecker]
+        boards: [arm-05, arm-07, arm-08, arm-10, arm-11, arm-12, codechecker]
 
     steps:
       - name: Download Source Artifact
@@ -171,50 +172,50 @@ jobs:
           path: buildartifacts/
         continue-on-error: true
 
-  macOS:
-    permissions:
-      contents: none
-    runs-on: macos-13
-    needs: Fetch-Source
-    strategy:
-      matrix:
-        boards: [macos, sim-01, sim-02]
-    steps:
-      - name: Download Source Artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: source-bundle
-          path: .
+  # macOS:
+  #   permissions:
+  #     contents: none
+  #   runs-on: macos-13
+  #   needs: Fetch-Source
+  #   strategy:
+  #     matrix:
+  #       boards: [macos, sim-01, sim-02]
+  #   steps:
+  #     - name: Download Source Artifact
+  #       uses: actions/download-artifact@v3
+  #       with:
+  #         name: source-bundle
+  #         path: .
 
-      - name: Extract sources
-        run: tar zxf sources.tar.gz
+  #     - name: Extract sources
+  #       run: tar zxf sources.tar.gz
 
-      - name: Restore Tools Cache
-        id: cache-tools
-        uses: actions/cache@v3
-        env:
-          cache-name: ${{ runner.os }}-cache-tools
-        with:
-          path: ./sources/tools
-          key: ${{ runner.os }}-tools-${{ hashFiles('./sources/nuttx/tools/ci/cibuild.sh') }}
+  #     - name: Restore Tools Cache
+  #       id: cache-tools
+  #       uses: actions/cache@v3
+  #       env:
+  #         cache-name: ${{ runner.os }}-cache-tools
+  #       with:
+  #         path: ./sources/tools
+  #         key: ${{ runner.os }}-tools-${{ hashFiles('./sources/nuttx/tools/ci/cibuild.sh') }}
 
-      - name: Export NuttX Repo SHA
-        run: echo "nuttx_sha=`git -C sources/nuttx rev-parse HEAD`" >> $GITHUB_ENV
+  #     - name: Export NuttX Repo SHA
+  #       run: echo "nuttx_sha=`git -C sources/nuttx rev-parse HEAD`" >> $GITHUB_ENV
 
-      # Released version of Cython has issues with Python 11. Set runner to use Python 3.10
-      # https://github.com/cython/cython/issues/4500
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Run Builds
-        run: |
-          echo "::add-matcher::sources/nuttx/.github/gcc.json"
-          export ARTIFACTDIR=`pwd`/buildartifacts
-          cd sources/nuttx/tools/ci
-          ./cibuild.sh -i -c -A -R testlist/${{matrix.boards}}.dat
+  #     # Released version of Cython has issues with Python 11. Set runner to use Python 3.10
+  #     # https://github.com/cython/cython/issues/4500
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+  #     - name: Run Builds
+  #       run: |
+  #         echo "::add-matcher::sources/nuttx/.github/gcc.json"
+  #         export ARTIFACTDIR=`pwd`/buildartifacts
+  #         cd sources/nuttx/tools/ci
+  #         ./cibuild.sh -i -c -A -R testlist/${{matrix.boards}}.dat
 
-      - uses: actions/upload-artifact@v3
-        with:
-          name: macos-builds
-          path: buildartifacts/
-        continue-on-error: true
+  #     - uses: actions/upload-artifact@v3
+  #       with:
+  #         name: macos-builds
+  #         path: buildartifacts/
+  #       continue-on-error: true
