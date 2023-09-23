@@ -18,7 +18,7 @@
 #
 # ##############################################################################
 
-set(SRCS nrf52_boot.c nrf52_bringup.c)
+set(SRCS nrf52_boot.c nrf52_bringup.c nrf52_senosrs.c)
 
 if(CONFIG_BOARDCTL)
   list(APPEND SRCS nrf52_appinit.c)

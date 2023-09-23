@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/arm/nrf52/thingy52/src/nrf52_boot.c
+ * boards/arm/nrf52/common/src/nrf52_bh1745nuc.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -24,62 +24,54 @@
 
 #include <nuttx/config.h>
 
+#include <errno.h>
 #include <debug.h>
+#include <stdio.h>
 
-#include <nuttx/board.h>
-#include <arch/board/board.h>
+#include <nuttx/i2c/i2c_master.h>
+#include <nuttx/sensors/bh1745nuc.h>
 
-#include "arm_internal.h"
-#include "thingy52.h"
+#include "nrf52_i2c.h"
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: nrf52_board_initialize
+ * Name: nrf52_bh1745nuc_init
  *
- * Description:
- *   All NRF52xxx architectures must provide the following entry point.
- *   This entry point is called early in the initialization -- after all
- *   memory has been configured and mapped but before any devices have been
- *   initialized.
+ * Input Parameters:
+ *   devno - The device number, used to build the device path as /dev/lightN
+ *   busno - The I2C bus number
+ *   addr  - The I2C address
  *
- ****************************************************************************/
-
-void nrf52_board_initialize(void)
-{
-  /* Configure on-board LEDs if LED support has been selected. */
-
-#ifdef CONFIG_ARCH_LEDS
-  board_autoled_initialize();
-#endif
-
-#ifdef CONFIG_NRF52_SPI_MASTER
-  /* Configure SPI chip selects */
-
-  nrf52_spidev_initialize();
-#endif
-}
-
-/****************************************************************************
- * Name: board_late_initialize
- *
- * Description:
- *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
- *   initialization call will be performed in the boot-up sequence to a
- *   function called board_late_initialize(). board_late_initialize() will be
- *   called immediately after up_initialize() is called and just before the
- *   initial application is started.  This additional initialization phase
- *   may be used, for example, to initialize board-specific device drivers.
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_BOARD_LATE_INITIALIZE
-void board_late_initialize(void)
+int nrf52_bh1745nuc_init(int devno, int busno, uint8_t addr)
 {
-  /* Perform board-specific initialization */
+  struct i2c_master_s *i2c;
+  int ret;
 
-  nrf52_bringup();
+  sninfo("Initializing BH1745NUC!\n");
+
+  /* Initialize I2C */
+
+  i2c = stm32_i2cbus_initialize(busno);
+  if (!i2c)
+    {
+      return -ENODEV;
+    }
+
+  /* Then register the barometer sensor */
+
+  ret = bh1745nuc_register_uorb(devno, i2c, addr);
+  if (ret < 0)
+    {
+      snerr("ERROR: Error registering BH1745NUC\n");
+    }
+
+  return ret;
 }
-#endif
