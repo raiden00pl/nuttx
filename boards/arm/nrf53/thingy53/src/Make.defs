@@ -34,6 +34,14 @@ ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += nrf53_buttons.c
 endif
 
+ifeq ($(CONFIG_NRF53_SPI_MASTER),y)
+CSRCS += nrf53_spi.c
+endif
+
+ifeq ($(CONFIG_I2C),y)
+CSRCS += nrf53_i2c.c
+endif
+
 ifeq ($(CONFIG_USBDEV),y)
 CSRCS += nrf53_usb.c
 endif

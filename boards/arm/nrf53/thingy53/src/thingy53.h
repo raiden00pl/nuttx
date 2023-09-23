@@ -193,5 +193,28 @@ int nrf53_i2c_register(int bus);
 int nrf53_i2ctool(void);
 #endif
 
+/****************************************************************************
+ * Name: nrf53_spidev_initialize
+ *
+ * Description:
+ *   Called to configure SPI chip select GPIO pins for the
+ *   thingy53 board.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NRF53_SPI_MASTER
+void nrf53_spidev_initialize(void);
+#endif
+
+/****************************************************************************
+* Name: board_bmi270_initialize
+*
+* Description:
+*   Initialize BMI270 spi driver and register the BMI160 device.
+*
+****************************************************************************/
+
+int board_bmi270_initialize(int bus);
+
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_NRF53_THINGY53_SRC_THINGY53_H */

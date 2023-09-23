@@ -61,13 +61,24 @@
 #  include "nrf53_rptun.h"
 #endif
 
+#ifdef CONFIG_SENSORS_BMI270
+#  include "nrf53_bmi270.h"
+#endif
+
+#ifdef CONFIG_SENSORS_BH1749NUC
+#  include "nrf53_bh1749nuc.h"
+#endif
+
 #include "thingy53.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define NRF53_TIMER (0)
+#define BMI270_SPIDEV      (1)
+
+#define BH1749NUC_I2C_BUS  (2)
+#define BH1749NUC_I2C_ADDR (0x38)
 
 /****************************************************************************
  * Private Functions
@@ -250,6 +261,26 @@ int nrf53_bringup(void)
 
 #if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
   nrf53_i2ctool();
+#endif
+
+#ifdef CONFIG_SENSORS_BMI270
+  /* Initialize BMI270 */
+
+  ret = nrf53_bmi270spi_initialize(0, BMI270_SPIDEV);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf53_bmi270_initialize failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_BH1749NUC
+  /* Initialize BH1749NUC */
+
+  ret = nrf53_bh1749nuc_init(0, BH1749NUC_I2C_BUS, BH1749NUC_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf53_bh1749nuc_init failed: %d\n", ret);
+    }
 #endif
 
 #ifdef CONFIG_RGBLED

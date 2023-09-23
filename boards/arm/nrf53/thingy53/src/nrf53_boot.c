@@ -49,10 +49,26 @@
 
 void nrf53_board_initialize(void)
 {
+  /* Enable sensor power.
+   * TODO: this should be controlled by power management logic
+   */
+
+  nrf53_gpio_config(GPIO_SENS_PWRCTRL);
+  nrf53_gpio_write(GPIO_SENS_PWRCTRL, false);
+  up_mdelay(10);
+  nrf53_gpio_write(GPIO_SENS_PWRCTRL, true);
+  up_mdelay(10);
+
   /* Configure on-board LEDs if LED support has been selected. */
 
 #ifdef CONFIG_ARCH_LEDS
   board_autoled_initialize();
+#endif
+
+#ifdef CONFIG_NRF53_SPI_MASTER
+  /* Configure SPI chip selects */
+
+  nrf53_spidev_initialize();
 #endif
 }
 
