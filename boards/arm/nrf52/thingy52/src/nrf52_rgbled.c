@@ -1,7 +1,5 @@
 /****************************************************************************
- * boards/arm/nrf52/thingy52/src/nrf52_boot.c
- *
- * SPDX-License-Identifier: Apache-2.0
+ * boards/arm/nrf52/thingy52/src/nrf52_rgbled.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -26,62 +24,33 @@
 
 #include <nuttx/config.h>
 
+#include <sys/types.h>
+#include <errno.h>
 #include <debug.h>
 
-#include <nuttx/board.h>
+#include <nuttx/leds/rgbled.h>
 #include <arch/board/board.h>
 
-#include "arm_internal.h"
 #include "thingy52.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: nrf52_board_initialize
+ * Name: nrf52_rgbled_initialize
  *
  * Description:
- *   All NRF52xxx architectures must provide the following entry point.
- *   This entry point is called early in the initialization -- after all
- *   memory has been configured and mapped but before any devices have been
- *   initialized.
+ *   Configure the RGB LED.
  *
  ****************************************************************************/
 
-void nrf52_board_initialize(void)
+int nrf52_rgbled_initialize(void)
 {
-  /* Configure on-board LEDs if LED support has been selected. */
-
-#ifdef CONFIG_ARCH_LEDS
-  board_autoled_initialize();
-#endif
-
-#ifdef CONFIG_NRF52_SPI_MASTER
-  /* Configure SPI chip selects */
-
-  nrf52_spidev_initialize();
-#endif
+  #error
+  return OK;
 }
-
-/****************************************************************************
- * Name: board_late_initialize
- *
- * Description:
- *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
- *   initialization call will be performed in the boot-up sequence to a
- *   function called board_late_initialize(). board_late_initialize() will be
- *   called immediately after up_initialize() is called and just before the
- *   initial application is started.  This additional initialization phase
- *   may be used, for example, to initialize board-specific device drivers.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_BOARD_LATE_INITIALIZE
-void board_late_initialize(void)
-{
-  /* Perform board-specific initialization */
-
-  nrf52_bringup();
-}
-#endif
