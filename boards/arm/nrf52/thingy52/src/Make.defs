@@ -22,7 +22,7 @@
 
 include $(TOPDIR)/Make.defs
 
-CSRCS = nrf52_boot.c nrf52_bringup.c
+CSRCS = nrf52_boot.c nrf52_bringup.c nrf52_sensors.c
 
 ifeq ($(CONFIG_ARCH_BUTTONS),y)
 CSRCS += nrf52_buttons.c
@@ -30,6 +30,14 @@ endif
 
 ifeq ($(CONFIG_IOEXPANDER_SX1509),y)
 CSRCS += nrf52_sx1509.c
+endif
+
+ifeq ($(CONFIG_ADC),y)
+CSRCS += nrf52_adc.c
+endif
+
+ifeq ($(CONFIG_RGBLED),y)
+CSRCS += nrf52_rgbled.c
 endif
 
 DEPPATH += --dep-path board
