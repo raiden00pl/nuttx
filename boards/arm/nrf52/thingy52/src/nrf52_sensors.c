@@ -1,7 +1,5 @@
 /****************************************************************************
- * boards/arm/nrf52/thingy52/src/nrf52_boot.c
- *
- * SPDX-License-Identifier: Apache-2.0
+ * boards/arm/nrf52/thingy52/src/nrf52_sensors.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -26,62 +24,49 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <syslog.h>
 
-#include <nuttx/board.h>
-#include <arch/board/board.h>
+#ifdef CONFIG_SENSORS_BH1745NUC
+#  include <nrf52_bh1745nuc.h>
+#endif
 
-#include "arm_internal.h"
 #include "thingy52.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: nrf52_board_initialize
+ * Name: nrf52_sensors_init
  *
  * Description:
- *   All NRF52xxx architectures must provide the following entry point.
- *   This entry point is called early in the initialization -- after all
- *   memory has been configured and mapped but before any devices have been
- *   initialized.
+ *   Initialzie on-board sensors
  *
  ****************************************************************************/
 
-void nrf52_board_initialize(void)
+int nrf52_sensors_init(void)
 {
-  /* Configure on-board LEDs if LED support has been selected. */
+  int ret = OK;
 
-#ifdef CONFIG_ARCH_LEDS
-  board_autoled_initialize();
+  UNUSED(ret);
+
+#ifdef CONFIG_SENSORS_BH1745NUC
+  ret = nrf52_bh1745nuc_init(0, 0, BH1745NUC_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf52_bh1745nuc_init() failed: %d\n", ret);
+    }
 #endif
 
-#ifdef CONFIG_NRF52_SPI_MASTER
-  /* Configure SPI chip selects */
-
-  nrf52_spidev_initialize();
-#endif
+  return ret;
 }
-
-/****************************************************************************
- * Name: board_late_initialize
- *
- * Description:
- *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
- *   initialization call will be performed in the boot-up sequence to a
- *   function called board_late_initialize(). board_late_initialize() will be
- *   called immediately after up_initialize() is called and just before the
- *   initial application is started.  This additional initialization phase
- *   may be used, for example, to initialize board-specific device drivers.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_BOARD_LATE_INITIALIZE
-void board_late_initialize(void)
-{
-  /* Perform board-specific initialization */
-
-  nrf52_bringup();
-}
-#endif
