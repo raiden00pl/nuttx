@@ -84,14 +84,41 @@ supported by the OS.
 nsh
 ----
 
-Basic NuttShell configuration (console enabled in UART0, exposed via J-Link VCOM connection,
-at 115200 bps).
+Basic NuttShell configuration (console enabled in UART0, exposed via J-Link VCOM
+connection, at 115200 bps).
 
 ostest_tickless
 ---------------
 
 This is a NSH configuration that includes ``apps/testing/ostest`` as a builtin and
 enable support for the tick-less OS.
+
+nxscope_rtt
+------------
+
+``apps/examples/nxscope`` configuration that uses Segger RTT as an interface to
+stream data. A total of 3 RTT channels are configured:
+
+=========== =================  ============== ================
+RTT channel Function           Up buffer size Down buffer size
+=========== =================  ============== ================
+0           serial console     1024           16
+1           SystemView         2048           0
+2           NxScope interface  2048           128
+=========== =================  ============== ================
+
+nxscope_uart
+------------
+
+``apps/examples/nxscope`` configuration that uses UART0 and J-Link VCOM to stream
+data. Additionally, for debugging purposes, 2 RTT channels are enabled:
+
+=========== =================  ============== ================
+RTT channel Function           Up buffer size Down buffer size
+=========== =================  ============== ================
+0           serial console     1024           16
+1           SystemView         2048           0
+=========== =================  ============== ================
 
 sdc
 ----
