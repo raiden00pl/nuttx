@@ -396,5 +396,16 @@ int note_sysview_initialize(void)
   syslog(LOG_NOTICE, "SEGGER RTT Control Block Address: %#" PRIxPTR "\n",
                       (uintptr_t)&_SEGGER_RTT +
                       CONFIG_SEGGER_RTT_UNCACHED_OFF);
+
+
+  SEGGER_SYSVIEW_NameMarker(1, "control all");
+  SEGGER_SYSVIEW_NameMarker(2, "mq_handle");
+  SEGGER_SYSVIEW_NameMarker(3, "motor_handle");
+  SEGGER_SYSVIEW_NameMarker(4, "motor_get");
+  SEGGER_SYSVIEW_NameMarker(5, "motor_control");
+  SEGGER_SYSVIEW_NameMarker(6, "handler_run");
+  SEGGER_SYSVIEW_NameMarker(7, "params");
+  SEGGER_SYSVIEW_NameMarker(8, "nxscope");
+
   return ret;
 }
