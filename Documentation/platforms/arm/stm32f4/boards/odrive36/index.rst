@@ -95,3 +95,15 @@ usbnsh
 
 This is another NSH example. If differs from other 'nsh' configurations
 in that this configurations uses a USB serial device for console I/O.
+
+foc_f32
+-------
+
+This is a board configuration that demonstrates the operation of two FOC
+insntances. This option uses float calculations for both FOC instances.
+
+foc_b16
+-------
+
+This is a board configuration that demonstrates the operation of two FOC
+insntances. This option uses fixed16 calculations for both FOC instances.
