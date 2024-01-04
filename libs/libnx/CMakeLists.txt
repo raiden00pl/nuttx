@@ -17,7 +17,7 @@
 # the License.
 #
 # ##############################################################################
-if(CONFIG_NX)
+if(CONFIG_NX OR CONFIG_NXFONTS)
   nuttx_add_kernel_library(nx SPLIT)
   target_include_directories(nx PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 

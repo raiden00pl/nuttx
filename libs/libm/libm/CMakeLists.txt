@@ -58,6 +58,9 @@ if(CONFIG_LIBM)
       lib_atan2.c
       lib_cos.c
       lib_cosh.c
+      lib_sincos.c
+      lib_sincosf.c
+      lib_sincosl.c
       lib_exp.c
       lib_fabs.c
       lib_fmod.c

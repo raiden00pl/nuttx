@@ -794,7 +794,8 @@ irq_common:
 	fxsaveq (%rsp)
 
 	/* The current value of the SP points to the beginning of the state save
-	 * structure.  Save that in RDI as the input parameter to irq_handler.
+	 * structure.  Save that in RDI as the 1st input parameter to irq_handler,
+	 * the 2nd parameter with the IRQ number is already set.
 	 */
 
 	mov     %rsp, %rdi

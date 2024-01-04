@@ -31,6 +31,19 @@ specific directories.
 ``broadwell``
   This is the implementation of NuttX on the Intel Broadwell processors.
 
+
+Toolchain
+=========
+
+Optimisations
+-------------
+
+* Optimization option ``-O2`` and higier break the FPU test in ``ostest``
+  The cause is that some of the loops in ``usleep()`` (which is used to force context switches)
+  are vectorized by the compiler and SSE registers are used and modify the FPU context.
+  This can be overcome by setting ``-fno-tree-loop-vectorize`` and ``-fno-tree-slp-vectorize``
+  optimisation options.
+
 .. toctree::
    :maxdepth: 1
    :glob:

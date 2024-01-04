@@ -178,6 +178,10 @@ Subdirectories of ``nuttx/drivers``
 
   Note Driver Support.
 
+* ``pci/`` :doc:`special/pci`
+
+  PCI Driver Support.
+
 * ``pipes/`` :doc:`special/pipes`
 
   FIFO and named pipe drivers.

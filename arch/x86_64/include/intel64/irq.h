@@ -478,12 +478,12 @@ static inline uint64_t _rdtsc(void)
 
 static inline void set_pcid(uint64_t pcid)
 {
-    if (pcid < 4095)
-      {
-        asm volatile("mov %%cr3, %%rbx; andq $-4096, %%rbx; or %0, "
-                     "%%rbx; mov %%rbx, %%cr3;"
-                     ::"g"(pcid):"memory", "rbx", "rax");
-      }
+  if (pcid < 4095)
+    {
+      asm volatile("mov %%cr3, %%rbx; andq $-4096, %%rbx; or %0, "
+                   "%%rbx; mov %%rbx, %%cr3;"
+                   ::"g"(pcid):"memory", "rbx", "rax");
+    }
 }
 
 static inline unsigned long read_msr(unsigned int msr)
@@ -505,7 +505,8 @@ static inline void write_msr(unsigned int msr, unsigned long val)
 
 static inline uint64_t read_fsbase(void)
 {
-    uint64_t val;
+  uint64_t val;
+
   asm volatile("rdfsbase %0"
     : "=r" (val)
     : /* no output */
