@@ -148,4 +148,22 @@ config ARCH_INTEL64_DISABLE_INT_INIT
 		controllers. This is necessary if those are already
 		initialized, i.e. Jailhouse system.
 
+config ARCH_INTEL64_ACPI
+	bool "ACPI support"
+	default y
+	---help---
+		Select to enable ACPI parser.
+
+config ARCH_INTEL64_ACPI_DUMP
+	bool "ACPI dump"
+	default DEBUG_FEATURES
+	---help---
+		Select to dump ACPI tables.
+
+config ARCH_INTEL64_ACPI_BIOS
+	bool "Look for ACPI RSDP in BIOS legacy region"
+	default y
+	---help---
+		Look for RSDP in BIOS legacy region (0x000e0000-0x000fffff).
+
 endif

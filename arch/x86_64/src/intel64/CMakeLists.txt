@@ -74,4 +74,8 @@ if(CONFIG_ARCH_FPU)
   list(APPEND SRCS intel64_fpucmp.c)
 endif()
 
+if(CONFIG_ARCH_INTEL64_ACPI)
+  list(APPEND SRCS intel64_acpi.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})

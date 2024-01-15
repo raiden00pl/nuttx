@@ -62,3 +62,7 @@ endif
 ifeq ($(CONFIG_ARCH_FPU),y)
 CHIP_CSRCS += intel64_fpucmp.c
 endif
+
+ifeq ($(CONFIG_ARCH_INTEL64_ACPI),y)
+CHIP_CSRCS += intel64_acpi.c
+endif
