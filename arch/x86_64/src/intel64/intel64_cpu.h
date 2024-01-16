@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/src/intel64/intel64_lowsetup.c
+ * arch/x86_64/src/intel64/intel64_cpu.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,81 +18,84 @@
  *
  ****************************************************************************/
 
+#ifndef __ARCH_X86_64_SRC_INTEL64_INTEL64_CPU_H
+#define __ARCH_X86_64_SRC_INTEL64_INTEL64_CPU_H
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#include <nuttx/arch.h>
-
-#include "x86_64_internal.h"
+#include <nuttx/compiler.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
- * Private Data
+ * Public Types
  ****************************************************************************/
+
+/****************************************************************************
+ * Inline Functions
+ ****************************************************************************/
+
+#ifndef __ASSEMBLY__
 
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
-/* The actual address of the page table and gdt/ist after mapping the kernel
- * in high address.
- */
+extern struct intel64_cpu_s g_cpu_priv[CONFIG_SMP_NCPUS];
 
-volatile uint64_t *g_pdpt;
-volatile uint64_t *g_pd;
-volatile uint64_t *g_pt;
-
-volatile struct gdt_entry_s *g_gdt64;
+#undef EXTERN
+#if defined(__cplusplus)
+#define EXTERN extern "C"
+extern "C"
+{
+#else
+#define EXTERN extern
+#endif
 
 /****************************************************************************
- * Private Functions
+ * Public Function Prototypes
  ****************************************************************************/
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: intel64_lowsetup
+ * Name: up_cpu_init
  *
  * Description:
- *   Called from __nxstart BEFORE starting the operating system in order
- *   perform any necessary, early initialization.
+ *   Initialize CPU data.
  *
  ****************************************************************************/
 
-void intel64_lowsetup(void)
-{
-  /* we should be in long mode at this point */
+void up_cpu_init(void);
 
-  /* GDT is loaded with 64bit GDT  */
+/****************************************************************************
+ * Name: up_lopaic_to_cpu
+ *
+ * Description:
+ *   Get CPU index for a given Local APIC ID
+ *
+ ****************************************************************************/
 
-  /* Paging is enabled */
+uint8_t up_loapic_to_cpu(uint8_t loapic);
 
-  /* Setup pointers for accessing Page table and GDT in high address */
+/****************************************************************************
+ * Name: up_cpu_to_loapic
+ *
+ * Description:
+ *   Get Local APIC ID for a given CPU index
+ *
+ ****************************************************************************/
 
-  g_pdpt = (uint64_t *)((uintptr_t)&g_pdpt_low + X86_64_LOAD_OFFSET);
-  g_pd   = (uint64_t *)((uintptr_t)&g_pd_low   + X86_64_LOAD_OFFSET);
-  g_pt   = (uint64_t *)((uintptr_t)&g_pt_low   + X86_64_LOAD_OFFSET);
+uint8_t up_cpu_to_loapic(uint8_t cpu);
 
-  g_gdt64 = (struct gdt_entry_s *)((uintptr_t)&g_gdt64_low +
-                                   X86_64_LOAD_OFFSET);
-
-  /* reload the GDTR with mapped high memory address */
-
-  setgdt((void *)g_gdt64, (uintptr_t)(&g_gdt64_low_end - &g_gdt64_low) - 1);
-
-#ifndef CONFIG_SMP
-  /* Revoke the lower memory if not SMP, otherwise this is done in
-   * up_ap_boot() after the initialization of the last AP is finished.
-   */
-
-  __revoke_low_memory();
-#endif
+#undef EXTERN
+#if defined(__cplusplus)
 }
+#endif
+
+#endif /* __ASSEMBLY__ */
+#endif /* __ARCH_X86_64_SRC_INTEL64_INTEL64_CPU_H */

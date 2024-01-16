@@ -111,7 +111,7 @@
  * referenced is passed to get the state from the TCB.
  */
 
-#define x86_64_restorestate(regs) (g_current_regs = regs)
+#define x86_64_restorestate(regs) (CURRENT_REGS = regs)
 
 /****************************************************************************
  * Public Types
@@ -132,13 +132,19 @@ typedef void (*up_vector_t)(void);
  * end of the heap is CONFIG_RAM_END
  */
 
+#ifndef CONFIG_SMP
 extern const uintptr_t g_idle_topstack;
+#else
+extern const uintptr_t g_idle_topstack[CONFIG_SMP_NCPUS];
+#endif
 
 /* Address of the saved user stack pointer */
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 3
-extern uint8_t g_intstackalloc[];
-extern uint8_t g_intstacktop[];
+extern uint8_t g_intstack_alloc[];
+extern uint8_t g_isrstack_alloc[];
+extern const uintptr_t g_intstack_top[CONFIG_SMP_NCPUS];
+extern const uintptr_t g_isrstack_top[CONFIG_SMP_NCPUS];
 #endif
 
 /* These symbols are setup by the linker script. */

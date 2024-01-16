@@ -34,6 +34,7 @@
 #ifndef __ASSEMBLY__
 #  include <nuttx/compiler.h>
 #  include <stdint.h>
+#  include <stdbool.h>
 #endif
 
 /****************************************************************************
@@ -78,6 +79,8 @@
 
 #define X86_GDT_DATA_SEL_NUM    2
 #  define X86_GDT_DATA_SEL      (X86_GDT_DATA_SEL_NUM * X86_GDT_ENTRY_SIZE)
+
+/* The first TSS entry */
 
 #define X86_GDT_ISTL_SEL_NUM    6
 #define X86_GDT_ISTH_SEL_NUM    (X86_GDT_ISTL_SEL_NUM + 1)
@@ -135,14 +138,17 @@
 
 /* CPUID Leaf Definitions */
 
-#define X86_64_CPUID_CAP         0x01
-#  define X86_64_CPUID_01_SSE3   (1 << 0)
-#  define X86_64_CPUID_01_PCID   (1 << 17)
-#  define X86_64_CPUID_01_X2APIC (1 << 21)
-#  define X86_64_CPUID_01_TSCDEA (1 << 24)
-#  define X86_64_CPUID_01_XSAVE  (1 << 26)
-#  define X86_64_CPUID_01_RDRAND (1 << 30)
-#define X86_64_CPUID_TSC         0x15
+#define X86_64_CPUID_VENDOR           0x00
+#define X86_64_CPUID_CAP              0x01
+#  define X86_64_CPUID_01_SSE3        (1 << 0)
+#  define X86_64_CPUID_01_PCID        (1 << 17)
+#  define X86_64_CPUID_01_X2APIC      (1 << 21)
+#  define X86_64_CPUID_01_TSCDEA      (1 << 24)
+#  define X86_64_CPUID_01_XSAVE       (1 << 26)
+#  define X86_64_CPUID_01_RDRAND      (1 << 30)
+#define X86_64_CPUID_MISC             0x01
+#  define X86_64_CPUID_01_APICID(ebx) ((ebx) >> 24)
+#define X86_64_CPUID_TSC              0x15
 
 /* MSR Definitions */
 
@@ -207,8 +213,10 @@
 #  define MSR_X2APIC_ICR_DEASSERT      0x00000000
 #  define MSR_X2APIC_ICR_LEVEL         0x00008000  /* Level triggered */
 #  define MSR_X2APIC_ICR_BCAST         0x00080000  /* Send to all APICs, including self. */
+#  define MSR_X2APIC_ICR_OTHERS        0x000c0000  /* Send to all APICs, excluding self. */
 #  define MSR_X2APIC_ICR_BUSY          0x00001000
 #  define MSR_X2APIC_ICR_FIXED         0x00000000
+#  define MSR_X2APIC_DESTINATION(d)    ((d) << 32ul)
 #define MSR_X2APIC_LVTT         0x832
 #  define MSR_X2APIC_LVTT_X1           0x0000000B  /* divide counts by 1 */
 #  define MSR_X2APIC_LVTT_PERIODIC     0x00020000  /* Periodic */
@@ -246,7 +254,12 @@
 #define X86_PIC_8086           1
 #define X86_PIC_EOI            0x20
 
-#define BITS_PER_LONG    64
+#define BITS_PER_LONG          64
+
+/* Interrupt Stack Table size */
+
+#define X86_IST_SIZE (112)
+#define X86_TSS_SIZE (112 + 8 + 8)
 
 /* Reset Control Register (RST_CNT) */
 
@@ -354,6 +367,24 @@ begin_packed_struct struct ist_s
   uint16_t IOPB_OFFSET;          /* IOPB_offset */
 } end_packed_struct;
 
+/* CPU private data */
+
+struct intel64_cpu_s
+{
+  uint8_t id;
+  uint8_t loapic_id;
+  bool    ready;
+};
+
+/* TSS */
+
+begin_packed_struct struct tss_s
+{
+  struct ist_s          ist;     /* IST  */
+  struct intel64_cpu_s *cpu;     /* CPU private data */
+  uint32_t              align;   /* Align to 16 */
+} end_packed_struct;
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -368,7 +399,7 @@ extern volatile uint8_t g_pdpt_low;
 extern volatile uint8_t g_pd_low;
 extern volatile uint8_t g_pt_low;
 
-extern volatile uint8_t g_ist64_low;
+extern volatile uint8_t g_tss64_low;
 extern volatile uint8_t g_gdt64_low;
 extern volatile uint8_t g_gdt64_ist_low;
 extern volatile uint8_t g_gdt64_low_end;
@@ -381,7 +412,7 @@ extern volatile uint64_t *g_pdpt;
 extern volatile uint64_t *g_pd;
 extern volatile uint64_t *g_pt;
 
-extern volatile struct ist_s       *g_ist64;
+extern volatile struct ist_s       *g_tss64;
 extern volatile struct gdt_entry_s *g_gdt64;
 
 /****************************************************************************

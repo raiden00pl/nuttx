@@ -63,10 +63,10 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
 
   /* Are we in an interrupt handler? */
 
-  if (g_current_regs)
+  if (CURRENT_REGS)
     {
       /* Yes, then we have to do things differently.
-       * Just copy the g_current_regs into the OLD rtcb.
+       * Just copy the CURRENT_REGS into the OLD rtcb.
        */
 
       x86_64_savestate(rtcb->xcp.regs);
@@ -106,6 +106,10 @@ void up_switch_context(struct tcb_s *tcb, struct tcb_s *rtcb)
       /* Update scheduler parameters */
 
       nxsched_resume_scheduler(tcb);
+
+      /* Restore the cpu lock */
+
+      restore_critical_section();
 
       /* Then switch contexts */
 

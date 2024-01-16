@@ -345,6 +345,10 @@
 #define HPET0_IRQ    IRQ2
 #define HPET1_IRQ    IRQ8
 
+/* Use IRQ15 for SMP */
+
+#define SMP_IPI_IRQ IRQ15
+
 /* Common register save structure created by up_saveusercontext() and by
  * ISR/IRQ interrupt processing.
  */
@@ -719,6 +723,7 @@ void up_ioapic_pin_set_vector(unsigned int pin,
                               enum ioapic_trigger_mode trigger_mode,
                               unsigned int vector);
 void up_enable_msi_vector(int vect);
+int up_irq_ipi(int cpu, uint8_t vect, int type);
 
 #ifdef __cplusplus
 #define EXTERN extern "C"

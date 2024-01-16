@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/src/common/x86_64_getintstack.c
+ * arch/x86_64/src/intel64/intel64_cpuinfo.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -24,23 +24,22 @@
 
 #include <nuttx/config.h>
 
-#include <stdint.h>
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
-#include "x86_64_internal.h"
+#if defined(CONFIG_FS_PROCFS) && !defined(CONFIG_FS_PROCFS_EXCLUDE_CPUINFO)
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_get_intstackbase
+ * name: up_show_cpuinfo
  ****************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
-uintptr_t up_get_intstackbase(void)
+ssize_t up_show_cpuinfo(char *buf, size_t buf_size, off_t file_off)
 {
-  /* TODO: how to handle IST2 stack ?? */
-
-  return (uintptr_t)g_isrstack_top[up_cpu_index()];
+  #warning
 }
-#endif
+#endif /* CONFIG_FS_PROCFS && !CONFIG_FS_PROCFS_EXCLUDE_CPUINFO */

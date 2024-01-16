@@ -58,8 +58,16 @@ void up_initial_state(struct tcb_s *tcb)
 
   if (tcb->pid == IDLE_PROCESS_ID)
     {
-      char *stack_ptr = (char *)(g_idle_topstack -
-                                 CONFIG_IDLETHREAD_STACKSIZE);
+      char *stack_ptr = NULL;
+
+#ifndef CONFIG_SMP
+      stack_ptr = (char *)(g_idle_topstack -
+                           CONFIG_IDLETHREAD_STACKSIZE);
+#else
+      stack_ptr = (char *)(g_idle_topstack[tcb->cpu] -
+                           CONFIG_IDLETHREAD_STACKSIZE);
+#endif
+
 #ifdef CONFIG_STACK_COLORATION
       char *stack_end = (char *)up_getsp();
 

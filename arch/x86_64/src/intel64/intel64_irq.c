@@ -38,6 +38,8 @@
 
 #include <nuttx/spinlock.h>
 
+#include "intel64_cpu.h"
+
 #include "x86_64_internal.h"
 #include "intel64.h"
 
@@ -45,9 +47,13 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define UART_BASE 0x3f8
+#if CONFIG_ARCH_INTERRUPTSTACK == 0
+#  define IRQ_STACK_SIZE 0x2000
+#else
+#  define IRQ_STACK_SIZE CONFIG_ARCH_INTERRUPTSTACK
+#endif
 
-#define IRQ_STACK_SIZE 0x2000
+#define IRQ_STACK_ALLOC (IRQ_STACK_SIZE * CONFIG_SMP_NCPUS)
 
 /****************************************************************************
  * Private Types
@@ -72,13 +78,57 @@ static inline void up_idtinit(void);
  * Public Data
  ****************************************************************************/
 
-volatile uint64_t *g_current_regs;
+volatile uint64_t *g_current_regs[CONFIG_SMP_NCPUS];
+volatile bool      g_bsp_init_done = false;
 
-uint8_t g_interrupt_stack[IRQ_STACK_SIZE] aligned_data(16);
-uint8_t *g_interrupt_stack_end = g_interrupt_stack + IRQ_STACK_SIZE - 16;
+/* Allocate stack for interrupts and isr */
 
-uint8_t g_isr_stack[IRQ_STACK_SIZE] aligned_data(16);
-uint8_t *g_isr_stack_end = g_isr_stack + IRQ_STACK_SIZE - 16;
+uint8_t  g_intstack_alloc[IRQ_STACK_ALLOC] aligned_data(16);
+uint8_t  g_isrstack_alloc[IRQ_STACK_ALLOC] aligned_data(16);
+
+/* These definitions provide the "top" of the push-down interrupt stacks. */
+
+const uintptr_t g_intstack_top[CONFIG_SMP_NCPUS] =
+{
+  (uintptr_t)g_intstack_alloc + (1 * IRQ_STACK_SIZE) - 16,
+#if CONFIG_SMP_NCPUS > 1
+  (uintptr_t)g_intstack_alloc + (2 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 2
+  (uintptr_t)g_intstack_alloc + (3 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 3
+  (uintptr_t)g_intstack_alloc + (4 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 4
+  (uintptr_t)g_intstack_alloc + (5 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 5
+#  error missing logic
+#endif
+};
+
+/* These definitions provide the "top" of the push-down isr stacks. */
+
+const uintptr_t g_isrstack_top[CONFIG_SMP_NCPUS] =
+{
+  (uintptr_t)g_isrstack_alloc + (1 * IRQ_STACK_SIZE) - 16,
+#if CONFIG_SMP_NCPUS > 1
+  (uintptr_t)g_isrstack_alloc + (2 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 2
+  (uintptr_t)g_isrstack_alloc + (3 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 3
+  (uintptr_t)g_isrstack_alloc + (4 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 4
+  (uintptr_t)g_isrstack_alloc + (5 * IRQ_STACK_SIZE) - 16,
+#endif
+#if CONFIG_SMP_NCPUS > 5
+#  error missing logic
+#endif
+};
 
 /****************************************************************************
  * Private Data
@@ -176,23 +226,69 @@ void up_ioapic_unmask_pin(unsigned int pin)
  * Name: up_init_ist
  *
  * Description:
- *  Initialize the Interrupt Stack Table
+ *  Load TSS
  *
  ****************************************************************************/
 
-static void up_ist_init(void)
+static void up_tss_load(int cpu)
 {
-  struct gdt_entry_s tss_l;
-  uint64_t           tss_h;
+  uint16_t addr;
+
+  /* Get offset for IST */
+
+  addr = X86_GDT_ISTL_SEL_NUM * 8 + (X86_TSS_SIZE / 8) * cpu;
+
+  asm volatile ("mov %0, %%ax; ltr %%ax":: "m"(addr) : "memory", "rax");
+}
+
+/****************************************************************************
+ * Name: up_init_tss
+ *
+ * Description:
+ *  Initialize the TSS
+ *
+ ****************************************************************************/
+
+static void up_tss_init(int cpu)
+{
+  struct tss_s       *tss   = NULL;
+  struct ist_s       *ist64 = NULL;
+  struct gdt_entry_s  tss_l;
+  uint64_t            tss_h;
+
+  /* Get TSS - one per CPU */
+
+  tss = (struct tss_s *)((uintptr_t)&g_tss64_low + X86_64_LOAD_OFFSET +
+                         (X86_TSS_SIZE * cpu));
+
+#warning TODO: revisit where to call this
+  if (cpu == 0)
+    {
+      /* Connect and initialize CPU private data */
+
+      tss->cpu = &g_cpu_priv[0];
+    }
+
+  /* Setup IST pointer */
+
+  ist64 = &tss->ist;
+
+  /* Reset local data */
 
   memset(&tss_l, 0, sizeof(tss_l));
   memset(&tss_h, 0, sizeof(tss_h));
 
-  tss_l.limit_low = (((104 - 1) & 0xffff));    /* Segment limit = TSS size - 1 */
+  /* Segment limit = TSS size - 1 */
+#warning wrong size ?
+  tss_l.limit_low = (((104 - 1) & 0xffff));
 
-  tss_l.base_low  = ((uintptr_t)g_ist64 & 0x00ffffff);          /* Low address 1 */
-  tss_l.base_high = (((uintptr_t)g_ist64 & 0xff000000) >> 24);  /* Low address 2 */
+  /* Low address 1 */
 
+  tss_l.base_low  = ((uintptr_t)ist64 & 0x00ffffff);
+
+  /* Low address 2 */
+
+  tss_l.base_high = (((uintptr_t)ist64 & 0xff000000) >> 24);
   tss_l.P = 1;
 
   /* Set type as IST */
@@ -200,19 +296,28 @@ static void up_ist_init(void)
   tss_l.AC = 1;
   tss_l.EX = 1;
 
-  tss_h = (((uintptr_t)g_ist64 >> 32) & 0xffffffff);  /* High address */
+  /* High address */
 
-  g_gdt64[X86_GDT_ISTL_SEL_NUM] = tss_l;
+  tss_h = (((uintptr_t)ist64 >> 32) & 0xffffffff);
+
+  g_gdt64[X86_GDT_ISTL_SEL_NUM + 2 * cpu] = tss_l;
 
   /* memcpy used to handle type punning compiler warning */
 
-  memcpy((void *)&g_gdt64[X86_GDT_ISTH_SEL_NUM],
+  memcpy((void *)&g_gdt64[X86_GDT_ISTH_SEL_NUM + 2 * cpu],
          (void *)&tss_h, sizeof(g_gdt64[0]));
 
-  g_ist64->IST1 = (uintptr_t)g_interrupt_stack_end;
-  g_ist64->IST2 = (uintptr_t)g_isr_stack_end;
+  /* Stack for IRQ0-IRQ15 */
 
-  asm volatile ("mov $0x30, %%ax; ltr %%ax":::"memory", "rax");
+  ist64->IST1 = (uintptr_t)g_isrstack_top[cpu];
+
+  /* Stack for the rest IRQ */
+
+  ist64->IST2 = (uintptr_t)g_intstack_top[cpu];
+
+  /* Now load TSS */
+
+  up_tss_load(cpu);
 }
 
 /****************************************************************************
@@ -359,6 +464,7 @@ legacy_pic_irq_handler(int irq, uint32_t *regs, void *arg)
 #ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
 static void up_ioapic_init(void)
 {
+  uint32_t maxintr;
   int i;
 
   up_map_region((void *)IOAPIC_BASE, HUGE_PAGE_SIZE,
@@ -366,7 +472,7 @@ static void up_ioapic_init(void)
 
   /* Setup the IO-APIC, remap the interrupt to 32~ */
 
-  uint32_t maxintr = (up_ioapic_read(IOAPIC_REG_VER) >> 16) & 0xff;
+  maxintr = (up_ioapic_read(IOAPIC_REG_VER) >> 16) & 0xff;
 
   for (i = 0; i < maxintr; i++)
     {
@@ -470,10 +576,27 @@ static inline void up_idtinit(void)
     {
       up_idtentry(irq,  (uint64_t)vector,  0x08, 0x8e, 0x1);
     }
+}
 
-  /* Then program the IDT */
+/****************************************************************************
+ * Name: cpu_index
+ ****************************************************************************/
 
-  setidt(&g_idt_entries, sizeof(struct idt_entry_s) * NR_IRQS - 1);
+static int cpu_index(void)
+{
+  uint8_t       apicid = 0;
+  unsigned long ebx    = 0;
+
+  /* Use CPUID for this module as CPU private data can be not initialized
+   * yet. Otherwise we use up_cpu_index() which should be much faster
+   * than CPUID interface.
+   */
+
+  asm volatile("cpuid" : "=b" (ebx) : "a" (X86_64_CPUID_CAP)
+               : "rcx", "rdx", "memory");
+
+  apicid = X86_64_CPUID_01_APICID(ebx);
+  return up_loapic_to_cpu(apicid);
 }
 
 /****************************************************************************
@@ -486,29 +609,42 @@ static inline void up_idtinit(void)
 
 void up_irqinitialize(void)
 {
-  /* Initialize the IST */
+  int cpu = cpu_index();
 
-  up_ist_init();
+  /* Initialize the TSS */
 
-#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
-  /* Disable 8259 PIC */
-
-  up_deinit_8259();
-#endif
+  up_tss_init(cpu);
 
   /* Initialize the APIC */
 
   up_apic_init();
 
-#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
-  /* Initialize the IOAPIC */
+  /* Only for BPS */
 
-  up_ioapic_init();
+  if (cpu == 0)
+    {
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
+      /* Disable 8259 PIC */
+
+      up_deinit_8259();
 #endif
 
-  /* Initialize the IDT */
+#ifndef CONFIG_ARCH_INTEL64_DISABLE_INT_INIT
+      /* Initialize the IOAPIC */
 
-  up_idtinit();
+      up_ioapic_init();
+#endif
+
+      /* Initialize the IDT */
+
+      up_idtinit();
+
+      g_bsp_init_done = true;
+    }
+
+  /* Program the IDT - one per all cores */
+#warning SMP: should be one per core ??
+  setidt(&g_idt_entries, sizeof(struct idt_entry_s) * NR_IRQS - 1);
 
   /* And finally, enable interrupts */
 
@@ -660,3 +796,20 @@ int up_prioritize_irq(int irq, int priority)
   return OK;
 }
 #endif
+
+/****************************************************************************
+ * Name: up_irq_ipi
+ *
+ * Description:
+ *   Send IPI interrupt request.
+ *
+ ****************************************************************************/
+
+int up_irq_ipi(int cpu, uint8_t vect, int type)
+{
+  uint64_t dest = 0;
+
+  dest = MSR_X2APIC_DESTINATION((uint64_t)cpu);
+  write_msr(MSR_X2APIC_ICR, type | dest | vect);
+  return OK;
+}

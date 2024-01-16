@@ -130,6 +130,8 @@ void __nxstart(void)
 {
   uint64_t *dest = NULL;
 
+  /* This is only for BSP core. AP cores are handled by up_ap_boot() */
+
   /* Do some checking on CPU compatibilities at the top of this function.
    * BSS cleanup can be optimized with vector instructions, so we need to
    * enable SSE at this point.
@@ -162,6 +164,10 @@ void __nxstart(void)
   acpi_init(g_acpi_rsdp);
 #endif
 
+  /* Initialize CPU data */
+
+  up_cpu_init();
+
   /* perform board-specific initializations */
 
   x86_64_boardinitialize();
@@ -171,6 +177,8 @@ void __nxstart(void)
 
   x86_64_earlyserialinit();
 #endif
+
+  /* Configure timer */
 
   x86_64_timer_calibrate_freq();
 
