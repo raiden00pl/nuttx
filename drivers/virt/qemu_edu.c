@@ -386,6 +386,20 @@ static int qemu_edu_interrupt(int irq, FAR void *context, FAR void *arg)
 }
 
 /*****************************************************************************
+ * Name: qemu_edu_msi
+ *
+ * Description:
+ *  EDU MSI interrupt handler
+ *
+ *****************************************************************************/
+
+static int qemu_edu_msi(int irq, FAR void *context, FAR void *arg)
+{
+  pciinfo("MSI resived\n");
+
+}
+
+/*****************************************************************************
  * Name: qemu_edu_probe
  *
  * Description:

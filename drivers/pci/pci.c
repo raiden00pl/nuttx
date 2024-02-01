@@ -30,6 +30,7 @@
 
 #include <nuttx/pci/pci.h>
 #include <nuttx/virt/qemu_pci.h>
+#include <nuttx/virt/ivshmem.h>
 #include <nuttx/serial/uart_pci_16550.h>
 
 /****************************************************************************
@@ -89,6 +90,9 @@ const struct pci_dev_type_s *g_pci_device_types[] =
 #endif
 #ifdef CONFIG_16550_PCI_UART_AX99100
   &g_pci_type_ax99100_x2_16550,
+#endif
+#ifdef CONFIG_VIRT_IVSHMEM
+  &g_pci_type_ivshmem,
 #endif
   NULL,
 };

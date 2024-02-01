@@ -26,4 +26,24 @@ config VIRT_QEMU_EDU
 	---help---
 		Driver for QEMU EDU test device
 
+config VIRT_IVSHMEM
+	bool "IVSHMEM (v1)"
+	default n
+	select PCI
+	---help---
+		Driver for IVSHMEM PCI device
+
+if VIRT_IVSHMEM
+
+config VIRT_IVSHMEM_DOORBELL
+	bool "IVSHMEM Doorbell support (interrupts)"
+	default n
+
+config VIRT_IVSHMEM_DOORBEL_VECTORS
+	int "IVSHMEM Doorbell vectors supported"
+	default 1
+	depends on VIRT_IVSHMEM_DOORBEL
+
+endif # VIRT_IVSHMEM
+
 endif # VIRT
