@@ -138,3 +138,44 @@ run the UDP test (C=Coordinator; E=Endpoint)::
          E: nsh> ifup wpan0
          C: nsh> udpserver &
          E: nsh> udpclient <server-ip> &
+
+
+ieee802154_starhub and ieee802154_starpoint
+-------------------------------------------
+
+The modified usage of the TCP test is show below with E1 E2
+representing the two star endpoints and C: representing the
+coordinator/hub.::
+
+         C:  nsh> i8 wpan0 startpan cd:ab
+         C:  nsh> i8 set saddr 0A:00
+         C:  nsh> i8 set ep_saddr 0B:00
+         C:  nsh> i8 acceptassoc
+         E1: nsh> i8 wpan0 assoc
+         E2: nsh> i8 wpan0 assoc
+         C:  nsh> ifup wpan0
+         E1: nsh> ifup wpan0
+         E1: nsh> ifconfig           <-- To get the IP address of E1 endpoint
+         E1: nsh> telnetd            <-- Starts the Telnet daemon
+         E2: nsh> ifup wpan0
+         E2: nsh> ifconfig           <-- To get the IP address of E2 endpoint
+         E2: nsh> telnetd            <-- Starts the Telnet daemon
+         E1: nsh> tcpserver &
+         E2: nsh> tcpclient <server-ip> &
+
+Where <server-ip> is the IP address of the E1 endpoint.
+
+Similarly for the UDP test:::
+
+         E1: nsh> udpserver &
+         E2: nsh> udpclient <server-ip> &
+
+The nsh> dmesg command can be use at any time on any node to see
+any debug output that you have selected.
+
+Telenet sessions may be initiated only from the hub to a star
+endpoint::
+
+         C: nsh> telnet <server-ip> <-- Runs the Telnet client
+
+Where <server-ip> is the IP address of either the E1 or E2 endpoints.
