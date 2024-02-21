@@ -56,6 +56,7 @@
 struct intel64_irq_priv_s
 {
   uint8_t busy;
+  bool    msi;
 };
 
 /****************************************************************************
@@ -536,6 +537,14 @@ void up_disable_irq(int irq)
       ASSERT(0);
     }
 
+  /* Do nothing if this is MSI/MSI-X */
+
+  if (g_irq_priv[irq].msi)
+    {
+      spin_unlock_irqrestore(&g_irq_spin, flags);
+      return;
+    }
+
   if (g_irq_priv[irq].busy > 0)
     {
       g_irq_priv[irq].busy -= 1;
@@ -577,7 +586,15 @@ void up_enable_irq(int irq)
     }
 #  endif
 
-  if (irq > IRQ255)
+  /* Do nothing if this is MSI/MSI-X */
+
+  if (g_irq_priv[irq].msi)
+    {
+      spin_unlock_irqrestore(&g_irq_spin, flags);
+      return;
+    }
+
+  if (irq > IRQ255 )
     {
       /* Not supported yet */
 
@@ -598,6 +615,31 @@ void up_enable_irq(int irq)
 
   spin_unlock_irqrestore(&g_irq_spin, flags);
 #endif
+}
+
+/****************************************************************************
+ * Name: up_enable_msi_vector
+ *
+ * Description:
+ *   Reserve vector for MSI
+ *
+ ****************************************************************************/
+
+void up_enable_msi_vector(int irq)
+{
+  irqstate_t flags = spin_lock_irqsave(&g_irq_spin);
+
+  /* Check if IRQ is free if we don't support IRQ chains */
+
+  if (g_irq_priv[irq].busy)
+    {
+      ASSERT(0);
+    }
+
+  /* Mark this IRQ as MSI/MSI-X */
+
+  g_irq_priv[irq].msi = true;
+  spin_unlock_irqrestore(&g_irq_spin, flags);
 }
 
 /****************************************************************************

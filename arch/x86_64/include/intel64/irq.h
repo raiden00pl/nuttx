@@ -717,6 +717,7 @@ static inline unsigned int up_apic_cpu_id(void)
 void up_ioapic_pin_set_vector(unsigned int pin,
                               enum ioapic_trigger_mode trigger_mode,
                               unsigned int vector);
+void up_enable_msi_vector(int vect);
 
 #ifdef __cplusplus
 #define EXTERN extern "C"

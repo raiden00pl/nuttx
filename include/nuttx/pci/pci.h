@@ -43,6 +43,7 @@
 #define	PCI_CONFIG_VENDOR           0x00
 #define	PCI_CONFIG_DEVICE           0x02
 #define	PCI_CONFIG_COMMAND          0x04
+#define	PCI_CONFIG_STATUS           0x06
 #define	PCI_CONFIG_REV_ID           0x08
 #define	PCI_CONFIG_PROG_IF          0x09
 #define	PCI_CONFIG_SUBCLASS         0x0A
@@ -147,6 +148,10 @@
 #define PCI_CMD_FST_B2B     0x0200
 #define PCI_CMD_INT         0x0400
 
+/* PCI Status Register Bitmasks */
+
+#define PCI_STAT_INT        0x0008
+
 /* PCI BAR Bitmasks */
 
 #define PCI_BAR_LAYOUT_MASK     0x00000001
@@ -202,6 +207,48 @@
 #define PCI_SYS_RES_IOPORT 0x00
 #define PCI_SYS_RES_MEM    0x01
 
+/* MSI */
+
+#define PCI_MSI_MCR              0x02
+#define PCI_MSI_MCR_SIZE         2
+#define PCI_MSI_MCR_EN           (1 << 0)
+#define PCI_MSI_MCR_MMC_SHIFT    (1)
+#define PCI_MSI_MCR_MMC_MASK     (7)
+#define PCI_MSI_MCR_MME_SHIFT    (4)
+#define PCI_MSI_MCR_MME_MASK     (7)
+
+#define PCI_MSI_MCR_64           (1 << 7)
+#define PCI_MSI_MAR              0x04
+#define PCI_MSI_MAR_SIZE         4
+#define PCI_MSI_MDR32            0x08
+#define PCI_MSI_MDR32_SIZE       2
+#define PCI_MSI_MAR64_HI         0x08
+#define PCI_MSI_MAR64_HI_SIZE    4
+#define PCI_MSI_MDR64            0x0c
+#define PCI_MSI_MDR64_SIZE       2
+#define PCI_MSI_APIC_ID_OFFSET   12
+
+#define PCI_MSIX_MCR             0x02
+#define PCI_MSIX_MCR_SIZE        2
+#define PCI_MSIX_MCR_EN          (1 << 15)
+#define PCI_MSIX_MCR_FMASK       (1 << 14)
+#define PCI_MSIX_MCR_TBLS_MASK   0x03ff
+#define PCI_MSIX_TBL             0x04
+#define PCI_MSIX_TBL_SIZE        4
+#define PCI_MSIX_TBL_BIR_MASK    7
+#define PCI_MSIX_TBL_TBLO_SHIFT  4
+#define PCI_MSIX_TBL_TBLO_MASK   0x1fffffff
+#define PCI_MSIX_PBO             0x08
+#define PCI_MSIX_PBO_SIZE        4
+#define PCI_MSIX_PBO_BIR_MASK    0x07
+
+#define PCI_MSIX_TBL_ENTRY_SIZE  0x10
+#define PCI_MSIX_TBL_LO_ADDR     0x0
+#define PCI_MSIX_TBL_HI_ADDR     0x4
+#define PCI_MSIX_TBL_MSG_DATA    0x8
+#define PCI_MSIX_TBL_VEC_CTL     0xc
+#define PCI_MSIX_APIC_ID_OFFSET  12
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -242,6 +289,11 @@ struct pci_bus_ops_s
 
   CODE void (*pci_io_write)(FAR const volatile void *addr, uint32_t val,
                             int width);
+
+  /* Allocate interrupt for MSI/MSI-X */
+
+  CODE int (*pci_msi)(FAR struct pci_dev_s *dev, int vect, int mnum,
+                      FAR uint32_t *mar, FAR uint32_t *mdr);
 };
 
 /* PCI bus private data. */
@@ -450,6 +502,57 @@ uint64_t pci_bar_size(FAR struct pci_dev_s *dev, uint8_t bar_id);
  ****************************************************************************/
 
 uint64_t pci_bar_addr(FAR struct pci_dev_s *dev, uint8_t bar_id);
+
+/****************************************************************************
+ * Name: pci_int_stat
+ *
+ * Description:
+ *  Determine if the interrupt is active for a given device
+ *
+ * Input Parameters:
+ *   dev   - device
+ *
+ * Return value:
+ *   true if interrupt is active
+ *
+ ****************************************************************************/
+
+bool pci_int_stat(FAR struct pci_dev_s *dev);
+
+/****************************************************************************
+ * Name: pci_is_msi
+ *
+ * Description:
+ *  Get capability register
+ *
+ * Input Parameters:
+ *   dev   - device
+ *   capid - Capability register ID
+ *
+ * Return value:
+ *   Capability register address
+ *
+ ****************************************************************************/
+
+uint32_t pci_get_cap(FAR struct pci_dev_s *dev, uint32_t capid);
+
+/****************************************************************************
+ * Name: pci_msi_connect
+ *
+ * Description:
+ *   Connect MSI or MSI-X if available.
+ *
+ * Input Parameters:
+ *   dev  - device
+ *   vect -
+ *   mnum -
+ *
+ * Return value:
+ *   Return -ENOSETUP if MSI/MSI-X not available. Return OK on success.
+ *
+ ****************************************************************************/
+
+int pci_msi_connect(FAR struct pci_dev_s *dev, uint32_t vect, uint8_t mnum);
 
 /****************************************************************************
  * Name: pci_dev_dump

@@ -30,6 +30,7 @@
 
 #include <nuttx/pci/pci.h>
 #include <nuttx/virt/qemu_pci.h>
+#include <nuttx/serial/uart_pci_16550.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -80,6 +81,14 @@ const struct pci_dev_type_s *g_pci_device_types[] =
 #endif
 #ifdef CONFIG_VIRT_QEMU_EDU
   &g_pci_type_qemu_edu,
+#endif
+#ifdef CONFIG_16550_PCI_UART_QEMU
+  &g_pci_type_qemu_x1_16550,
+  &g_pci_type_qemu_x2_16550,
+  &g_pci_type_qemu_x4_16550,
+#endif
+#ifdef CONFIG_16550_PCI_UART_AX99100
+  &g_pci_type_ax99100_x2_16550,
 #endif
   NULL,
 };
@@ -356,6 +365,215 @@ static void pci_clear_cmd_bit(FAR struct pci_dev_s *dev, uint16_t bitmask)
   dev->bus->ops->pci_cfg_write(dev, PCI_CONFIG_COMMAND,
                                (cmd & ~bitmask), 2);
 }
+
+/****************************************************************************
+ * Name: pci_msi_base
+ *
+ * Description:
+ *  Get MSI and MSI-X base
+ *
+ * Input Parameters:
+ *   dev  - device
+ *   msi  - returned MSI base
+ *   msix - returned MSI-X base
+ *
+ * Return value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void pci_msi_base(FAR struct pci_dev_s *dev, FAR uint32_t *msi,
+                         FAR uint32_t *msix)
+{
+  if (msi != NULL)
+    {
+      *msi = pci_get_cap(dev, PCI_CAP_ID_MSI);
+    }
+
+  if (msix != NULL)
+    {
+      *msix = pci_get_cap(dev, PCI_CAP_ID_MSIX);
+    }
+}
+
+/****************************************************************************
+ * Name: pci_msi_enable
+ *
+ * Description:
+ *   Configure and enable MSI.
+ *
+ * Input Parameters:
+ *
+ * Return value:
+ *
+ ****************************************************************************/
+
+static int pci_msi_enable(FAR struct pci_dev_s *dev, uint32_t vect,
+                          int mnum, uint32_t msi)
+{
+  uint32_t offset = 0;
+  uint32_t mdr    = 0;
+  uint32_t mcr    = 0;
+  uint32_t mar    = 0;
+  uint32_t mme    = 0;
+  uint32_t mmc    = 0;
+
+  /* Suppoted messages */
+
+  for (mme = 0; mnum > 1; mme++)
+    {
+      mnum >>= 1;
+    }
+
+  mmc = (mcr & PCI_MSI_MCR_MMC_MASK) >> PCI_MSI_MCR_MMC_SHIFT;
+  if (mme > mmc)
+    {
+      pciinfo("Limit MME to %x\n", mmc);
+      mme = mmc;
+    }
+
+  /* Configure MSI (arch-specific) */
+
+  dev->bus->ops->pci_msi(dev, vect, mnum, &mar, &mdr);
+
+  /* Write Message Address Regsiter */
+
+  offset = msi + PCI_MSI_MAR;
+  dev->bus->ops->pci_cfg_write(dev, offset, mar, PCI_MSI_MAR_SIZE);
+
+  /* Get Message Control Register */
+
+  offset = msi + PCI_MSI_MCR;
+  mcr = dev->bus->ops->pci_cfg_read(dev, offset, PCI_MSI_MCR_SIZE);
+
+  /* Write Message Data Register */
+
+  if ((mcr & PCI_MSI_MCR_64) != 0)
+    {
+      offset = msi + PCI_MSI_MAR64_HI;
+      dev->bus->ops->pci_cfg_write(dev, offset, 0, PCI_MSI_MAR64_HI_SIZE);
+
+      offset = msi + PCI_MSI_MDR64;
+      dev->bus->ops->pci_cfg_write(dev, offset, mdr, PCI_MSI_MDR64_SIZE);
+    }
+  else
+    {
+      offset = msi + PCI_MSI_MDR32;
+      dev->bus->ops->pci_cfg_write(dev, offset, mdr, PCI_MSI_MDR32_SIZE);
+    }
+
+  mcr |= mme << PCI_MSI_MCR_MME_SHIFT;
+
+  /* Enable MSI */
+
+  mcr |= PCI_MSI_MCR_EN;
+
+  /* Write Message Control Register */
+
+  offset = msi + PCI_MSI_MCR;
+  dev->bus->ops->pci_cfg_write(dev, offset, mcr, PCI_MSI_MCR_SIZE);
+
+  return OK;
+}
+
+#ifdef CONFIG_PCI_MSIX
+/****************************************************************************
+ * Name: pci_msi_disable
+ *
+ * Description:
+ *  Disable MSI.
+ *
+ * Input Parameters:
+ *
+ * Return value:
+ *
+ ****************************************************************************/
+
+static void pci_msi_disable(FAR struct pci_dev_s *dev, uint32_t msi)
+{
+  uint32_t offset = 0;
+  uint32_t mcr    = 0;
+
+  offset = msi + PCI_MSI_MCR;
+  mcr = dev->bus->ops->pci_cfg_read(dev, offset, PCI_MSI_MCR_SIZE);
+
+  mcr &= ~PCI_MSI_MCR_EN;
+  dev->bus->ops->pci_cfg_write(dev, offset, mcr, PCI_MSI_MCR_SIZE);
+}
+
+/****************************************************************************
+ * Name: pci_msix_enable
+ *
+ * Description:
+ *   Configure and enable MSI-X.
+ *
+ * Input Parameters:
+ *
+ * Return value:
+ *
+ ****************************************************************************/
+
+static int pci_msix_enable(FAR struct pci_dev_s *dev, uint32_t vect,
+                           uint8_t mnum, uint32_t msix)
+{
+  uint32_t offset    = 0;
+  uint32_t mdr       = 0;
+  uint32_t mcr       = 0;
+  uint32_t mar       = 0;
+  uint64_t tbladdr   = 0;
+  uint32_t tbloffset = 0;
+  uint32_t tblbar    = 0;
+  uint32_t tbl       = 0;
+  int      i         = 0;
+
+  offset = msix + PCI_MSIX_TBL;
+  tbl = dev->bus->ops->pci_cfg_read(dev, offset, PCI_MSIX_TBL_SIZE);
+
+  /* Get MSI-X table */
+
+  tblbar = tbl & PCI_MSIX_TBL_BIR_MASK;
+  tbladdr = pci_bar_addr(dev, tblbar);
+  tbloffset = ((tbl >> PCI_MSIX_TBL_TBLO_SHIFT) & PCI_MSIX_TBL_TBLO_MASK);
+  tbladdr &= ~tbloffset;
+
+  for (i = 0; i < mnum; i++)
+    {
+      /* Configure MSI (arch-specific) */
+
+      dev->bus->ops->pci_msi(dev, vect, 1, &mar, &mdr);
+
+      /* Write Message Address Register */
+
+      offset = tbladdr + PCI_MSIX_TBL_LO_ADDR;
+      dev->bus->ops->pci_cfg_write(dev, offset, mar, 4);
+      offset = tbladdr + PCI_MSIX_TBL_HI_ADDR;
+      dev->bus->ops->pci_cfg_write(dev, offset, 0, 4);
+
+      /* Write Message Data Register */
+
+      offset = tbladdr + PCI_MSIX_TBL_MSG_DATA;
+      dev->bus->ops->pci_cfg_write(dev, offset, mdr, 4);
+
+      /* Write Vector Control register */
+
+      offset = tbladdr + PCI_MSIX_TBL_VEC_CTL;
+      dev->bus->ops->pci_cfg_write(dev, offset, 0, 4);
+
+      /* Next vector */
+
+      tbladdr += 0xf;
+    }
+
+  /* Enable MSI-X */
+
+  offset = msix + PCI_MSIX_MCR;
+  mcr = dev->bus->ops->pci_cfg_read(dev, offset, PCI_MSIX_MCR_SIZE);
+  mcr |= PCI_MSIX_MCR_EN;
+  dev->bus->ops->pci_cfg_write(dev, offset, mcr, PCI_MSIX_MCR_SIZE);
+
+  return OK;
+}
+#endif  /* CONFIG_PCI_MSIX */
 
 /****************************************************************************
  * Public Functions
@@ -712,6 +930,124 @@ uint64_t pci_bar_addr(FAR struct pci_dev_s *dev, uint8_t bar_id)
     }
 
   return addr;
+}
+
+/****************************************************************************
+ * Name: pci_int_stat
+ *
+ * Description:
+ *  Determine if the interrupt is active for a given device
+ *
+ * Input Parameters:
+ *   dev   - device
+ *
+ * Return value:
+ *   true if interrupt is active
+ *
+ ****************************************************************************/
+
+bool pci_int_stat(FAR struct pci_dev_s *dev)
+{
+  FAR const struct pci_bus_ops_s *ops = dev->bus->ops;
+
+  /* Interrupts enabled if Interrupt Disable is not set and Interrupt Status
+   * is set.
+   */
+
+  return (!(ops->pci_cfg_read(dev, PCI_CONFIG_COMMAND, 2) & PCI_CMD_INT) &&
+          (ops->pci_cfg_read(dev, PCI_CONFIG_STATUS, 1) & PCI_STAT_INT));
+}
+
+/****************************************************************************
+ * Name: pci_get_cap
+ *
+ * Description:
+ *  Get capability register
+ *
+ * Input Parameters:
+ *   dev   - device
+ *   capid - Capability register ID
+ *
+ * Return value:
+ *   Capability register address
+ *
+ ****************************************************************************/
+
+uint32_t pci_get_cap(FAR struct pci_dev_s *dev, uint32_t capid)
+{
+  FAR const struct pci_bus_ops_s *dev_ops    = dev->bus->ops;
+  uint32_t                        tmp        = 0;
+  uint8_t                         cap_offset = 0;
+
+  cap_offset = dev_ops->pci_cfg_read(dev, PCI_HEADER_NORM_CAP, 1);
+  while (cap_offset)
+    {
+      tmp = dev_ops->pci_cfg_read(dev, cap_offset, 1);
+      if (tmp == capid)
+        {
+          break;
+        }
+
+      cap_offset = dev_ops->pci_cfg_read(dev, cap_offset + 1, 1);
+    }
+
+  return cap_offset;
+}
+
+/****************************************************************************
+ * Name: pci_msi_connect
+ *
+ * Description:
+ *   Connect MSI or MSI-X if available.
+ *
+ * Input Parameters:
+ *   dev  - device
+ *   vect -
+ *   mnum -
+ *
+ * Return value:
+ *   Return -ENOSETUP if MSI/MSI-X not available. Return OK on success.
+ *
+ ****************************************************************************/
+
+int pci_msi_connect(FAR struct pci_dev_s *dev, uint32_t vect, uint8_t mnum)
+{
+  uint32_t msi = 0;
+  uint32_t msix = 0;
+
+  /* Get MSI base */
+
+  pci_msi_base(dev, &msi, &msix);
+
+  if (msi == 0 && msix == 0)
+    {
+      /* MSI and MSI-X not supported */
+
+      return -ENOTSUP;
+    }
+
+  /* Configure MSI or MSI-X */
+
+#ifdef CONFIG_PCI_MSIX
+  if (msix != 0)
+    {
+      /* Disalbe MSI */
+
+      pci_msi_disable(dev, msi);
+
+      /* Enable MSI-X */
+
+      pci_msix_enable(dev, vect, mnum, msix);
+    }
+  else
+#endif
+    {
+      /* Enable MSI */
+
+      pci_msi_enable(dev, vect, mnum, msi);
+    }
+
+  return OK;
 }
 
 /****************************************************************************

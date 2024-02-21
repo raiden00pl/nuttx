@@ -9,3 +9,8 @@ menuconfig PCI
 	---help---
 		Enables support for the PCI bus.
 		Backend bust be provided by per-arch or per-board implementation.
+
+config PCI_MSIX
+	bool "PCI MSIX support"
+	depends on EXPERIMENTAL
+	default n

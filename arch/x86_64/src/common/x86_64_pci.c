@@ -27,6 +27,8 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <nuttx/irq.h>
+
 #include <nuttx/pci/pci.h>
 
 #include "x86_64_internal.h"
@@ -38,6 +40,9 @@
 #define PCI_CFG_ADDR       0xcf8
 #define PCI_DATA_ADDR      0xcfc
 #define PCI_CFG_EN         (1 << 31)
+
+#define X86_64_MAR_DEST    0xFEE00000
+#define X86_64_MDR_TYPE    0x4000
 
 /****************************************************************************
  * Private Functions Definitions
@@ -52,6 +57,9 @@ static uint32_t x86_64_pci_io_read(const volatile void *addr, int width);
 static void x86_64_pci_io_write(const volatile void *addr, uint32_t val,
                               int width);
 
+static int x86_64_pci_msi(struct pci_dev_s *dev, int vect, int mnum,
+                          uint32_t *mar, uint32_t *mdr);
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -63,6 +71,7 @@ static const struct pci_bus_ops_s g_x86_64_pci_bus_ops =
   .pci_map_bar   = x86_64_pci_map_bar,
   .pci_io_read   = x86_64_pci_io_read,
   .pci_io_write  = x86_64_pci_io_write,
+  .pci_msi       = x86_64_pci_msi,
 };
 
 static struct pci_bus_s g_x86_64_pci_bus =
@@ -203,6 +212,28 @@ static int x86_64_pci_map_bar(uint64_t addr, uint64_t len)
 {
   up_map_region((void *)(uintptr_t)addr, len,
       X86_PAGE_WR | X86_PAGE_PRESENT | X86_PAGE_NOCACHE | X86_PAGE_GLOBAL);
+  return OK;
+}
+
+static int x86_64_pci_msi(struct pci_dev_s *dev, int vect, int mnum,
+                          uint32_t *mar, uint32_t *mdr)
+{
+  UNUSED(mnum);
+
+  if (mar != NULL)
+    {
+      *mar = X86_64_MAR_DEST | up_apic_cpu_id() << PCI_MSI_APIC_ID_OFFSET;
+    }
+
+  if (mdr != NULL)
+    {
+      *mdr = X86_64_MDR_TYPE | vect;
+    }
+
+  /* Reserve interrupts for MSI */
+
+  up_enable_msi_vector(vect);
+
   return OK;
 }
 
