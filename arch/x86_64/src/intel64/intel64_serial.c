@@ -72,7 +72,7 @@ void uart_putreg(uart_addrwidth_t base, unsigned int offset,
   outb(value, base + offset);
 }
 
-#else /* USE_SERIALDRIVER */
+#elif defined(CONFIG_MULTBOOT2_FB_TERM)
 
 /****************************************************************************
  * Name: up_putc
@@ -101,7 +101,7 @@ int up_putc(int ch)
   up_lowputc(ch);
   return ch;
 }
-#endif /* USE_SERIALDRIVER */
+#endif
 
 #ifdef USE_EARLYSERIALINIT
 
