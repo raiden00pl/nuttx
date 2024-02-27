@@ -223,6 +223,10 @@ config SENSORS_BMI270
 
 if SENSORS_BMI270
 
+config SENSORS_BMI270_UORB
+	bool "Bosch BMI270 UORB"
+	default n
+
 choice
 	prompt "BMI270 Interface"
 	default SENSORS_BMI270_SPI

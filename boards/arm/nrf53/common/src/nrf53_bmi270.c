@@ -77,7 +77,7 @@ int nrf53_bmi270spi_initialize(int devno, int busno)
     }
 
   snprintf(devpath, 12, "/dev/imu%d", devno);
-  ret = bmi270_register(devpath, spi);
+  ret = bmi270_register_uorb(devpath, spi);
   if (ret < 0)
     {
       snerr("Error registering BMI160\n");
@@ -105,7 +105,7 @@ int nrf53_bmi270i2c_initialize(int devno, int busno, uint8_t addr)
   /* Then register the barometer sensor */
 
   snprintf(devpath, 12, "/dev/imu%d", devno);
-  ret = bmi270_register(devpath, i2c, addr);
+  ret = bmi270_register_uorb(devpath, i2c, addr);
   if (ret < 0)
     {
       snerr("ERROR: Error registering BM180\n");
