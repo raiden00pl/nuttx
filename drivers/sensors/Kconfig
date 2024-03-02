@@ -141,6 +141,14 @@ config SENSORS_BH1749NUC
 	---help---
 		Enable driver support for the Rohm BH1749NUC color sensor.
 
+if SENSORS_BH1749NUC
+
+config SENSORS_BH1749NUC_UORB
+	bool "BH1749NUC UORB Interface"
+	default n
+
+endif # SENSORS_BH1749NUC
+
 config SENSORS_BH1750FVI
 	bool "Rohm BH1750FVI Ambient Light Sensor support"
 	default n
