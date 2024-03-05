@@ -1,5 +1,5 @@
-p/****************************************************************************
- * arch/risc-v/src/k230/k230_pgalloc.c
+/****************************************************************************
+ * arch/x86_64/src/common/addrenv.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,36 +18,51 @@ p/****************************************************************************
  *
  ****************************************************************************/
 
+#ifndef __ARCH_X86_64_SRC_COMMON_ADDRENV_H
+#define __ARCH_X86_64_SRC_COMMON_ADDRENV_H
+
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/arch.h>
 #include <nuttx/config.h>
-#include <nuttx/pgalloc.h>
-#include <assert.h>
-#include <debug.h>
-#include <arch/board/board_memorymap.h>
+
+#include <sys/types.h>
+#include <stdint.h>
+
+#include "x86_64_internal.h"
+
+#ifdef CONFIG_ARCH_ADDRENV
 
 /****************************************************************************
- * Public Functions
+ * Pre-processor Definitions
  ****************************************************************************/
+
+/* Aligned size of the kernel stack */
+
+#ifdef CONFIG_ARCH_KERNEL_STACK
+#  define ARCH_KERNEL_STACKSIZE STACK_ALIGN_UP(CONFIG_ARCH_KERNEL_STACKSIZE)
+#endif
+
+/* Base address for address environment */
+
+#if CONFIG_ARCH_TEXT_VBASE != 0
+#  define ARCH_ADDRENV_VBASE    (CONFIG_ARCH_TEXT_VBASE)
+#else
+#  define ARCH_ADDRENV_VBASE    (CONFIG_ARCH_DATA_VBASE)
+#endif
+
+/* Maximum user address environment size */
+
+#define ARCH_ADDRENV_MAX_SIZE   (0x40000000)
+
+/* User address environment end */
+
+#define ARCH_ADDRENV_VEND       (ARCH_ADDRENV_VBASE + ARCH_ADDRENV_MAX_SIZE - 1)
 
 /****************************************************************************
- * Name: up_allocate_pgheap
- *
- * Description:
- *   If there is a page allocator in the configuration, then this function
- *   must be provided by the platform-specific code.  The OS initialization
- *   logic will call this function early in the initialization sequence to
- *   get the page heap information needed to configure the page allocator.
- *
+ * Public Function Prototypes
  ****************************************************************************/
 
-void up_allocate_pgheap(void **heap_start, size_t *heap_size)
-{
-  DEBUGASSERT(heap_start && heap_size);
-
-  *heap_start = (void *)PGPOOL_START;
-  *heap_size  = (size_t)PGPOOL_SIZE;
-}
+#endif /* CONFIG_ARCH_ADDRENV */
+#endif /* __ARCH_X86_64_SRC_COMMON_ADDRENV_H */

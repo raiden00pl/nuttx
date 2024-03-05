@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/include/arch.h
+ * arch/x86_64/src/intel64/intel64_mm_init.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,12 +18,8 @@
  *
  ****************************************************************************/
 
-/* This file should never be included directly but, rather, only indirectly
- * through arch/arch.h
- */
-
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_H
-#define __ARCH_X86_64_INCLUDE_ARCH_H
+#ifndef __ARCH_X86_64_SRC_INTEL64_INTEL64_MM_INIT_H
+#define __ARCH_X86_64_SRC_INTEL64_INTEL64_MM_INIT_H
 
 /****************************************************************************
  * Included Files
@@ -31,72 +27,23 @@
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
-
-/* Include chip-specific definitions */
-
-#  include <arch/chip/arch.h>
-
-/* Include architecture-specific definitions */
-
-#ifdef CONFIG_ARCH_INTEL64
-#  include <arch/intel64/arch.h>
-#endif
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Inline functions
- ****************************************************************************/
-
-/****************************************************************************
- * Public Types
- ****************************************************************************/
-
-#ifdef CONFIG_ARCH_ADDRENV
-#ifndef __ASSEMBLY__
-
-/* The task group resources are retained in a single structure, task_group_s
- * that is defined in the header file nuttx/include/nuttx/sched.h. The type
- * arch_addrenv_t must be defined by platform specific logic in
- * nuttx/arch/<architecture>/include/arch.h.
- */
-
-struct arch_addrenv_s
-{
-  /* The text, data, heap bases and heap size here */
-
-  uintptr_t textvbase;
-  uintptr_t datavbase;
-  uintptr_t heapvbase;
-  size_t    heapsize;
-};
-
-typedef struct arch_addrenv_s arch_addrenv_t;
-#endif /* __ASSEMBLY__ */
-#endif /* CONFIG_ARCH_ADDRENV */
-
 /****************************************************************************
  * Public Data
  ****************************************************************************/
 
 /****************************************************************************
- * Public Function Prototypes
+ * Public Functions Prototypes
  ****************************************************************************/
 
-#ifdef __cplusplus
-#define EXTERN extern "C"
-extern "C"
-{
-#else
-#define EXTERN extern
-#endif
+/****************************************************************************
+ * Name: intel64_mm_init
+ *
+ * Description:
+ *  Setup kernel mappings when using CONFIG_BUILD_KERNEL. Sets up kernel MMU
+ *  mappings. Function also sets the first address environment (satp value).
+ *
+ ****************************************************************************/
 
-#undef EXTERN
-#ifdef __cplusplus
-}
-#endif
+void intel64_mm_init(void);
 
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_H */
+#endif /* __ARCH_X86_64_SRC_INTEL64_INTEL64_MM_INIT_H */

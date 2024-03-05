@@ -48,6 +48,14 @@ set(SRCS
     intel64_check_capability.c
     intel64_cpu.c)
 
+if(CONFIG_BUILD_PROTECTED)
+  list(APPEND SRCS intel64_userspace.c)
+endif()
+
+if(CONFIG_BUILD_KERNEL)
+  list(APPEND SRCS intel64_mm_init.c)
+endif()
+
 if(CONFIG_ARCH_HAVE_TESTSET)
   list(APPEND SRCS intel64_testset.S)
 endif()
@@ -88,6 +96,10 @@ endif()
 
 if(CONFIG_ARCH_INTEL64_ACPI)
   list(APPEND SRCS intel64_acpi.c)
+endif()
+
+if(CONFIG_MM_PGALLOC)
+  list(APPEND SRCS intel64_pgalloc.c)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})

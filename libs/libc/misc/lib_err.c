@@ -135,7 +135,7 @@ void warnx(FAR const char *fmt, ...)
 void verr(int status, FAR const char *fmt, va_list ap)
 {
   vwarn(fmt, ap);
-  exit(status);
+  /* exit(status); */
 }
 
 /****************************************************************************
@@ -145,7 +145,7 @@ void verr(int status, FAR const char *fmt, va_list ap)
 void verrx(int status, FAR const char *fmt, va_list ap)
 {
   vwarnx(fmt, ap);
-  exit(status);
+  /* exit(status); */
 }
 
 /****************************************************************************

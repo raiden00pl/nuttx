@@ -93,7 +93,7 @@ int nxtask_exit(void)
   sinfo("%s pid=%d,TCB=%p\n", dtcb->name,
 #else
   sinfo("pid=%d,TCB=%p\n",
-#endif  
+#endif
         dtcb->pid, dtcb);
 
   /* Update scheduler parameters */

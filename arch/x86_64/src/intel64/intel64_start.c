@@ -35,6 +35,8 @@
 
 #include "intel64_cpu.h"
 #include "intel64_lowsetup.h"
+#include "intel64_mm_init.h"
+#include "intel64_userspace.h"
 
 /****************************************************************************
  * Public Data
@@ -201,8 +203,19 @@ void __nxstart(void)
 
   x86_64_timer_calibrate_freq();
 
-#ifdef CONFIG_LIB_SYSCALL
-  enable_syscall();
+  /* For the case of the separate user-/kernel-space build, perform whatever
+   * platform specific initialization of the user memory is required.
+   * Normally this just means initializing the user space .data and .bss
+   * segments.
+   */
+
+#ifdef CONFIG_BUILD_PROTECTED
+  intel64_userspace();
+  showprogress('D');
+#endif
+
+#ifdef CONFIG_BUILD_KERNEL
+  intel64_mm_init();
 #endif
 
   /* Start NuttX */

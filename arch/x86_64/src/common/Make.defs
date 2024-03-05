@@ -28,3 +28,18 @@ CMN_CSRCS += x86_64_nputs.c x86_64_switchcontext.c x86_64_udelay.c
 ifeq ($(CONFIG_PCI),y)
 CMN_CSRCS += x86_64_pci.c
 endif
+
+ifeq ($(CONFIG_ARCH_KERNEL_STACK),y)
+CMN_CSRCS += x86_64_addrenv_kstack.c
+endif
+
+ifeq ($(CONFIG_ARCH_ADDRENV),y)
+CMN_CSRCS += x86_64_addrenv.c x86_64_pgalloc.c x86_64_addrenv_perms.c x86_64_addrenv_pgmap.c
+endif
+
+ifneq ($(CONFIG_BUILD_FLAT),y)
+CMN_CSRCS  += x86_64_task_start.c
+CMN_CSRCS  += x86_64_pthread_start.c
+CMN_CSRCS  += x86_64_signal_dispatch.c
+CMN_UASRCS += x86_64_signal_handler.S
+endif

@@ -1,5 +1,5 @@
 # ##############################################################################
-# arch/x86_64/src/common/CMakeLists.txt
+# boards/x86_64/intel64/common/CMakeLists.txt
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more contributor
 # license agreements.  See the NOTICE file distributed with this work for
@@ -18,42 +18,5 @@
 #
 # ##############################################################################
 
-set(SRCS
-    x86_64_allocateheap.c
-    x86_64_copystate.c
-    x86_64_exit.c
-    x86_64_getintstack.c
-    x86_64_mdelay.c
-    x86_64_initialize.c
-    x86_64_modifyreg8.c
-    x86_64_modifyreg16.c
-    x86_64_modifyreg32.c
-    x86_64_nputs.c
-    x86_64_switchcontext.c
-    x86_64_udelay.c
-    x86_64_tcbinfo.c)
-
-if(CONFIG_PCI)
-  list(APPEND SRCS x86_64_pci.c)
-endif()
-
-if(CONFIG_ARCH_KERNEL_STACK)
-  list(APPEND SRCS x86_64_addrenv_kstack.c)
-endif()
-
-if(CONFIG_ARCH_ADDRENV)
-  list(APPEND SRCS x86_64_addrenv.c x86_64_pgalloc.c x86_64_addrenv_perms.c x86_64_addrenv_pgmap.c)
-endif()
-
-
-if(CONFIG_BUILD_FLAT)
-  list(
-    APPEND
-    SRCS
-    x86_64_task_start.c
-    x86_64_pthread_start.c
-    x86_64_signal_dispatch.c
-    x86_64_signal_handler.S)
-endif()
-
-target_sources(arch PRIVATE ${SRCS})
+add_subdirectory(src)
+target_include_directories(board PRIVATE include)

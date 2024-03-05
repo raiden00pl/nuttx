@@ -1,5 +1,5 @@
-p/****************************************************************************
- * arch/risc-v/src/k230/k230_pgalloc.c
+/****************************************************************************
+ * arch/x86_64/src/common/x86_64_task_start.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -22,32 +22,53 @@ p/****************************************************************************
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/arch.h>
 #include <nuttx/config.h>
-#include <nuttx/pgalloc.h>
+#include <nuttx/arch.h>
 #include <assert.h>
-#include <debug.h>
-#include <arch/board/board_memorymap.h>
+
+#include <arch/syscall.h>
+
+#include "x86_64_internal.h"
+
+#ifndef CONFIG_BUILD_FLAT
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: up_allocate_pgheap
+ * Name: up_task_start
  *
  * Description:
- *   If there is a page allocator in the configuration, then this function
- *   must be provided by the platform-specific code.  The OS initialization
- *   logic will call this function early in the initialization sequence to
- *   get the page heap information needed to configure the page allocator.
+ *   In this kernel mode build, this function will be called to execute a
+ *   task in user-space.  When the task is first started, a kernel-mode
+ *   stub will first run to perform some housekeeping functions.  This
+ *   kernel-mode stub will then be called transfer control to the user-mode
+ *   task.
+ *
+ *   Normally the a user-mode start-up stub will also execute before the
+ *   task actually starts.  See libc/sched/task_startup.c
+ *
+ * Input Parameters:
+ *   taskentry - The user-space entry point of the task.
+ *   argc - The number of parameters being passed.
+ *   argv - The parameters being passed. These lie in kernel-space memory
+ *     and will have to be reallocated  in user-space memory.
+ *
+ * Returned Value:
+ *   This function should not return.  It should call the user-mode start-up
+ *   stub and that stub should call exit if/when the user task terminates.
  *
  ****************************************************************************/
 
-void up_allocate_pgheap(void **heap_start, size_t *heap_size)
+void up_task_start(main_t taskentry, int argc, char *argv[])
 {
-  DEBUGASSERT(heap_start && heap_size);
+  /* Let sys_call3() do all of the work */
 
-  *heap_start = (void *)PGPOOL_START;
-  *heap_size  = (size_t)PGPOOL_SIZE;
+  sys_call3(SYS_task_start, (uintptr_t)taskentry, (uintptr_t)argc,
+            (uintptr_t)argv);
+
+  PANIC();
 }
+
+#endif /* !CONFIG_BUILD_FLAT */

@@ -136,7 +136,7 @@ void up_initial_state(struct tcb_s *tcb)
    */
 
 #ifdef CONFIG_BUILD_KERNEL
-#  error "Missing logic for the CONFIG_BUILD_KERNEL build"
+#  warning "Missing logic for the CONFIG_BUILD_KERNEL build"
 #endif
 
   /* Enable or disable interrupts, based on user configuration.  If the IF

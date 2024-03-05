@@ -1,5 +1,5 @@
 ############################################################################
-# boards/x86_64/intel64/qemu-intel64/src/Makefile
+# boards/x86_64/intel64/qemu-intel64/src/Make.defs
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -34,4 +34,6 @@ ifeq ($(CONFIG_INTEL64_QEMU_RAMDISK),y)
 CSRCS += qemu_ramdisk.c
 endif
 
-include $(TOPDIR)/boards/Board.mk
+DEPPATH += --dep-path board
+VPATH += :board
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

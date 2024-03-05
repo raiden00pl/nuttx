@@ -1,5 +1,5 @@
-############################################################################
-# boards/x86_64/intel64/qemu-intel64/scripts/Make.defs
+#############################################################################
+# boards/x86_64/intel64/common/Makefile
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -16,16 +16,18 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-############################################################################
+#############################################################################
 
-include $(TOPDIR)/.config
-include $(TOPDIR)/tools/Config.mk
-include $(TOPDIR)/arch/x86_64/src/intel64/Toolchain.defs
+include $(TOPDIR)/Make.defs
 
-ifeq ($(CONFIG_BUILD_KERNEL),y)
-ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)qemu-kernel.ld
-else ifeq ($(CONFIG_BUILD_PROTECTED),y)
-ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)qemu-kernel.ld
-else
-ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)qemu.ld
-endif
+include board/Make.defs
+include src/Make.defs
+
+DEPPATH += --dep-path board
+DEPPATH += --dep-path src
+
+include $(TOPDIR)/boards/Board.mk
+
+ARCHSRCDIR = $(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src
+BOARDDIR = $(ARCHSRCDIR)$(DELIM)board
+CFLAGS += ${INCDIR_PREFIX}$(BOARDDIR)$(DELIM)include

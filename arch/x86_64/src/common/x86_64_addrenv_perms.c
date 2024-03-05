@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/include/arch.h
+ * arch/x86_64/src/common/x86_64_addrenv_perms.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,85 +18,51 @@
  *
  ****************************************************************************/
 
-/* This file should never be included directly but, rather, only indirectly
- * through arch/arch.h
- */
-
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_H
-#define __ARCH_X86_64_INCLUDE_ARCH_H
-
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
+#include <errno.h>
+#include <assert.h>
 
-/* Include chip-specific definitions */
-
-#  include <arch/chip/arch.h>
-
-/* Include architecture-specific definitions */
-
-#ifdef CONFIG_ARCH_INTEL64
-#  include <arch/intel64/arch.h>
-#endif
+#include <nuttx/addrenv.h>
+#include <nuttx/arch.h>
+#include <nuttx/pgalloc.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
- * Inline functions
+ * Private Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Public Types
+ * Public Functions
  ****************************************************************************/
 
-#ifdef CONFIG_ARCH_ADDRENV
-#ifndef __ASSEMBLY__
+/****************************************************************************
+ * Name: up_addrenv_mprot
+ *
+ * Description:
+ *   Modify access rights to an address range.
+ *
+ * Input Parameters:
+ *   addrenv - The address environment to be modified.
+ *   addr - Base address of the region.
+ *   len - Size of the region.
+ *   prot - Access right flags.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
 
-/* The task group resources are retained in a single structure, task_group_s
- * that is defined in the header file nuttx/include/nuttx/sched.h. The type
- * arch_addrenv_t must be defined by platform specific logic in
- * nuttx/arch/<architecture>/include/arch.h.
- */
-
-struct arch_addrenv_s
+int up_addrenv_mprot(arch_addrenv_t *addrenv, uintptr_t addr, size_t len,
+                     int prot)
 {
-  /* The text, data, heap bases and heap size here */
-
-  uintptr_t textvbase;
-  uintptr_t datavbase;
-  uintptr_t heapvbase;
-  size_t    heapsize;
-};
-
-typedef struct arch_addrenv_s arch_addrenv_t;
-#endif /* __ASSEMBLY__ */
-#endif /* CONFIG_ARCH_ADDRENV */
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-#ifdef __cplusplus
-#define EXTERN extern "C"
-extern "C"
-{
-#else
-#define EXTERN extern
-#endif
-
-#undef EXTERN
-#ifdef __cplusplus
+#warning TODO: up_addrenv_mprot
+  ASSERT(0);
 }
-#endif
-
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_H */

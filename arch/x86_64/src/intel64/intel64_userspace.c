@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/include/arch.h
+ * arch/risc-v/src/mpfs/mpfs_userspace.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,85 +18,52 @@
  *
  ****************************************************************************/
 
-/* This file should never be included directly but, rather, only indirectly
- * through arch/arch.h
- */
-
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_H
-#define __ARCH_X86_64_INCLUDE_ARCH_H
-
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#include <sys/types.h>
+#include <stdint.h>
+#include <assert.h>
 
-/* Include chip-specific definitions */
+#include <nuttx/queue.h>
+#include <nuttx/userspace.h>
 
-#  include <arch/chip/arch.h>
-
-/* Include architecture-specific definitions */
-
-#ifdef CONFIG_ARCH_INTEL64
-#  include <arch/intel64/arch.h>
-#endif
+#include <arch/board/board_memorymap.h>
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
- * Inline functions
+ * Private Types
  ****************************************************************************/
 
 /****************************************************************************
- * Public Types
+ * Private Function Prototypes
  ****************************************************************************/
 
-#ifdef CONFIG_ARCH_ADDRENV
-#ifndef __ASSEMBLY__
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
 
-/* The task group resources are retained in a single structure, task_group_s
- * that is defined in the header file nuttx/include/nuttx/sched.h. The type
- * arch_addrenv_t must be defined by platform specific logic in
- * nuttx/arch/<architecture>/include/arch.h.
- */
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
 
-struct arch_addrenv_s
+/****************************************************************************
+ * Name: intel64_userspace
+ *
+ * Description:
+ *   For the case of the separate user-/kernel-space build, perform whatever
+ *   platform specific initialization of the user memory is required.
+ *   Normally this just means initializing the user space .data and .bss
+ *   segments.
+ *
+ ****************************************************************************/
+
+void intel64_userspace(void)
 {
-  /* The text, data, heap bases and heap size here */
-
-  uintptr_t textvbase;
-  uintptr_t datavbase;
-  uintptr_t heapvbase;
-  size_t    heapsize;
-};
-
-typedef struct arch_addrenv_s arch_addrenv_t;
-#endif /* __ASSEMBLY__ */
-#endif /* CONFIG_ARCH_ADDRENV */
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-#ifdef __cplusplus
-#define EXTERN extern "C"
-extern "C"
-{
-#else
-#define EXTERN extern
-#endif
-
-#undef EXTERN
-#ifdef __cplusplus
+#warning TODO: intel64_userspace
 }
-#endif
-
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_H */

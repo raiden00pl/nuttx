@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/x86_64/include/arch.h
+ * arch/x86_64/src/common/x86_64_signal_handler.S
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,85 +18,56 @@
  *
  ****************************************************************************/
 
-/* This file should never be included directly but, rather, only indirectly
- * through arch/arch.h
- */
-
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_H
-#define __ARCH_X86_64_INCLUDE_ARCH_H
-
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
+#include <arch/arch.h>
+#include <arch/multiboot2.h>
 #include <sys/types.h>
 
-/* Include chip-specific definitions */
-
-#  include <arch/chip/arch.h>
-
-/* Include architecture-specific definitions */
-
-#ifdef CONFIG_ARCH_INTEL64
-#  include <arch/intel64/arch.h>
-#endif
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__)
 
 /****************************************************************************
- * Pre-processor Definitions
+ * File info
+ ****************************************************************************/
+
+	.file "intel64_signal_handler.S"
+
+/****************************************************************************
+ * Private Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Inline functions
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Public Types
+ * Name: up_signal_handler
+ *
+ * Description:
+ *   This function is the user-space, signal handler trampoline function.  It
+ *   is called from up_signal_dispatch() in user-mode.
+ *
+ * Input Parameters:
+ *   a0 = sighand
+ *     The address user-space signal handling function
+ *   a1-a3 = signo, info, and ucontext
+ *     Standard arguments to be passed to the signal handling function.
+ *
+ * Returned Value:
+ *   None.  This function does not return in the normal sense.  It returns
+ *   via the SYS_signal_handler_return (see syscall.h)
+ *
  ****************************************************************************/
 
-#ifdef CONFIG_ARCH_ADDRENV
-#ifndef __ASSEMBLY__
+  .text
+  .globl up_signal_handler
+  .type  up_signal_handler, function
 
-/* The task group resources are retained in a single structure, task_group_s
- * that is defined in the header file nuttx/include/nuttx/sched.h. The type
- * arch_addrenv_t must be defined by platform specific logic in
- * nuttx/arch/<architecture>/include/arch.h.
- */
+up_signal_handler:
 
-struct arch_addrenv_s
-{
-  /* The text, data, heap bases and heap size here */
+#warning up_signal_handler missing logic
 
-  uintptr_t textvbase;
-  uintptr_t datavbase;
-  uintptr_t heapvbase;
-  size_t    heapsize;
-};
-
-typedef struct arch_addrenv_s arch_addrenv_t;
-#endif /* __ASSEMBLY__ */
-#endif /* CONFIG_ARCH_ADDRENV */
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-#ifdef __cplusplus
-#define EXTERN extern "C"
-extern "C"
-{
-#else
-#define EXTERN extern
-#endif
-
-#undef EXTERN
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_H */
+#endif /* CONFIG_BUILD_PROTECTED && !__KERNEL__ */

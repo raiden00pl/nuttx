@@ -46,6 +46,9 @@ endif
 ifeq ($(CONFIG_ARCH_SPARC),y)
 include $(TOPDIR)/libs/libc/machine/sparc/Make.defs
 endif
+ifeq ($(CONFIG_ARCH_X86_64),y)
+include $(TOPDIR)/libs/libc/machine/x86_64/Make.defs
+endif
 DEPPATH += --dep-path machine
 VPATH += :machine
 
