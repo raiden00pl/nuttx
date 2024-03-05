@@ -30,4 +30,8 @@ ifeq ($(CONFIG_BOARDCTL_RESET),y)
   CSRCS += qemu_reset.c
 endif
 
+ifeq ($(CONFIG_INTEL64_QEMU_RAMDISK),y)
+CSRCS += qemu_ramdisk.c
+endif
+
 include $(TOPDIR)/boards/Board.mk

@@ -28,6 +28,10 @@ if(CONFIG_BOARDCTL_RESET)
   list(APPEND SRCS qemu_reset.c)
 endif()
 
+if(CONFIG_INTEL64_QEMU_RAMDISK)
+  list(APPEND SRCS qemu_ramdisk.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/qemu.ld")

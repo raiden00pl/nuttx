@@ -79,5 +79,13 @@ int qemu_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_INTEL64_QEMU_RAMDISK
+  ret = qemu_mount_ramdisk();
+  if (ret < 0)
+    {
+      serr("ERROR: Failed to mount RAMDISK %d\n", ret);
+    }
+#endif
+
   return ret;
 }

@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/x86_64/intel64/qemu-intel64/src/qemu_intel64.h
+ * boards/x86_64/intel64/qemu-intel64/src/qemu_ramdisk.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -18,39 +18,47 @@
  *
  ****************************************************************************/
 
-#ifndef __BOARDS_X86_64_INTEL64_QEMU_INTEL64_SRC_QEMU_INTEL64_H
-#define __BOARDS_X86_64_INTEL64_QEMU_INTEL64_SRC_QEMU_INTEL64_H
-
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
-#include <nuttx/compiler.h>
+
+#include <stdbool.h>
+#include <stdio.h>
+#include <syslog.h>
+#include <errno.h>
+
+#include <nuttx/board.h>
+
+#include <arch/board/board_memorymap.h>
+#include <nuttx/drivers/ramdisk.h>
+#include <sys/boardctl.h>
+#include <sys/mount.h>
+
+#include "x86_64_internal.h"
+#include "qemu_intel64.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* GPIO Pin Definitions *****************************************************/
+#ifndef CONFIG_BUILD_KERNEL
+#error "Ramdisk usage is intended to be used with kernel build only"
+#endif
+
+#define SECTORSIZE   512
+#define NSECTORS(b)  (((b) + SECTORSIZE - 1) / SECTORSIZE)
+#define RAMDISK_DEVICE_MINOR 0
 
 /****************************************************************************
- * Public Types
+ * Private Types
  ****************************************************************************/
 
 /****************************************************************************
- * Public Data
+ * Public Functions
  ****************************************************************************/
 
-#ifndef __ASSEMBLY__
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
-int qemu_bringup(void);
-
-#ifdef CONFIG_INTEL64_QEMU_RAMDISK
 /****************************************************************************
  * Name: qemu_mount_ramdisk
  *
@@ -65,8 +73,45 @@ int qemu_bringup(void);
  *
  ****************************************************************************/
 
-int qemu_mount_ramdisk(void);
-#endif
+int qemu_mount_ramdisk(void)
+{
+  struct boardioc_romdisk_s desc;
+  uintptr_t                 ramdisk_start;
+  size_t                    ramdisk_size;
+  int                       ret;
 
-#endif /* __ASSEMBLY__ */
-#endif /* __BOARDS_X86_64_INTEL64_QEMU_INTEL64_SRC_QEMU_INTEL64_H */
+  /* Check if tag is valid */
+
+  if (g_initrd_tag.type != MULTIBOOT_TAG_TYPE_MODULE)
+    {
+      return -ENODEV;
+    }
+
+  ramdisk_start = g_initrd_tag.mod_start;
+  ramdisk_size  = g_initrd_tag.mod_end - g_initrd_tag.mod_start;
+
+  /* Map RAMDISK region */
+
+  up_map_region((void *)ramdisk_start, ramdisk_size,
+                (X86_PAGE_PRESENT | X86_PAGE_WR | X86_PAGE_NOCACHE));
+
+  /* Register RAMDISK */
+
+  desc.minor    = RAMDISK_DEVICE_MINOR;
+  desc.nsectors = NSECTORS((ssize_t)ramdisk_size);
+  desc.sectsize = SECTORSIZE;
+  desc.image    = ramdisk_start;
+
+  ret = boardctl(BOARDIOC_ROMDISK, (uintptr_t)&desc);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "Ramdisk register failed: %s\n", strerror(errno));
+      syslog(LOG_ERR, "Ramdisk mountpoint /dev/ram%d\n",
+                                          RAMDISK_DEVICE_MINOR);
+      syslog(LOG_ERR, "Ramdisk length %u, origin %x\n",
+                                          (ssize_t)__ramdisk_size,
+                                          (uintptr_t)__ramdisk_start);
+    }
+
+  return ret;
+}
