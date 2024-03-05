@@ -46,6 +46,13 @@ uint32_t g_mb_magic __attribute__((section(".loader.bss")));
 uint32_t g_mb_info_struct __attribute__((section(".loader.bss")));
 uintptr_t g_acpi_rsdp = 0;
 
+/* RAMDISK tag */
+
+struct multiboot_tag_module g_initrd_tag =
+{
+  .type = 0
+};
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -106,6 +113,18 @@ static void x86_64_mb2_config(void)
               break;
             }
 #endif
+
+          case MULTIBOOT_TAG_TYPE_MODULE:
+            {
+              struct multiboot_tag_module *initrd
+                  = (struct multiboot_tag_module *)tag;
+
+              /* Store tag for later */
+
+              memcpy(&g_initrd_tag, initrd,
+                     sizeof(struct multiboot_tag_module));
+              break;
+            }
 
           default:
             break;
