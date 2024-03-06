@@ -535,6 +535,65 @@ config LAN9250_REGDEBUG
 
 endif # NET_LAN9250
 
+menuconfig NET_E1000
+	bool "Intel E1000 support"
+	default n
+	select PCI
+	---help---
+		Enable E1000 PCI Ethernet driver.
+
+if NET_E1000
+
+config NET_E1000_82574L
+	bool "Intel 82574L"
+	default n
+
+if NET_E1000_82574L
+
+config NET_E1000_82574L_IRQ
+	int "Intel 82574L IRQ"
+	default 0
+
+endif
+
+config NET_E1000_82540EM
+	bool "Intel 82540EM"
+	default n
+
+if NET_E1000_82540EM
+
+config NET_E1000_82540EM_IRQ
+	int "Intel 82540EM IRQ"
+	default 0
+
+endif
+
+config NET_E1000_I219
+	bool "Intel I219"
+	default n
+
+if NET_E1000_I219
+
+config NET_E1000_I219_IRQ
+	int "Intel I219 IRQ"
+	default 0
+
+endif
+
+config NET_E1000_I225LM
+	bool "Intel I225LM"
+	default n
+
+if NET_E1000_I225LM
+
+config NET_E1000_I225LM_IRQ
+	int "Intel I225LM IRQ"
+	default 0
+
+endif
+
+endif # NET_E1000
+
 if ARCH_HAVE_PHY
 
 comment "External Ethernet PHY Device Support"

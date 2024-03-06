@@ -32,6 +32,7 @@
 #include <nuttx/virt/qemu_pci.h>
 #include <nuttx/virt/ivshmem.h>
 #include <nuttx/serial/uart_pci_16550.h>
+#include <nuttx/net/e1000.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -93,6 +94,18 @@ const struct pci_dev_type_s *g_pci_device_types[] =
 #endif
 #ifdef CONFIG_VIRT_IVSHMEM
   &g_pci_type_ivshmem,
+#endif
+#ifdef CONFIG_NET_E1000_82574L
+  &g_pci_type_82574l,
+#endif
+#ifdef CONFIG_NET_E1000_82540EM
+  &g_pci_type_82540em,
+#endif
+#ifdef CONFIG_NET_E1000_I219
+  &g_pci_type_i219,
+#endif
+#ifdef CONFIG_NET_E1000_I225LM
+  &g_pci_type_i225lm,
 #endif
   NULL,
 };
