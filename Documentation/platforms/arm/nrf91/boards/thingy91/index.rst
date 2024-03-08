@@ -17,14 +17,14 @@ GPS                                No
 Buttons                            Yes
 LEDs                               No
 COEX                               No
-PMIC                               No
+PMIC (ADP5360)                     No      I2C 0x46
 Battery monitoring                 No
 Buzzer                             No
-EEPROM (24CW160)                   No
-Low power accelerometer (ADXL362)  No
-Hi G accelerometer (ADXL372)       No
-Air quality sensor (HBME680)       No
-Color sensor (BH1749NUC)           No
+EEPROM (24CW160)                   No      I2C 0x50
+Low power accelerometer (ADXL362)  No      SPI
+Hi G accelerometer (ADXL372)       No      SPI
+Air quality sensor (BME680)        No      I2C 0x76
+Color sensor (BH1749NUC)           No      I2C 0x38
 ================================== ======= =============
 
 Serial Console
