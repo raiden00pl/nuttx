@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/arm/nrf91/thingy91/src/nrf91_boot.c
+ * boards/arm/nrf91/common/src/nrf91_adxl372.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -25,61 +25,50 @@
 #include <nuttx/config.h>
 
 #include <debug.h>
+#include <errno.h>
+#include <stdio.h>
 
-#include <nuttx/board.h>
-#include <arch/board/board.h>
+#include <nuttx/spi/spi.h>
+#include <nuttx/sensors/adxl372.h>
 
-#include "arm_internal.h"
-#include "thingy91.h"
+#include "nrf91_spi.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: nrf91_board_initialize
- *
- * Description:
- *   All NRF91xxx architectures must provide the following entry point.
- *   This entry point is called early in the initialization -- after all
- *   memory has been configured and mapped but before any devices have been
- *   initialized.
- *
+ * Name: nrf91_adxl372_init
  ****************************************************************************/
 
-void nrf91_board_initialize(void)
+int nrf91_adxl372_init(int devno, int busno, uint8_t addr)
 {
-  /* Configure on-board LEDs if LED support has been selected. */
+  struct spi_dev_s *spi;
+  int ret;
 
-#ifdef CONFIG_ARCH_LEDS
-  board_autoled_initialize();
-#endif
+  UNUSED(addr);
 
-#ifdef CONFIG_NRF91_SPI_MASTER
-  /* Configure SPI chip selects */
+  sninfo("Initializing ADXL372!\n");
 
-  nrf91_spidev_initialize();
-#endif
+  /* Initialize SPI */
+
+  spi = nrf91_spibus_initialize(busno);
+  if (!spi)
+    {
+      return -ENODEV;
+    }
+
+  /* Then register the barometer sensor */
+
+  ret = adxl372_register_uorb(devno, spi);
+  if (ret < 0)
+    {
+      snerr("ERROR: Error registering ADXL372\n");
+    }
+
+  return ret;
 }
-
-/****************************************************************************
- * Name: board_late_initialize
- *
- * Description:
- *   If CONFIG_BOARD_LATE_INITIALIZE is selected, then an additional
- *   initialization call will be performed in the boot-up sequence to a
- *   function called board_late_initialize(). board_late_initialize() will be
- *   called immediately after up_initialize() is called and just before the
- *   initial application is started.  This additional initialization phase
- *   may be used, for example, to initialize board-specific device drivers.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_BOARD_LATE_INITIALIZE
-void board_late_initialize(void)
-{
-  /* Perform board-specific initialization */
-
-  nrf91_bringup();
-}
-#endif
