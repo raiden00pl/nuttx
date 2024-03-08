@@ -36,6 +36,14 @@ if(CONFIG_ARCH_BOARD_COMMON)
     list(APPEND SRCS nrf91_reset.c)
   endif()
 
+  if(CONFIG_SENSORS_BH1749NUC)
+    list(APPEND SRCS nrf91_bh1749nuc.c)
+  endif()
+
+  if(CONFIG_SENSORS_BME680)
+    list(APPEND SRCS nrf91_bme680.c)
+  endif()
+
   target_sources(board PRIVATE ${SRCS})
 
 endif()

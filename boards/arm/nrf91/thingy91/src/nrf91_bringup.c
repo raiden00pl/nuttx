@@ -54,6 +54,14 @@
 #  include "nrf91_timer.h"
 #endif
 
+#ifdef CONFIG_SENSORS_BH1749NUC
+#  include "nrf91_bh1749nuc.h"
+#endif
+
+#ifdef CONFIG_SENSORS_BME680
+#  include "nrf91_bme680.h"
+#endif
+
 #include "thingy91.h"
 
 /****************************************************************************
@@ -61,6 +69,11 @@
  ****************************************************************************/
 
 #define NRF91_TIMER (0)
+
+#define BH1749NUC_I2C_ADDR 0x38
+#define BH1749NUC_I2C_BUS  2
+#define BME680_I2C_ADDR    0x76
+#define BME680_I2C_BUS     2
 
 /****************************************************************************
  * Private Functions
@@ -87,6 +100,10 @@
 int nrf91_bringup(void)
 {
   int ret;
+
+#if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
+  nrf53_i2ctool();
+#endif
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -118,6 +135,26 @@ int nrf91_bringup(void)
       syslog(LOG_ERR,
              "ERROR: Failed to initialize timer driver: %d\n",
              ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_BH1749NUC
+  /* Initialize BH1749NUC */
+
+  ret = nrf91_bh1749nuc_init(0, BH1749NUC_I2C_BUS, BH1749NUC_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf91_bh1749nuc_init failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_BME680
+  /* Initialize BH1749NUC */
+
+  ret = nrf91_bme680_init(0, BME680_I2C_BUS, BME680_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf91_bme680_init failed: %d\n", ret);
     }
 #endif
 

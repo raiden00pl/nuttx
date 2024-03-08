@@ -80,7 +80,7 @@
 #define GPIO_ADXL362_INT1 (GPIO_INPUT  | GPIO_PORT0 | GPIO_PIN(9))
 #define GPIO_ADXL362_CS   (GPIO_OUTPUT | GPIO_PORT0 | GPIO_PIN(8))
 
-/* BH1749
+/* BH1749NUC
  *   INT  - P0.27
  */
 
@@ -121,6 +121,30 @@
  ****************************************************************************/
 
 int nrf91_bringup(void);
+
+/****************************************************************************
+ * Name: nrf91_i2c_register
+ *
+ * Description:
+ *   Register one I2C drivers for the I2C tool.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_I2C
+int nrf91_i2c_register(int bus);
+#endif
+
+/****************************************************************************
+ * Name: nrf91_i2ctool
+ *
+ * Description:
+ *   Register I2C drivers for the I2C tool.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SYSTEM_I2CTOOL
+int nrf91_i2ctool(void);
+#endif
 
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_NRF91_THINGY91_SRC_THINGY91_H */
