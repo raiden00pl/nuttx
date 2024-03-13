@@ -79,7 +79,6 @@ struct lsm9ds1_sensor_s
 struct lsm9ds1_sensor_dev_s
 {
   struct lsm9ds1_sensor_s priv[3];
-  mutex_t                 lock;
 #ifdef CONFIG_SENSORS_LSM9DS1_POLL
   sem_t                   run;
 #endif
@@ -696,7 +695,6 @@ int lsm9ds1_register_uorb(int devno, FAR struct lsm9ds1_config_s *config)
     }
 
   memset(dev, 0, sizeof(*dev));
-  nxmutex_init(&dev->lock);
 #ifdef CONFIG_SENSORS_LSM9DS1_POLL
   nxsem_init(&dev->run, 0, 0);
 #endif
