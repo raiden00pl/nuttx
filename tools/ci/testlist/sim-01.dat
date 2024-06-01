@@ -20,6 +20,7 @@
 # Do not build Linux configs
 -Darwin,sim:linuxi2c
 -Darwin,sim:linuxspi
+-Darwin,sim:jumbo
 
 # macOS doesn't have X11
 -Darwin,sim:lvgl_fb
@@ -55,3 +56,4 @@ CMake,sim:note
 CMake,sim:nsh
 CMake,sim:nxffs
 CMake,sim:matter
+CMake,sim:jumbo

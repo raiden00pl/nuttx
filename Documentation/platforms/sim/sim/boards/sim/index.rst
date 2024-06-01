@@ -1807,6 +1807,12 @@ This is a configuration with sim usbhost support.
    Run sim usbhost with root mode, run sim usbdev or plug-in cdcacm usb device.
    Then you can use /dev/ttyACM to transfer data.
 
+jumbo
+-----
+
+This configuration tries to enable as much functionality as possible.
+Its main purpose is to check whether the code compiles, so the enabled
+functionality may not work properly.
 
 README.txt
 ==========
