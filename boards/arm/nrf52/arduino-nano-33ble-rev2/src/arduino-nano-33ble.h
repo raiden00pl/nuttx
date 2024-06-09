@@ -86,5 +86,15 @@
 
 int nrf52_bringup(void);
 
+/****************************************************************************
+ * Name: nrf52_sensors_init
+ *
+ * Description:
+ *   Initialzie on-board sensors
+ *
+ ****************************************************************************/
+
+int nrf52_sensors_init(void);
+
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_NRF52_ARDUINO_NANO_33BLE_REV2_SRC_ARDUINO_NANO_33BLE_H */

@@ -124,19 +124,27 @@ int nrf52_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_SENSORS
-  /* Provide power to the sensors and give them time to stabilize. */
-
-  nrf52_gpio_config(BOARD_VDD_ENV_PIN);
-  up_mdelay(20);
-#endif
-
   /* If I2C 0 is enabled and we are master, engage pullup resistor and
    * disable trace.
    */
+
 #ifdef CONFIG_NRF52_I2C0_MASTER
   nrf52_gpio_config(BOARD_I2C0_PULLUP_PIN);
   putreg32(0, NRF52_CLOCK_TRACECONFIG);
+#endif
+
+#if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
+  nrf52_i2ctool();
+#endif
+
+#ifdef CONFIG_SENSORS
+  /* Initialzie sensors */
+
+  ret = nrf52_sensors_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf52_sensors_init() failed: %d\n", ret);
+    }
 #endif
 
   UNUSED(ret);
