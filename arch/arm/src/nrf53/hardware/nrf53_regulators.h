@@ -1,7 +1,5 @@
 /****************************************************************************
- * arch/arm/src/nrf53/hardware/nrf53_osc.h
- *
- * SPDX-License-Identifier: Apache-2.0
+ * arch/arm/src/nrf53/hardware/nrf53_regulators.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -20,8 +18,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_OSC_H
-#define __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_OSC_H
+#ifndef __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_REGULATORS_H
+#define __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_REGULATORS_H
 
 /****************************************************************************
  * Included Files
@@ -36,26 +34,24 @@
 
 /* Register offsets *********************************************************/
 
-#define NRF53_OSC_XOSC32MCAPS_OFFSET      0x5C4  /* Programmable capacitance of XC1 and XC2 */
-#define NRF53_OSC_XOSC32KI_BYPASS_OFFSET  0x6C0  /* Enable or disable bypass of LFCLK crystal oscillator with external clock source */
-#define NRF53_OSC_XOSC32KI_INTCAP_OFFSET  0x6D0  /* Control usage of internal load capacitors */
+#define NRF53_REGULATORS_MAINREGSTATUS_OFFSET 0x428  /* Main supply status */
+#define NRF53_REGULATORS_SYSTEMOFF_OFFSET     0x500  /* System OFF register */
+#define NRF53_REGULATORS_POFCON_OFFSET        0x510  /* Power-fail comparator configuration */
+#define NRF53_REGULATORS_MAINDCDCEN_OFFSET    0x704  /* DC/DC enable register for VREGMAIN */
+#define NRF53_REGULATORS_RADIODCDCEN_OFFSET   0x904  /* DC/DC enable register for VREGRADIO */
+#define NRF53_REGULATORS_HDCDCEN_OFFSET       0xb00  /* DC/DC enable register for VREGH */
 
 /* Register definitions *****************************************************/
 
-#define NRF53_OSC_XOSC32MCAPS       (NRF53_OSCILLATORS_BASE + NRF53_OSC_XOSC32MCAPS_OFFSET)
-#define NRF53_OSC_XOSC32KI_BYPASS   (NRF53_OSCILLATORS_BASE + NRF53_OSC_XOSC32KI_BYPASS_OFFSET)
-#define NRF53_OSC_XOSC32KI_INTCAP   (NRF53_OSCILLATORS_BASE + NRF53_OSC_XOSC32KI_INTCAP_OFFSET)
+#define NRF53_REGULATORS_MAINREGSTATUS        (NRF53_REGULATORS_BASE + NRF53_REGULATORS_MAINREGSTATUS_OFFSET)
+#define NRF53_REGULATORS_SYSTEMOFF            (NRF53_REGULATORS_BASE + NRF53_REGULATORS_SYSTEMOFF_OFFSET)
+#define NRF53_REGULATORS_POFCON               (NRF53_REGULATORS_BASE + NRF53_REGULATORS_POFCON_OFFSET)
+#define NRF53_REGULATORS_MAINDCDCEN           (NRF53_REGULATORS_BASE + NRF53_REGULATORS_MAINDCDCEN_OFFSET)
+#define NRF53_REGULATORS_RADIODCDCEN          (NRF53_REGULATORS_BASE + NRF53_REGULATORS_RADIODCDCEN_OFFSET)
+#define NRF53_REGULATORS_HDCDCEN              (NRF53_REGULATORS_BASE + NRF53_REGULATORS_HDCDCEN_OFFSET)
 
 /* Register bit definitions *************************************************/
 
-#define OSC_XOSC32MCAPS_CAPVALUE_MASK  (0x1f)
-#define OSC_XOSC32MCAPS_ENABLE         (1 << 8)
+#define REGULATORS_DCDCEN_ENABLE              (1 << 0)
 
-#define OSC_XOSC32KI_INTCAP_SHIFT      (0)
-#define OSC_XOSC32KI_INTCAP_MASK       (0x3 << OSC_XOSC32KI_INTCAP_SHIFT)
-#  define OSC_XOSC32KI_INTCAP_EXT      (0x0 << OSC_XOSC32KI_INTCAP_SHIFT)
-#  define OSC_XOSC32KI_INTCAP_C6PF     (0x1 << OSC_XOSC32KI_INTCAP_SHIFT)
-#  define OSC_XOSC32KI_INTCAP_C7PF     (0x2 << OSC_XOSC32KI_INTCAP_SHIFT)
-#  define OSC_XOSC32KI_INTCAP_C9PF     (0x3 << OSC_XOSC32KI_INTCAP_SHIFT)
-
-#endif /* __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_OSC_H */
+#endif /* __ARCH_ARM_SRC_NRF53_HARDWARE_NRF53_REGULATORS_H */

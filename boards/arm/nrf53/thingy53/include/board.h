@@ -43,6 +43,8 @@
 #define BOARD_SYSTICK_CLOCK         (64000000)
 #define BOARD_OSC_XOSC32KI_INTCAP   (OSC_XOSC32KI_INTCAP_C7PF)
 
+#define BOARD_OSC_XOSC32MCAPS_CAP   (8)
+
 /* Button definitions *******************************************************/
 
 /* Board supports four buttons. */
@@ -104,8 +106,8 @@
  *    I2C2_SDA - P1.02
  */
 
-#define BOARD_I2C2_SCL_PIN (GPIO_OUTPUT | GPIO_PORT1 | GPIO_PIN(3))
-#define BOARD_I2C2_SDA_PIN (GPIO_INPUT  | GPIO_PORT1 | GPIO_PIN(2))
+#define BOARD_I2C2_SCL_PIN (GPIO_INPUT | GPIO_PORT1 | GPIO_PIN(3) | GPIO_DRIVE_S0D1)
+#define BOARD_I2C2_SDA_PIN (GPIO_INPUT | GPIO_PORT1 | GPIO_PIN(2) | GPIO_DRIVE_S0D1)
 
 /* ADC Pins *****************************************************************/
 
