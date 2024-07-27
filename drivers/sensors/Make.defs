@@ -52,6 +52,7 @@ endif
 
 ifeq ($(CONFIG_SENSORS_FAKESENSOR),y)
   CSRCS += fakesensor_uorb.c
+  CSRCS += fakesensor2_uorb.c
 endif
 
 ifeq ($(CONFIG_SENSORS_GOLDFISH_GNSS),y)

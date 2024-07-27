@@ -54,6 +54,7 @@ if(CONFIG_SENSORS)
 
   if(CONFIG_SENSORS_FAKESENSOR)
     list(APPEND SRCS fakesensor_uorb.c)
+    list(APPEND SRCS fakesensor2_uorb.c)
   endif()
 
   if(CONFIG_SENSORS_GOLDFISH_GNSS)
