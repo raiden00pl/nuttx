@@ -390,7 +390,8 @@ static int fakesensor_thread(int argc, char** argv)
  *                    ...
  *   devno       - The user specifies which device of this type, from 0.
  *   batch_number- The maximum number of batch
- ****************************************************************************/
+ *
+****************************************************************************/
 
 int fakesensor_init(int type, FAR const char *file_name,
                     int devno, uint32_t batch_number)

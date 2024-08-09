@@ -266,6 +266,7 @@ int gpio_pin_unregister(FAR struct gpio_dev_s *dev, int minor);
  *
  *   ENOENT - path does not exist.
  *   EBUSY  - Ref count is not 0;
+ *
  ****************************************************************************/
 
 int gpio_pin_unregister_byname(FAR struct gpio_dev_s *dev,
