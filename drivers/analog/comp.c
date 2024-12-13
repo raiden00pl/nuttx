@@ -73,9 +73,9 @@ static const struct file_operations g_comp_fops =
 };
 
 static const struct comp_callback_s g_comp_callback =
-  {
-    comp_notify   /* au_notify */
-  };
+{
+  comp_notify   /* au_notify */
+};
 
 /****************************************************************************
  * Private Functions
