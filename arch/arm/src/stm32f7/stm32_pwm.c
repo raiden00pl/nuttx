@@ -1926,11 +1926,6 @@ static int pwm_duty_update(struct pwm_lowerhalf_s *dev, uint8_t channel,
   pwminfo("TIM%u channel: %u duty: %08" PRIx32 "\n",
           priv->timid, channel, duty);
 
-#ifndef CONFIG_PWM_MULTICHAN
-  DEBUGASSERT(channel == priv->channels[0].channel);
-  DEBUGASSERT(duty >= 0 && duty < uitoub16(100));
-#endif
-
   /* Get the reload values */
 
   reload = pwm_arr_get(dev);
@@ -3194,16 +3189,11 @@ static int pwm_duty_channels_update(struct pwm_lowerhalf_s *dev,
   uint8_t   channel = 0;
   ub16_t    duty    = 0;
   int       ret     = OK;
-#ifdef CONFIG_PWM_MULTICHAN
   int       i       = 0;
   int       j       = 0;
-#endif
 
-#ifdef CONFIG_PWM_MULTICHAN
   for (i = 0; i < CONFIG_PWM_NCHANNELS; i++)
-#endif
     {
-#ifdef CONFIG_PWM_MULTICHAN
       /* Break the loop if all following channels are not configured */
 
       if (info->channels[i].channel == -1)
@@ -3236,10 +3226,6 @@ static int pwm_duty_channels_update(struct pwm_lowerhalf_s *dev,
               ret = -EINVAL;
               goto errout;
             }
-#else
-          duty = info->duty;
-          channel = priv->channels[0].channel;
-#endif
 
           /* Update duty cycle */
 
@@ -3248,9 +3234,7 @@ static int pwm_duty_channels_update(struct pwm_lowerhalf_s *dev,
             {
               goto errout;
             }
-#ifdef CONFIG_PWM_MULTICHAN
         }
-#endif
     }
 
 errout:
@@ -3281,19 +3265,10 @@ static int pwm_timer(struct pwm_lowerhalf_s *dev,
 
   DEBUGASSERT(priv != NULL && info != NULL);
 
-#if defined(CONFIG_PWM_MULTICHAN)
   pwminfo("TIM%u frequency: %" PRIu32 "\n",
           priv->timid, info->frequency);
-#else
-  pwminfo("TIM%u channel: %u frequency: %" PRIu32 " duty: %08" PRIx32 "\n",
-          priv->timid, priv->channels[0].channel,
-          info->frequency, info->duty);
-#endif
 
   DEBUGASSERT(info->frequency > 0);
-#ifndef CONFIG_PWM_MULTICHAN
-  DEBUGASSERT(info->duty >= 0 && info->duty < uitoub16(100));
-#endif
 
   /* TODO: what if we have pwm running and we want disable some channels ? */
 
@@ -3921,7 +3896,6 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
 
   if (info->frequency == priv->frequency)
     {
-#ifdef CONFIG_PWM_MULTICHAN
       int i;
 
       for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
@@ -3941,9 +3915,6 @@ static int pwm_start(struct pwm_lowerhalf_s *dev,
                                     info->channels[i].duty);
             }
         }
-#else
-      ret = pwm_duty_update(dev, priv->channels[0].channel, info->duty);
-#endif /* CONFIG_PWM_MULTICHAN */
     }
   else
     {

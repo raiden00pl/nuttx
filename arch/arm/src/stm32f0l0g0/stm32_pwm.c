@@ -852,9 +852,7 @@ static int stm32pwm_output_configure(struct stm32_pwmtimer_s *priv,
 static int stm32pwm_timer(struct stm32_pwmtimer_s *priv,
                           const struct pwm_info_s *info)
 {
-#ifdef CONFIG_PWM_MULTICHAN
   int      i;
-#endif
 
   /* Calculated values */
 
@@ -884,24 +882,17 @@ static int stm32pwm_timer(struct stm32_pwmtimer_s *priv,
   ccmr2 = stm32pwm_getreg(priv, STM32_GTIM_CCMR2_OFFSET);
 #endif
 
-#if defined(CONFIG_PWM_MULTICHAN)
-  pwminfo("TIM%u frequency: %" PRIu32 "\n",
-          priv->timid, info->frequency);
-#elif defined(CONFIG_PWM_PULSECOUNT)
+#ifdef CONFIG_PWM_PULSECOUNT
   pwminfo("TIM%u channel: %u frequency: %" PRIu32 " duty: %08" PRIx32
           " count: %u\n",
           priv->timid, priv->channels[0].channel, info->frequency,
           info->duty, info->count);
 #else
-  pwminfo("TIM%u channel: %u frequency: %" PRIu32 " duty: %08" PRIx32 "\n",
-          priv->timid, priv->channels[0].channel, info->frequency,
-          info->duty);
+  pwminfo("TIM%u frequency: %" PRIu32 "\n",
+          priv->timid, info->frequency);
 #endif
 
   DEBUGASSERT(info->frequency > 0);
-#ifndef CONFIG_PWM_MULTICHAN
-  DEBUGASSERT(info->duty >= 0 && info->duty < uitoub16(100));
-#endif
 
   /* Disable all interrupts and DMA requests, clear all pending status */
 
@@ -1138,20 +1129,15 @@ static int stm32pwm_timer(struct stm32_pwmtimer_s *priv,
   ocmode2   = 0;
 #endif
 
-#ifdef CONFIG_PWM_MULTICHAN
   for (i = 0; i < CONFIG_PWM_NCHANNELS; i++)
-#endif
     {
       ub16_t                duty;
       uint32_t              chanmode;
       bool                  ocmbit = false;
       uint8_t               channel;
-#ifdef CONFIG_PWM_MULTICHAN
       int                   j;
-#endif
       enum stm32_chanmode_e mode;
 
-#ifdef CONFIG_PWM_MULTICHAN
       /* Break the loop if all following channels are not configured */
 
       if (info->channels[i].channel == -1)
@@ -1185,11 +1171,6 @@ static int stm32pwm_timer(struct stm32_pwmtimer_s *priv,
           pwmerr("ERROR: No such channel: %u\n", channel);
           return -EINVAL;
         }
-#else
-      duty = info->duty;
-      channel = priv->channels[0].channel;
-      mode = priv->channels[0].mode;
-#endif
 
       /* Duty cycle:
        *
@@ -1467,11 +1448,6 @@ static  int stm32pwm_update_duty(struct stm32_pwmtimer_s *priv,
 
   pwminfo("TIM%u channel: %u duty: %08" PRIx32 "\n",
           priv->timid, channel, duty);
-
-#ifndef CONFIG_PWM_MULTICHAN
-  DEBUGASSERT(channel == priv->channels[0].channel);
-  DEBUGASSERT(duty >= 0 && duty < uitoub16(100));
-#endif
 
   /* Get the reload values */
 
@@ -1945,7 +1921,6 @@ static int stm32pwm_start(struct pwm_lowerhalf_s *dev,
 
   if (info->frequency == priv->frequency)
     {
-#ifdef CONFIG_PWM_MULTICHAN
       int i;
 
       for (i = 0; ret == OK && i < CONFIG_PWM_NCHANNELS; i++)
@@ -1965,10 +1940,6 @@ static int stm32pwm_start(struct pwm_lowerhalf_s *dev,
                                          info->channels[i].duty);
             }
         }
-#else
-      ret = stm32pwm_update_duty(priv, priv->channels[0].channel,
-                                 info->duty);
-#endif
     }
   else
 #endif
