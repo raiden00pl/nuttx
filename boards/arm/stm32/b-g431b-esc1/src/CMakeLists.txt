@@ -38,6 +38,10 @@ endif()
 
 if(CONFIG_STM32_FOC)
   list(APPEND SRCS stm32_foc.c)
+else()
+  if(CONFIG_ADC)
+    list(APPEND SRCS stm32_adc.c)
+  endif()
 endif()
 
 if(CONFIG_STM32_FDCAN)
