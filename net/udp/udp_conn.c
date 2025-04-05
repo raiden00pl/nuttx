@@ -549,6 +549,7 @@ errout:
 
 void udp_initialize(void)
 {
+  NET_BUFPOOL_INIT(g_udp_connections);
 }
 
 /****************************************************************************
