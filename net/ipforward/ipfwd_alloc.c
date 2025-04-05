@@ -96,6 +96,8 @@ void ipfwd_initialize(void)
    */
 
   DEBUGASSERT(MAX_HDRLEN <= CONFIG_IOB_BUFSIZE);
+
+  NET_BUFPOOL_INIT(g_fwdpool);
 }
 
 /****************************************************************************

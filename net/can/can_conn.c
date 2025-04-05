@@ -83,6 +83,7 @@ static dq_queue_t g_active_can_connections;
 
 void can_initialize(void)
 {
+  NET_BUFPOOL_INIT(g_can_connections);
 }
 
 /****************************************************************************

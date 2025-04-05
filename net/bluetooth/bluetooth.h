@@ -144,6 +144,20 @@ struct sockaddr;                /* Forward reference */
 void bluetooth_initialize(void);
 
 /****************************************************************************
+ * Name: bluetooth_conn_initialize
+ *
+ * Description:
+ *   Initialize the Bluetooth connection structure allocator.  Called
+ *   once and only from bluetooth_initialize().
+ *
+ * Assumptions:
+ *   Called early in the initialization sequence
+ *
+ ****************************************************************************/
+
+void bluetooth_conn_initialize(void);
+
+/****************************************************************************
  * Name: bluetooth_conn_alloc()
  *
  * Description:
