@@ -150,6 +150,7 @@ netlink_get_terminator(FAR const struct nlmsghdr *req)
 
 void netlink_initialize(void)
 {
+  NET_BUFPOOL_INIT(g_netlink_connections);
 }
 
 /****************************************************************************

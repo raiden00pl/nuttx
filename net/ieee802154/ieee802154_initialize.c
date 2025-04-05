@@ -48,6 +48,10 @@
 
 void ieee802154_initialize(void)
 {
+  /* Initialize connection structions */
+
+  ieee802154_conn_initialize();
+
   /* Initialize the container allocator */
 
   ieee802154_container_initialize();
