@@ -110,4 +110,8 @@ if(CONFIG_STM32F0L0G0_WWDG)
   list(APPEND SRCS stm32_wwdg.c)
 endif()
 
+if(CONFIG_STM32F0L0G0_FDCAN)
+  list(APPEND SRCS stm32_fdcan.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})

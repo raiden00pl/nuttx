@@ -100,3 +100,7 @@ endif
 ifeq ($(CONFIG_STM32F0L0G0_WWDG),y)
 CHIP_CSRCS += stm32_wwdg.c
 endif
+
+ifeq ($(CONFIG_STM32F0L0G0_FDCAN),y)
+CHIP_CSRCS += stm32_fdcan.c
+endif
