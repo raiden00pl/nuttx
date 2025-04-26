@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/arm/stm32f0l0g0/nucleo-c092rc/src/stm32_bringup.c
+ * boards/arm/stm32f0l0g0/nucleo-c092rc/src/stm32_can.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -26,109 +26,66 @@
 
 #include <nuttx/config.h>
 
+#include <errno.h>
 #include <debug.h>
 
-#include <sys/types.h>
-
-#ifdef CONFIG_INPUT_BUTTONS
-#  include <nuttx/input/buttons.h>
-#endif
-
-#ifdef CONFIG_USERLED
-#  include <nuttx/leds/userled.h>
-#endif
-
-#ifdef CONFIG_STM32F0L0G0_IWDG
-#  include <stm32_wdg.h>
-#endif
-
+#include <nuttx/can/can.h>
 #include <arch/board/board.h>
 
+#include "chip.h"
+#include "arm_internal.h"
+#include "stm32.h"
+#include "stm32_fdcan.h"
 #include "nucleo-c092rc.h"
+
+#ifdef CONFIG_CAN
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Configuration ************************************************************/
+
+#if !defined(CONFIG_STM32F0L0G0_FDCAN1)
+#  error "No CAN is enable. Please eneable at least one CAN device"
+#endif
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32_bringup
+ * Name: stm32_can_setup
  *
  * Description:
- *   Perform architecture-specific initialization
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y :
- *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
+ *  Initialize CAN and register the CAN device
  *
  ****************************************************************************/
 
-int stm32_bringup(void)
+int stm32_can_setup(void)
 {
+  struct can_dev_s *can;
   int ret;
 
-#ifdef CONFIG_STM32F0L0G0_IWDG
-  /* Initialize the watchdog timer */
+  /* Call stm32_fdcaninitialize() to get an instance of the CAN interface */
 
-  stm32_iwdginitialize("/dev/watchdog0", STM32_LSI_FREQUENCY);
-#endif
+  can = stm32_fdcaninitialize(1);
+  if (can == NULL)
+    {
+      canerr("ERROR:  Failed to get CAN interface\n");
+      return -ENODEV;
+    }
 
-#ifdef HAVE_LEDS
-  /* Register the LED driver */
+  /* Register the CAN driver at "/dev/can0" */
 
-  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  ret = can_register("/dev/can0", can);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
+      canerr("ERROR: can_register failed: %d\n", ret);
       return ret;
     }
-#endif
 
-#ifdef CONFIG_INPUT_BUTTONS
-  /* Register the BUTTON driver */
-
-  ret = btn_lower_initialize("/dev/buttons");
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_ADC
-  /* Initialize ADC and register the ADC driver. */
-
-  ret = stm32_adc_setup();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_adc_setup failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_STM32_FDCAN_CHARDRIVER
-  /* Initialize CAN and register the CAN driver. */
-
-  ret = stm32_can_setup();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_fdcan_setup failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_STM32_FDCAN_SOCKET
-  /* Initialize CAN socket interface */
-
-  ret = stm32_cansock_setup();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_cansock_setup failed: %d\n", ret);
-    }
-#endif
-
-  UNUSED(ret);
   return OK;
 }
+
+#endif /* CONFIG_CAN */
