@@ -150,17 +150,40 @@ static inline void fakesensor2_read_gyro(FAR struct fakesensor2_s *sensor,
                     sizeof(struct sensor_gyro));
 }
 
-static inline void fakesensor2_read_gnss(FAR struct fakesensor2_s *sensor)
+static inline void fakesensor2_read_gnss(FAR struct fakesensor2_s *sensor,
+                                         uint64_t event_timestamp)
 {
-  #warning TODO
-  ASSERT(0);
+  FAR const float *data = sensor->samples->data;
+  struct sensor_gnss gnss;
+
+  gnss.time_utc = *((uint64_t *)&data[sensor->raw_start++]);
+  sensor->raw_start++;
+
+  gnss.latitude           = data[sensor->raw_start++];
+  gnss.longitude          = data[sensor->raw_start++];
+  gnss.altitude           = data[sensor->raw_start++];
+  gnss.altitude_ellipsoid = data[sensor->raw_start++];
+  gnss.eph                = data[sensor->raw_start++];
+  gnss.epv                = data[sensor->raw_start++];
+  gnss.hdop               = data[sensor->raw_start++];
+  gnss.pdop               = data[sensor->raw_start++];
+  gnss.vdop               = data[sensor->raw_start++];
+  gnss.ground_speed       = data[sensor->raw_start++];
+
+  gnss.satellites_used = *((uint32_t *)&data[sensor->raw_start++]);
+  gnss.firmware_ver    = *((uint32_t *)&data[sensor->raw_start++]);
+
+  gnss.timestamp = event_timestamp;
+  sensor->lower.push_event(sensor->lower.priv, &gnss,
+                           sizeof(struct sensor_gnss));
 }
 
 static int fakesensor2_activate(FAR struct sensor_lowerhalf_s *lower,
                                FAR struct file *filep, bool enable)
 {
-  FAR struct fakesensor2_s *sensor = container_of(lower,
-                                                 struct fakesensor2_s, lower);
+  FAR struct fakesensor2_s *sensor =
+    container_of(lower, struct fakesensor2_s, lower);
+
   if (enable)
     {
       sensor->running = true;
@@ -187,8 +210,9 @@ static int fakesensor2_set_interval(FAR struct sensor_lowerhalf_s *lower,
                                    FAR struct file *filep,
                                    FAR uint32_t *period_us)
 {
-  FAR struct fakesensor2_s *sensor = container_of(lower,
-                                                 struct fakesensor2_s, lower);
+  FAR struct fakesensor2_s *sensor =
+    container_of(lower, struct fakesensor2_s, lower);
+
   sensor->interval = *period_us;
   return OK;
 }
@@ -204,9 +228,10 @@ static int fakesensor2_batch(FAR struct sensor_lowerhalf_s *lower,
                             FAR struct file *filep,
                             FAR uint32_t *latency_us)
 {
-  FAR struct fakesensor2_s *sensor = container_of(lower,
-                                                 struct fakesensor2_s, lower);
+  FAR struct fakesensor2_s *sensor =
+    container_of(lower, struct fakesensor2_s, lower);
   uint32_t max_latency = sensor->lower.nbuffer * sensor->interval;
+
   if (*latency_us > max_latency)
     {
       *latency_us = max_latency;
@@ -239,7 +264,7 @@ void fakesensor2_push_event(FAR struct fakesensor2_s *sensor,
 
     case SENSOR_TYPE_GNSS:
     case SENSOR_TYPE_GNSS_SATELLITE:
-      fakesensor2_read_gnss(sensor);
+      fakesensor2_read_gnss(sensor, event_timestamp);
       break;
 
     default:
