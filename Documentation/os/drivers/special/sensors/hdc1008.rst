@@ -1,0 +1,81 @@
+=======
+HDC1008
+=======
+
+The HDC1008 is a Texas Instruments I2C temperature and humidity sensor. It
+reports temperature from -40°C to +125°C and relative humidity from 0 to
+100 %rH, both with 14-bit resolution. Two address pins select one of four bus
+addresses, 0x40 through 0x43.
+
+Two drivers exist for this part. This one uses the :doc:`uorb
+</os/drivers/special/sensors/sensors_uorb>` interface, so the readings appear
+as topics the common sensor tools can read. The older driver presents a
+character device with its own ioctl set. Only one of the two is built:
+``CONFIG_SENSORS_HDC1008_UORB`` selects this one, and the board must then
+call ``hdc1008_register_uorb()`` rather than ``hdc1008_register()``, since
+the registration interfaces differ. The register map and raw value
+conversions are shared between the two drivers.
+
+Configuration
+=============
+
+- ``CONFIG_SENSORS_HDC1008`` enables HDC1008 support.
+- ``CONFIG_SENSORS_HDC1008_UORB`` builds the uORB driver instead of the
+  legacy character device driver.
+- ``CONFIG_SENSORS_HDC1008_POLL`` makes the driver sample the part from its
+  own kernel thread and push the results to the topics. Without it the part
+  is read when the application reads a topic.
+- ``CONFIG_SENSORS_HDC1008_THREAD_STACKSIZE`` sets the stack size of that
+  thread.
+- ``CONFIG_HDC1008_I2C_FREQUENCY`` sets the I2C bus frequency, at most
+  400 kHz.
+- ``CONFIG_HDC1008_I2C_ADDRESS`` is used only by the legacy driver. The uORB
+  driver takes the address from the configuration structure.
+
+Application Programming Interface
+=================================
+
+The header file for the HDC1008 driver interface can be included using:
+
+.. code-block:: c
+
+   #include <nuttx/sensors/hdc1008.h>
+
+Registering the driver creates two topics, ``sensor_humi<n>`` and
+``sensor_temp<n>``, where ``n`` is the ``devno`` passed in:
+
+.. code-block:: c
+
+   struct hdc1008_config_s
+   {
+     struct i2c_master_s *i2c;
+     uint8_t              addr;    /* 0x40 - 0x43 */
+   };
+
+   int hdc1008_register_uorb(int devno, FAR struct hdc1008_config_s *config);
+
+For example, a part strapped to 0x40 on I2C bus 0, published as
+``sensor_humi0`` and ``sensor_temp0``:
+
+.. code-block:: c
+
+   struct hdc1008_config_s config;
+
+   config.i2c  = board_i2cbus_initialize(0);
+   config.addr = 0x40;
+
+   hdc1008_register_uorb(0, &config);
+
+Reading
+=======
+
+Every measurement reads temperature and humidity together in one
+transaction: the driver points the part at the temperature register, waits
+about 20 ms for the conversion, and reads four bytes back. Temperature is
+reported in degrees Celsius and humidity in %rH.
+
+In the default mode the measurement is made when a topic is read. When
+``CONFIG_SENSORS_HDC1008_POLL`` is enabled, a kernel thread wakes up when a
+topic is activated, measures, pushes the results to the activated topics, and
+sleeps for the interval set with ``SNIOC_SET_INTERVAL``. The default interval
+is one second.

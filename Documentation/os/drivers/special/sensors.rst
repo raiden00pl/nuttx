@@ -47,3 +47,4 @@ tool for monitoring sensor activity at runtime.
     sensors/l86xxx.rst
     sensors/gnss_lowerhalf.rst
     sensors/hts221.rst
+    sensors/hdc1008.rst

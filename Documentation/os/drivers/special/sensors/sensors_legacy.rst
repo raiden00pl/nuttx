@@ -34,7 +34,7 @@ Drivers that are available also with the new sensor framework are marked with ``
 - fxos8700cq
 - hall3ph
 - hc_sr04
-- hdc1008
+- :doc:`hdc1008` [*]
 - :doc:`hts221` [*]
 - ina219
 - ina226
