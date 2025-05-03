@@ -462,7 +462,11 @@ if(CONFIG_SENSORS)
   # TI HDC1008
 
   if(CONFIG_SENSORS_HDC1008)
-    list(APPEND SRCS hdc1008.c)
+    if(CONFIG_SENSORS_HDC1008_UORB)
+      list(APPEND SRCS hdc1008_uorb.c)
+    else()
+      list(APPEND SRCS hdc1008.c)
+    endif()
   endif()
 
   # ANALOG MAX31865
