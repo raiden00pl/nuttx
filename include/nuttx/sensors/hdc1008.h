@@ -69,9 +69,37 @@ struct hdc1008_conv_data_s
   int humidity;
 };
 
+/* Configuration data for UORB */
+
+struct hdc1008_config_s
+{
+  struct i2c_master_s *i2c;
+  uint8_t              addr;    /* 0x40 - 0x43 */
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+
+#ifdef CONFIG_SENSORS_HDC1008_UORB
+/****************************************************************************
+ * Name: hdc1008_register_uorb
+ *
+ * Description:
+ *   Register the HDC1008 as UORB device.
+ *
+ * Input Parameters:
+ *   devno   - device number
+ *   config  - device configuration
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int hdc1008_register_uorb(int devno, FAR struct hdc1008_config_s *config);
+
+#else
 
 /****************************************************************************
  * Name: hdc1008_register
@@ -93,5 +121,6 @@ struct hdc1008_conv_data_s
 
 int hdc1008_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
                      uint8_t addr);
+#endif
 
 #endif /* __INCLUDE_NUTTX_SENSORS_HDC1008_H */
