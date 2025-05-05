@@ -1,0 +1,73 @@
+======
+HTS221
+======
+
+The HTS221 is a STMicroelectronics I2C relative humidity and temperature
+sensor. It reports humidity from 0 to 100 %rH and temperature from -40°C to
++120°C, and it stores two factory calibration points for each quantity that
+the driver uses to convert the raw readings.
+
+Two drivers exist for this part. This one uses the :doc:`uorb
+</os/drivers/special/sensors/sensors_uorb>` interface, so the readings appear
+as topics the common sensor tools can read. The older driver presents a
+character device with its own ioctl set and data-ready interrupt support.
+Only one of the two is built: ``CONFIG_SENSORS_HTS221_UORB`` selects this
+one, and the board must then call ``hts221_register_uorb()`` rather than
+``hts221_register()``, since the registration interfaces differ. The
+register map is shared between the two drivers.
+
+Configuration
+=============
+
+- ``CONFIG_SENSORS_HTS221`` enables HTS221 support.
+- ``CONFIG_SENSORS_HTS221_UORB`` builds the uORB driver instead of the
+  legacy character device driver.
+- ``CONFIG_HTS221_I2C_FREQUENCY`` sets the I2C bus frequency, at most
+  400 kHz.
+- ``CONFIG_HTS221_DEBUG`` enables extra debug output.
+- ``CONFIG_HTS221_NPOLLWAITERS`` is used only by the legacy driver.
+
+Application Programming Interface
+=================================
+
+The header file for the HTS221 driver interface can be included using:
+
+.. code-block:: c
+
+   #include <nuttx/sensors/hts221.h>
+
+Registering the driver creates two topics, ``sensor_ambient_temp<n>`` and
+``sensor_humi<n>``, where ``n`` is the ``devno`` passed in:
+
+.. code-block:: c
+
+   int hts221_register_uorb(int devno, FAR struct i2c_master_s *i2c,
+                            uint8_t addr);
+
+For example, a part on I2C bus 0 published as ``sensor_ambient_temp0`` and
+``sensor_humi0``:
+
+.. code-block:: c
+
+   struct i2c_master_s *i2c = board_i2cbus_initialize(0);
+
+   hts221_register_uorb(0, i2c, 0x5f);
+
+Registration reboots the part so that it reloads its calibration
+registers, reads the factory calibration points, powers the part up with
+block data update enabled, and configures the default averaging of 16
+temperature samples and 32 humidity samples. The part is left in one-shot
+mode.
+
+Reading
+=======
+
+Both topics use the ``fetch`` method, so a read triggers a one-shot
+conversion, waits for both data-ready flags, and converts the raw values
+with the factory calibration. Temperature is reported in degrees Celsius
+with 0.01°C resolution and humidity in %rH with 0.1 %rH resolution. A single
+read performs one conversion for both quantities.
+
+The driver does not run its own polling thread. The sampling interval set
+with ``SNIOC_SET_INTERVAL`` is stored but the sensor is only read when the
+application reads the topic.

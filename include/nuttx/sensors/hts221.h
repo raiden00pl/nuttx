@@ -27,6 +27,7 @@
  * Included Files
  ****************************************************************************/
 
+#include <nuttx/config.h>
 #include <nuttx/sensors/ioctl.h>
 
 /****************************************************************************
@@ -143,7 +144,31 @@ typedef struct hts221_status_s
  * Public Function Prototypes
  ****************************************************************************/
 
+#ifdef CONFIG_SENSORS_HTS221_UORB
+/****************************************************************************
+ * Name: hts221_register_uorb
+ *
+ * Description:
+ *   Register the HTS221 humidity and temperature sensor as UORB devices.
+ *
+ * Input Parameters:
+ *   devno - The device number, used to build the device path.
+ *   i2c   - The I2C bus driver instance.
+ *   addr  - The I2C address of the HTS221.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int hts221_register_uorb(int devno, FAR struct i2c_master_s *i2c,
+                         uint8_t addr);
+
+#else
+
 int hts221_register(FAR const char *devpath, FAR struct i2c_master_s *i2c,
                     uint8_t addr, hts221_config_t * config);
+
+#endif
 
 #endif /* __INCLUDE_NUTTX_SENSORS_HTS221_H */

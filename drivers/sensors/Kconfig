@@ -855,6 +855,12 @@ config SENSORS_HTS221
 
 if SENSORS_HTS221
 
+config SENSORS_HTS221_UORB
+	bool "STMicro HTS221 UORB Interface"
+	default n
+	---help---
+		Build the uORB driver instead of the legacy character device driver.
+
 config HTS221_I2C_FREQUENCY
 	int "HTS221 I2C frequency"
 	default 400000
@@ -869,6 +875,7 @@ config HTS221_DEBUG
 config HTS221_NPOLLWAITERS
 	int "Number of waiters to poll"
 	default 1
+	depends on !SENSORS_HTS221_UORB
 	---help---
 		Number of waiters to poll
 
