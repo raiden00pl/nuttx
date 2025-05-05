@@ -849,12 +849,6 @@ config HTS221_DEBUG
 	---help---
 		Enables debug features for the HTS221
 
-config HTS221_NPOLLWAITERS
-	int "Number of waiters to poll"
-	default 1
-	---help---
-		Number of waiters to poll
-
 endif # SENSORS_HTS221
 
 config SENSORS_L3GD20
