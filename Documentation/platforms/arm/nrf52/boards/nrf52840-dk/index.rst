@@ -54,6 +54,17 @@ BUTTON3  P0.24
 BUTTON4  P0.25
 =======  =======
 
+Sensors
+=======
+
+The board has no on-board sensors, but the bringup registers an external
+TI HDC1008 temperature and humidity sensor when ``CONFIG_SENSORS_HDC1008``
+is enabled. The part is expected on I2C0 at address 0x40 and is registered
+through the :doc:`uORB driver </os/drivers/special/sensors/hdc1008>` as
+``sensor_humi0`` and ``sensor_temp0``. ``CONFIG_SENSORS_HDC1008_UORB``
+must be enabled, since the board helper does not support the legacy
+character device driver.
+
 Configurations
 ==============
 
