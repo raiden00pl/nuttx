@@ -50,6 +50,10 @@ if(CONFIG_ARCH_BOARD_COMMON)
     list(APPEND SRCS nrf52_mrf24j40.c)
   endif()
 
+  if(CONFIG_SENSORS_HDC1008)
+    list(APPEND SRCS nrf52_hdc1008.c)
+  endif()
+
   target_sources(board PRIVATE ${SRCS})
 
 endif()
