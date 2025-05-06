@@ -63,8 +63,16 @@
 #  include "nrf52_lsm9ds1.h"
 #endif
 
+#ifdef CONFIG_SENSORS_HDC1008
+#  include "nrf52_hdc1008.h"
+#endif
+
 #ifdef CONFIG_NRF52_RADIO_IEEE802154
 #  include "nrf52_ieee802154.h"
+#endif
+
+#ifdef CONFIG_I2C
+#  include "nrf52_i2c.h"
 #endif
 
 #include "nrf52840-dk.h"
@@ -75,6 +83,8 @@
 
 #define NRF52_TIMER    (2)
 #define LMS9DS1_I2CBUS (0)
+#define HDC1008_I2CBUS (0)
+#define HDC1008_ADDR   (0x40)
 
 /****************************************************************************
  * Public Functions
@@ -123,10 +133,10 @@ static void nrf52_i2c_register(int bus)
 #if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
 static void nrf52_i2ctool(void)
 {
-#ifdef CONFIG_NRF52_I2C0
+#ifdef CONFIG_NRF52_I2C0_MASTER
   nrf52_i2c_register(0);
 #endif
-#ifdef CONFIG_NRF52_I2C1
+#ifdef CONFIG_NRF52_I2C1_MASTER
   nrf52_i2c_register(1);
 #endif
 }
@@ -149,6 +159,10 @@ static void nrf52_i2ctool(void)
 int nrf52_bringup(void)
 {
   int ret;
+
+#if defined(CONFIG_I2C) && defined(CONFIG_SYSTEM_I2CTOOL)
+  nrf52_i2ctool();
+#endif
 
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
@@ -320,6 +334,15 @@ int nrf52_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: Failed to initialize LSM9DS1 driver: %d\n",
+             ret);
+    }
+#endif /* CONFIG_SENSORS_LSM6DSL */
+
+#ifdef CONFIG_SENSORS_HDC1008
+  ret = nrf52_hdc1008_initialize(0, HDC1008_I2CBUS, HDC1008_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize HDC1008 driver: %d\n",
              ret);
     }
 #endif /* CONFIG_SENSORS_LSM6DSL */
