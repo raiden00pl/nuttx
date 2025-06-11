@@ -170,6 +170,14 @@
 #define GPIO_TIM3_CH1IN     (GPIO_TIM3_CH1IN_2|GPIO_SPEED_HIGH)
 #define GPIO_TIM3_CH2IN     (GPIO_TIM3_CH2IN_6|GPIO_SPEED_HIGH)
 
+/* PWM on TIM1:
+ *  TIM1_CH1 - PA15 (D10)
+ *  TIM1_CH2 - PB3  (D9)
+ */
+
+#define GPIO_TIM1_CH1OUT    (GPIO_TIM1_CH1OUT_5|GPIO_SPEED_HIGH)
+#define GPIO_TIM1_CH2OUT    (GPIO_TIM3_CH1OUT_3|GPIO_SPEED_HIGH)
+
 /* DMA channels *************************************************************/
 
 /* ADC */

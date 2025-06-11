@@ -2188,6 +2188,7 @@ config STM32F0L0G0_PWM
 	bool
 	default n
 	select ARCH_HAVE_PWM_PULSECOUNT
+	select ARCH_HAVE_PWM_MULTICHAN
 
 config STM32F0L0G0_USART
 	bool
