@@ -26,99 +26,134 @@
 
 #include <nuttx/config.h>
 
-#include <debug.h>
+#include <errno.h>
 
-#include <sys/types.h>
-
-#ifdef CONFIG_INPUT_BUTTONS
-#  include <nuttx/input/buttons.h>
-#endif
-
-#ifdef CONFIG_USERLED
-#  include <nuttx/leds/userled.h>
-#endif
-
-#ifdef CONFIG_STM32F0L0G0_IWDG
-#  include <stm32_wdg.h>
-#endif
-
+#include <nuttx/timers/pwm.h>
 #include <arch/board/board.h>
 
-#include "nucleo-c071rb.h"
+#include "stm32_pwm.h"
 
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
+#include "nucleo-c071rb.h"
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32_bringup
+ * Name: stm32_pwm_setup
  *
  * Description:
- *   Perform architecture-specific initialization
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=y :
- *     Called from board_late_initialize().
- *
- *   CONFIG_BOARD_LATE_INITIALIZE=n && CONFIG_BOARDCTL=y :
- *     Called from the NSH library
+ *   Initialize PWM and register the PWM device.
  *
  ****************************************************************************/
 
-int stm32_bringup(void)
+int stm32_pwm_setup(void)
 {
+  struct pwm_lowerhalf_s *pwm;
   int ret;
 
-#ifdef CONFIG_STM32F0L0G0_IWDG
-  /* Initialize the watchdog timer */
+  UNUSED(pwm);
+  UNUSED(ret);
 
-  stm32_iwdginitialize("/dev/watchdog0", STM32_LSI_FREQUENCY);
-#endif
+  /* Call stm32_pwminitialize() to get an instance of the PWM interface */
 
-#ifdef HAVE_LEDS
-  /* Register the LED driver */
+#ifdef CONFIG_STM32F0L0G0_TIM1_PWM
+  pwm = stm32_pwminitialize(1);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
 
-  ret = userled_lower_initialize(LED_DRIVER_PATH);
+  ret = pwm_register("/dev/pwm0", pwm);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: userled_lower_initialize() failed: %d\n", ret);
       return ret;
     }
 #endif
 
-#ifdef CONFIG_INPUT_BUTTONS
-  /* Register the BUTTON driver */
+#ifdef CONFIG_STM32F0L0G0_TIM2_PWM
+  pwm = stm32_pwminitialize(2);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
 
-  ret = btn_lower_initialize("/dev/buttons");
+  ret = pwm_register("/dev/pwm1", pwm);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+      return ret;
     }
 #endif
 
-#ifdef CONFIG_ADC
-  /* Initialize ADC and register the ADC driver. */
+#ifdef CONFIG_STM32F0L0G0_TIM3_PWM
+  pwm = stm32_pwminitialize(3);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
 
-  ret = stm32_adc_setup();
+  ret = pwm_register("/dev/pwm2", pwm);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: stm32_adc_setup failed: %d\n", ret);
+      return ret;
     }
 #endif
 
-#ifdef CONFIG_PWM
-  /* Initialize PWM and register the PWM device */
+#ifdef CONFIG_STM32F0L0G0_TIM14_PWM
+  pwm = stm32_pwminitialize(14);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
 
-  ret = stm32_pwm_setup();
+  ret = pwm_register("/dev/pwm13", pwm);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
+      return ret;
     }
 #endif
 
-  UNUSED(ret);
+#ifdef CONFIG_STM32F0L0G0_TIM15_PWM
+  pwm = stm32_pwminitialize(15);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
+
+  ret = pwm_register("/dev/pwm14", pwm);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_STM32F0L0G0_TIM16_PWM
+  pwm = stm32_pwminitialize(16);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
+
+  ret = pwm_register("/dev/pwm15", pwm);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_STM32F0L0G0_TIM17_PWM
+  pwm = stm32_pwminitialize(17);
+  if (!pwm)
+    {
+      return -ENODEV;
+    }
+
+  ret = pwm_register("/dev/pwm16", pwm);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
   return OK;
 }
