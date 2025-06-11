@@ -162,6 +162,10 @@
 #define GPIO_USART2_RX      (GPIO_USART2_RX_1|GPIO_SPEED_HIGH)    /* PA3 */
 #define GPIO_USART2_TX      (GPIO_USART2_TX_1|GPIO_SPEED_HIGH)    /* PA2 */
 
+/* PWM */
+
+#define GPIO_TIM3_CH1OUT    (GPIO_TIM3_CH1OUT_1|GPIO_SPEED_HIGH) /* PB4 */
+
 /* DMA channels *************************************************************/
 
 /* ADC */

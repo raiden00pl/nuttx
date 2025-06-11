@@ -104,5 +104,17 @@ int stm32_bringup(void);
 int stm32_adc_setup(void);
 #endif
 
+/****************************************************************************
+ * Name: stm32_pwm_setup
+ *
+ * Description:
+ *   Initialize PWM and register the PWM driver.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_PWM
+int stm32_pwm_setup(void);
+#endif
+
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_STM32F0L0G0_NUCLEO_C071RB_SRC_NUCLEO_C071RB_H */

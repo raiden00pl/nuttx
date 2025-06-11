@@ -40,6 +40,10 @@ if(CONFIG_ADC)
   list(APPEND SRCS stm32_adc.c)
 endif()
 
+if(CONFIG_PWM)
+  list(APPEND SRCS stm32_pwm.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")
