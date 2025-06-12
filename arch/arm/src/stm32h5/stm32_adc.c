@@ -117,6 +117,7 @@ struct stm32_dev_s
 #ifdef ADC_HAVE_DMA
   uint8_t dmachan;      /* DMA channel needed by this ADC */
   bool    hasdma;       /* True: This ADC supports DMA */
+  uint16_t dmabatch;    /* Number of convertions for DMA batch */
 #endif
 #ifdef ADC_HAVE_TIMER
   uint8_t trigger;      /* Timer trigger channel: 0=CC1, 1=CC2, 2=CC3,
@@ -146,7 +147,7 @@ struct stm32_dev_s
 
   /* DMA transfer buffer */
 
-  uint16_t dmabuffer[ADC_MAX_SAMPLES];
+  uint16_t *r_dmabuffer;
 #endif
 
   /* List of selected ADC channels to sample */
@@ -226,6 +227,12 @@ static const struct adc_ops_s g_adcops =
 /* ADC1 state */
 
 #ifdef CONFIG_STM32H5_ADC1
+
+#ifdef ADC1_HAVE_DMA
+static uint16_t g_adc1_dmabuffer[ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H5_ADC1_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv1 =
 {
   .irq         = STM32_IRQ_ADC1,
@@ -242,6 +249,12 @@ static struct stm32_dev_s g_adcpriv1 =
   .extsel      = ADC1_EXTSEL_VALUE,
   .pclck       = ADC1_TIMER_PCLK_FREQUENCY,
   .freq        = CONFIG_STM32H5_ADC1_SAMPLE_FREQUENCY,
+#endif
+#ifdef ADC1_HAVE_DMA
+  .dmachan     = ADC1_DMA_CHAN,
+  .hasdma      = true,
+  .r_dmabuffer = g_adc1_dmabuffer,
+  .dmabatch    = CONFIG_STM32H5_ADC1_DMA_BATCH
 #endif
 };
 
@@ -899,10 +912,10 @@ static int adc_setup(struct adc_dev_s *dev)
       priv->dma = stm32_dmachannel(priv->dmachan);
 
       stm32_dmasetup(priv->dma,
-                       priv->base + STM32_ADC_DR_OFFSET,
-                       (uint32_t)priv->dmabuffer,
-                       priv->nchannels,
-                       ADC_DMA_CONTROL_WORD);
+                     priv->base + STM32_ADC_DR_OFFSET,
+                     (uint32_t)priv->r_dmabuffer,
+                     priv->rnchannels * priv->dmabatch,
+                     ADC_DMA_CONTROL_WORD);
 
       stm32_dmastart(priv->dma, adc_dmaconvcallback, dev, false);
     }

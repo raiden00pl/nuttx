@@ -166,6 +166,7 @@ struct stm32_dev_s
 #ifdef ADC_HAVE_DMA
   uint8_t dmachan;      /* DMA channel needed by this ADC */
   bool    hasdma;       /* True: This ADC supports DMA */
+  uint16_t dmabatch;    /* Number of convertions for DMA batch */
 #endif
 #ifdef ADC_HAVE_DFSDM
   bool    hasdfsdm;     /* True: This ADC routes its output to DFSDM */
@@ -198,7 +199,7 @@ struct stm32_dev_s
 
   /* DMA transfer buffer */
 
-  uint16_t dmabuffer[ADC_MAX_SAMPLES];
+  uint16_t *r_dmabuffer;
 #endif
 
   /* List of selected ADC channels to sample */
@@ -300,6 +301,12 @@ static const struct adc_ops_s g_adcops =
 /* ADC1 state */
 
 #ifdef CONFIG_STM32H7_ADC1
+
+#ifdef ADC1_HAVE_DMA
+static uint16_t g_adc1_dmabuffer[ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC1_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv1 =
 {
   .irq         = STM32_IRQ_ADC12,
@@ -320,6 +327,8 @@ static struct stm32_dev_s g_adcpriv1 =
 #ifdef ADC1_HAVE_DMA
   .dmachan     = ADC1_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc1_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC1_DMA_BATCH,
 #endif
 #ifdef ADC1_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -342,6 +351,12 @@ static struct adc_dev_s g_adcdev1 =
 /* ADC2 state */
 
 #ifdef CONFIG_STM32H7_ADC2
+
+#ifdef ADC2_HAVE_DMA
+static uint16_t g_adc2_dmabuffer[ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC2_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv2 =
 {
   .irq         = STM32_IRQ_ADC12,
@@ -362,6 +377,8 @@ static struct stm32_dev_s g_adcpriv2 =
 #ifdef ADC2_HAVE_DMA
   .dmachan     = ADC2_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc2_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC2_DMA_BATCH,
 #endif
 #ifdef ADC2_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -384,6 +401,12 @@ static struct adc_dev_s g_adcdev2 =
 /* ADC3 state */
 
 #ifdef CONFIG_STM32H7_ADC3
+
+#ifdef ADC3_HAVE_DMA
+static uint16_t g_adc3_dmabuffer[ADC_MAX_SAMPLES *
+                                 CONFIG_STM32H7_ADC3_DMA_BATCH];
+#endif
+
 static struct stm32_dev_s g_adcpriv3 =
 {
   .irq         = STM32_IRQ_ADC3,
@@ -404,6 +427,8 @@ static struct stm32_dev_s g_adcpriv3 =
 #ifdef ADC3_HAVE_DMA
   .dmachan     = ADC3_DMA_CHAN,
   .hasdma      = true,
+  .r_dmabuffer = g_adc3_dmabuffer,
+  .dmabatch    = CONFIG_STM32H7_ADC3_DMA_BATCH,
 #endif
 #ifdef ADC3_HAVE_DFSDM
   .hasdfsdm    = true,
@@ -1444,10 +1469,10 @@ static int adc_setup(struct adc_dev_s *dev)
       priv->dma = stm32_dmachannel(priv->dmachan);
 
       stm32_dmasetup(priv->dma,
-                       priv->base + STM32_ADC_DR_OFFSET,
-                       (uint32_t)priv->dmabuffer,
-                       priv->nchannels,
-                       ADC_DMA_CONTROL_WORD);
+                     priv->base + STM32_ADC_DR_OFFSET,
+                     (uint32_t)priv->r_dmabuffer,
+                     priv->rnchannels * priv->dmabatch,
+                     ADC_DMA_CONTROL_WORD);
 
       stm32_dmastart(priv->dma, adc_dmaconvcallback, dev, false);
     }
@@ -2215,12 +2240,12 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t isr,
     {
       DEBUGASSERT(priv->cb->au_receive != NULL);
 
-      for (i = 0; i < priv->nchannels; i++)
+      for (i = 0; i < priv->rnchannels * priv->dmabatch; i++)
         {
-          priv->cb->au_receive(dev, priv->chanlist[priv->current],
-                               priv->dmabuffer[priv->current]);
+          priv->cb->au_receive(dev, priv->r_chanlist[priv->current],
+                               priv->r_dmabuffer[i]);
           priv->current++;
-          if (priv->current >= priv->nchannels)
+          if (priv->current >= priv->rnchannels)
             {
               /* Restart the conversion sequence from the beginning */
 
