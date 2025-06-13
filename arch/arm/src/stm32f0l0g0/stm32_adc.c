@@ -220,7 +220,8 @@ struct stm32_dev_s
 #endif
 #ifdef ADC_HAVE_TIMER
   uint8_t trigger;           /* Timer trigger channel: 0=CC1, 1=CC2, 2=CC3,
-                              * 3=CC4, 4=TRGO */
+                              * 3=CC4, 4=TRGO, 5=TRGO2
+                              */
 #endif
   xcpt_t   isr;              /* Interrupt handler for this ADC block */
   uint32_t base;             /* Base address of registers unique to this ADC
@@ -271,6 +272,8 @@ static void tim_putreg(struct stm32_dev_s *priv, int offset,
                        uint16_t value);
 static void tim_modifyreg(struct stm32_dev_s *priv, int offset,
                           uint16_t clrbits, uint16_t setbits);
+static void tim_modifyreg32(struct stm32_dev_s *priv, int offset,
+                            uint32_t clrbits, uint32_t setbits);
 static void tim_dumpregs(struct stm32_dev_s *priv,
                          const char *msg);
 #endif
@@ -592,6 +595,7 @@ static uint32_t adccmn_getreg(struct stm32_dev_s *priv, uint32_t offset)
 }
 #endif /* HAVE_ADC_CMN_REGS */
 
+#ifdef ADC_HAVE_TIMER
 /****************************************************************************
  * Name: tim_getreg
  *
@@ -607,12 +611,10 @@ static uint32_t adccmn_getreg(struct stm32_dev_s *priv, uint32_t offset)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static uint16_t tim_getreg(struct stm32_dev_s *priv, int offset)
 {
   return getreg16(priv->tbase + offset);
 }
-#endif
 
 /****************************************************************************
  * Name: tim_putreg
@@ -630,13 +632,11 @@ static uint16_t tim_getreg(struct stm32_dev_s *priv, int offset)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_putreg(struct stm32_dev_s *priv, int offset,
                        uint16_t value)
 {
   putreg16(value, priv->tbase + offset);
 }
-#endif
 
 /****************************************************************************
  * Name: tim_modifyreg
@@ -655,13 +655,35 @@ static void tim_putreg(struct stm32_dev_s *priv, int offset,
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_modifyreg(struct stm32_dev_s *priv, int offset,
                           uint16_t clrbits, uint16_t setbits)
 {
   tim_putreg(priv, offset, (tim_getreg(priv, offset) & ~clrbits) | setbits);
 }
-#endif
+
+/****************************************************************************
+ * Name: tim_modifyreg32
+ *
+ * Description:
+ *   Modify the value of an ADC timer register (not atomic).
+ *
+ * Input Parameters:
+ *   priv    - A reference to the ADC block status
+ *   offset  - The offset to the register to modify
+ *   clrbits - The bits to clear
+ *   setbits - The bits to set
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void tim_modifyreg32(struct stm32_dev_s *priv, int offset,
+                            uint32_t clrbits, uint32_t setbits)
+{
+  uint32_t addr = priv->tbase + offset;
+  putreg32((getreg32(addr) & ~clrbits) | setbits, addr);
+}
 
 /****************************************************************************
  * Name: tim_dumpregs
@@ -677,7 +699,6 @@ static void tim_modifyreg(struct stm32_dev_s *priv, int offset,
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
 {
   ainfo("%s:\n", msg);
@@ -717,7 +738,6 @@ static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
             tim_getreg(priv, STM32_GTIM_DMAR_OFFSET));
     }
 }
-#endif
 
 /****************************************************************************
  * Name: adc_timstart
@@ -733,7 +753,6 @@ static void tim_dumpregs(struct stm32_dev_s *priv, const char *msg)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static void adc_timstart(struct stm32_dev_s *priv, bool enable)
 {
   ainfo("enable: %d\n", enable ? 1 : 0);
@@ -751,7 +770,6 @@ static void adc_timstart(struct stm32_dev_s *priv, bool enable)
       tim_modifyreg(priv, STM32_GTIM_CR1_OFFSET, GTIM_CR1_CEN, 0);
     }
 }
-#endif
 
 /****************************************************************************
  * Name: adc_timinit
@@ -768,7 +786,6 @@ static void adc_timstart(struct stm32_dev_s *priv, bool enable)
  *
  ****************************************************************************/
 
-#ifdef ADC_HAVE_TIMER
 static int adc_timinit(struct stm32_dev_s *priv)
 {
   uint32_t prescaler;
@@ -970,18 +987,25 @@ static int adc_timinit(struct stm32_dev_s *priv)
 
       case 4: /* TimerX TRGO event */
         {
-          /* TODO: TRGO support not yet implemented */
-
           /* Set the event TRGO */
 
           ccenable = 0;
           egr      = GTIM_EGR_TG;
 
-          /* Set the duty cycle by writing to the CCR register for this
-           * channel
-           */
+          tim_modifyreg(priv, STM32_GTIM_CR2_OFFSET, clrbits,
+                        GTIM_CR2_MMS_UPDATE);
+        }
+        break;
 
-          tim_putreg(priv, STM32_GTIM_CCR4_OFFSET, (uint16_t)(reload >> 1));
+      case 5: /* TimerX TRGO2 event */
+        {
+          /* Set the event TRGO2 */
+
+          ccenable = 0;
+          egr      = GTIM_EGR_TG;
+
+          tim_modifyreg32(priv, STM32_GTIM_CR2_OFFSET, clrbits,
+                          ATIM_CR2_MMS2_UPDATE);
         }
         break;
 
