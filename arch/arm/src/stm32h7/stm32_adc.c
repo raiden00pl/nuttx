@@ -2278,10 +2278,13 @@ static void adc_dmaconvcallback(DMA_HANDLE handle, uint8_t isr,
         }
     }
 
-  /* Restart DMA for the next conversion series */
+  /* Restart DMA for the next conversion series if DMA in One Shot Mode */
 
-  adc_modifyreg(priv, STM32_ADC_CFGR_OFFSET, ADC_CFGR_DMAEN, 0);
-  adc_modifyreg(priv, STM32_ADC_CFGR_OFFSET, 0, ADC_CFGR_DMAEN);
+  if (priv->dmacfg == 0)
+    {
+      adc_modifyreg(priv, STM32_ADC_DMAREG_OFFSET, ADC_DMAREG_DMA, 0);
+      adc_modifyreg(priv, STM32_ADC_DMAREG_OFFSET, 0, ADC_DMAREG_DMA);
+    }
 }
 #endif
 
