@@ -1,0 +1,106 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+name: 'Commit Message Check'
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  commits-check:
+    name: Check commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit message style
+        shell: bash
+        run: |
+          set -e
+          has_errors=0
+          COMMIT_URL="https://github.com/apache/nuttx/blob/master/CONTRIBUTING.md"
+
+          # Determine commit range for PR or fallback to origin/master
+          if [ -n "${GITHUB_BASE_REF}" ]; then
+            base_ref="origin/${GITHUB_BASE_REF}"
+          else
+            base_ref="origin/master"
+          fi
+
+          base_commit=$(git merge-base HEAD ${base_ref})
+
+          echo "Checking commits from ${base_commit} to HEAD"
+
+          for commit in $(git rev-list --no-merges ${base_commit}..HEAD); do
+            short_sha=$(git rev-parse --short=7 $commit)
+            subject=$(git log -1 --pretty=format:%s $commit)
+            body="$(git log -1 --pretty=format:%b $commit | sed '/^Signed-off-by:/d')"
+            signedoff="$(git log -1 --pretty=format:%b $commit | sed -n '/^Signed-off-by:/p')"
+            blacklist_regex='/VELAPLATO-|WIP:/Ip'
+            blacklist="$(git log -1 --pretty=format:%s%b $commit | sed -n -E $blacklist_regex)"
+
+            # check for commit length
+            if [ ${#subject} -gt 72 ]; then
+              echo "::error::Commit $short_sha subject too long (${#subject} > 72):"
+              echo "$subject"
+              has_errors=1
+            fi
+
+            # check for subsystem
+            if [[ "$subject" != *:* ]]; then
+              echo "::error::Commit $short_sha subject missing colon (e.g. 'subsystem: msg')"
+              echo "$subject"
+              has_errors=1
+            fi
+
+            # check for Signed-off-by line
+            if [ -z "$signedoff" ]; then
+              echo "::error::Signed-off-by line is missing"
+              has_errors=1
+            fi
+
+            # check for blacklisted expressions
+            if [ "$blacklist" ]; then
+              echo "::error::Blacklisted expression found"
+              echo "$blacklist"
+              has_errors=1
+            fi
+
+            # check for commit message
+            if [ -z "$body" ]; then
+              echo "::error::Commit $short_sha body is missing"
+              has_errors=1
+            else
+              line_num=0
+              while IFS= read -r line; do
+                line_num=$((line_num + 1))
+                if [ ${#line} -gt 72 ]; then
+                  echo "::error::Commit $short_sha body line $line_num too long (${#line} > 72):"
+                  echo "$line"
+                  has_errors=1
+                fi
+              done <<< "$body"
+            fi
+
+            echo ""
+          done
+
+          if [ "$has_errors" -eq 1 ]; then
+            echo "::error::Commit message check failed."
+            echo "For contributing guidelines, see:"
+            echo "  $COMMIT_URL"
+            exit 1
+          else
+            echo "All commit messages pass style rules."
+          fi
