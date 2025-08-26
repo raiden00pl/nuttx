@@ -289,13 +289,19 @@ check_msg() {
 
   first=$(head -n1 <<< "$msg")
 
+  echo "XXXXXXXXXXXXXXXXXXXX"
+  echo $msg
+
   # check for Merge line and remove from parsed string
   if [[ $first == *Merge* ]]; then
       msg="$(echo "$msg" | tail -n +2)"
       first=$(head -n2 <<< "$msg")
   fi
 
+  echo $msg
+
   while IFS= read -r REPLY; do
+    echo $REPLY
     if [[ $REPLY =~  ^Change-Id ]]; then
       echo "Remove Gerrit Change-ID's before submitting upstream"
       fail=1
