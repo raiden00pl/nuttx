@@ -98,7 +98,7 @@ static inline void nxsched_running_setpriority(FAR struct tcb_s *tcb,
            * list to the pending list.
            */
 
-          do
+          while (sched_priority <= nxttcb->sched_priority)
             {
               bool check = nxsched_remove_readytorun(nxttcb);
               DEBUGASSERT(check == false);
@@ -109,7 +109,6 @@ static inline void nxsched_running_setpriority(FAR struct tcb_s *tcb,
 
               nxttcb = tcb->flink;
             }
-          while (sched_priority < nxttcb->sched_priority);
 
           /* Change the task priority */
 
