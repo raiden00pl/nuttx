@@ -131,6 +131,8 @@ struct stm32_dev_s
   uint32_t freq;        /* The desired frequency of conversions */
 #endif
 
+  uint32_t difsel;
+
 #ifdef CONFIG_PM
   struct pm_callback_s pm_callback;
 #endif
@@ -279,6 +281,11 @@ static struct stm32_dev_s g_adcpriv1 =
   .pclck       = ADC1_TIMER_PCLK_FREQUENCY,
   .freq        = CONFIG_STM32H5_ADC1_SAMPLE_FREQUENCY,
 #endif
+
+#ifdef BOARD_ADC1_DIFSEL
+  .difsel = BOARD_ADC1_DIFSEL
+#endif
+
 #ifdef ADC1_HAVE_DMA
   .hasdma      = true,
   .r_dmabuffer = g_adc1_dmabuffer,
@@ -348,6 +355,11 @@ static struct stm32_dev_s g_adcpriv2 =
   .pclck       = ADC2_TIMER_PCLK_FREQUENCY,
   .freq        = CONFIG_STM32H5_ADC2_SAMPLE_FREQUENCY,
 #endif
+
+#ifdef BOARD_ADC2_DIFSEL
+  .difsel = BOARD_ADC2_DIFSEL
+#endif
+
 #ifdef ADC2_HAVE_DMA
   .hasdma      = true,
   .r_dmabuffer = g_adc2_dmabuffer,
@@ -560,6 +572,15 @@ static void adc_enable(struct stm32_dev_s *priv)
   /* Wait for calibration to complete */
 
   while (adc_getreg(priv, STM32_ADC_CR_OFFSET) & ADC_CR_ADCAL);
+
+  /* calibrate diff channels */
+
+  if (priv->difsel)
+    {
+      regval |= ADC_CR_ADCALDIF;
+      adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
+      while (adc_getreg(priv, STM32_ADC_CR_OFFSET) & ADC_CR_ADCAL);
+    }
 
   /* Enable ADC
    * Note: ADEN bit cannot be set during ADCAL=1 and 4 ADC clock cycle
@@ -1223,6 +1244,13 @@ static int adc_setup(struct adc_dev_s *dev)
       adc_oversample(dev);
     }
 #endif
+
+  if (priv->difsel)
+    {
+      /* Configure diff channels */
+
+      adc_putregm(priv, priv->difsel, BOARD_STM32_ADC_DIFSEL);
+    }
 
 #ifdef ADC_HAVE_DMA
 

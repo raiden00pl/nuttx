@@ -319,8 +319,18 @@
 
 /* ADC GPIOs ****************************************************************/
 
-#define GPIO_ADC1_IN3   (GPIO_ADC1_IN3_0)
-#define GPIO_ADC1_IN10  (GPIO_ADC1_IN10_0)
+#define GPIO_ADC1_IN1P  (GPIO_ADC1_IN0_0)
+#define GPIO_ADC1_IN1N  (GPIO_ADC1_IN1_0)
+#define GPIO_ADC1_IN2P  (GPIO_ADC1_IN2_0)
+#define GPIO_ADC1_IN2N  (GPIO_ADC1_IN3_0)
+#define GPIO_ADC1_IN3   (GPIO_ADC1_IN4_0)
+#define GPIO_ADC1_IN4   (GPIO_ADC1_IN5_0)
+
+/* Configure diff channels */
+
+#define BOARD_STM32_ADC1_DIFSEL (ADC_DIFSEL_CH(1) | ADC_DIFSEL_CH(2) | \
+                                 ADC_DIFSEL_CH(3) | ADC_DIFSEL_CH(4))
+
 
 /* USART3 GPIOs *************************************************************/
 
