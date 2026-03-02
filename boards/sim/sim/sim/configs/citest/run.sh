@@ -49,6 +49,10 @@ mkdir -p ${artifacts}
 mv pytest.debug.log ${artifacts}
 mv result ${artifacts}
 
+ls
+ls ${ARTIFACTCONFDIR}
+ls ${artifacts}
+
 # restore old dir
 cd ${olddir}
 
