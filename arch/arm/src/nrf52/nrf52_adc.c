@@ -41,8 +41,17 @@
 #include "nrf52_gpio.h"
 #include "nrf52_adc.h"
 
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+#  include "nrf52_ppi.h"
+#  include "nrf52_tim.h"
+#endif
+
 #include "hardware/nrf52_saadc.h"
 #include "hardware/nrf52_utils.h"
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+#  include "hardware/nrf52_ppi.h"
+#  include "hardware/nrf52_tim.h"
+#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -64,12 +73,17 @@ struct nrf52_adc_s
 
   /* Samples buffer */
 
-  int16_t                    buffer[CONFIG_NRF52_SAADC_CHANNELS];
+  int16_t                    buffer[CONFIG_NRF52_SAADC_CHANNELS *
+                                   CONFIG_NRF52_SAADC_DMA_BATCH];
 
   uint8_t                    chan_len;   /* Configured channels */
   uint32_t                   base;       /* Base address of ADC register */
   uint32_t                   irq;        /* ADC interrupt */
   uint8_t                    resolution; /* ADC resolution */
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+  struct nrf52_tim_dev_s    *tim;        /* Timer used for PPI sampling */
+  bool                       ppi_en;     /* PPI channel enabled */
+#endif
 };
 
 /****************************************************************************
@@ -93,6 +107,11 @@ static uint32_t nrf52_adc_chanpsel(int psel);
 static int nrf52_adc_chancfg(struct nrf52_adc_s *priv, uint8_t chan,
                              struct nrf52_adc_channel_s *cfg);
 static int nrf52_adc_isr(int irq, void *context, void *arg);
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+static int nrf52_adc_ppi_setup(struct nrf52_adc_s *priv);
+static void nrf52_adc_ppi_shutdown(struct nrf52_adc_s *priv);
+static int nrf52_adc_ppi_start(struct nrf52_adc_s *priv);
+#endif
 
 /* ADC Driver Methods */
 
@@ -128,7 +147,11 @@ struct nrf52_adc_s g_nrf52_adcpriv =
   .cb         = NULL,
   .base       = NRF52_SAADC_BASE,
   .irq        = NRF52_IRQ_SAADC,
-  .resolution = CONFIG_NRF52_SAADC_RESOLUTION
+  .resolution = CONFIG_NRF52_SAADC_RESOLUTION,
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+  .tim        = NULL,
+  .ppi_en     = false
+#endif
 };
 
 /* Upper-half ADC device */
@@ -176,6 +199,150 @@ static inline uint32_t nrf52_adc_getreg(struct nrf52_adc_s *priv,
   return getreg32(priv->base + offset);
 }
 
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+/****************************************************************************
+ * Name: nrf52_adc_tim_base
+ *
+ * Description:
+ *   Get TIMER base address for configured SAADC PPI trigger timer.
+ *
+ ****************************************************************************/
+
+static inline uint32_t nrf52_adc_tim_base(void)
+{
+#if CONFIG_NRF52_SAADC_PPI_TIMER == 0
+  return NRF52_TIMER0_BASE;
+#elif CONFIG_NRF52_SAADC_PPI_TIMER == 1
+  return NRF52_TIMER1_BASE;
+#elif CONFIG_NRF52_SAADC_PPI_TIMER == 2
+  return NRF52_TIMER2_BASE;
+#elif CONFIG_NRF52_SAADC_PPI_TIMER == 3
+  return NRF52_TIMER3_BASE;
+#elif CONFIG_NRF52_SAADC_PPI_TIMER == 4
+  return NRF52_TIMER4_BASE;
+#else
+#  error Unsupported CONFIG_NRF52_SAADC_PPI_TIMER value
+#endif
+}
+
+/****************************************************************************
+ * Name: nrf52_adc_ppi_setup
+ *
+ * Description:
+ *   Configure a general purpose TIMER and route its compare event to SAADC
+ *   SAMPLE task over PPI.
+ *
+ ****************************************************************************/
+
+static int nrf52_adc_ppi_setup(struct nrf52_adc_s *priv)
+{
+  uint32_t tim_base = 0;
+  uint32_t ppi_ch   = CONFIG_NRF52_SAADC_PPI_CHANNEL;
+  int      ret      = OK;
+
+  DEBUGASSERT(priv);
+
+  priv->tim = nrf52_tim_init(CONFIG_NRF52_SAADC_PPI_TIMER);
+  if (priv->tim == NULL)
+    {
+      aerr("ERROR: failed to get TIMER%d for SAADC PPI\n",
+           CONFIG_NRF52_SAADC_PPI_TIMER);
+      ret = -EBUSY;
+      goto errout;
+    }
+
+  tim_base = nrf52_adc_tim_base();
+
+  /* Configure TIMER for periodic compare events */
+
+  NRF52_TIM_STOP(priv->tim);
+  NRF52_TIM_CLEAR(priv->tim);
+  NRF52_TIM_CONFIGURE(priv->tim, NRF52_TIM_MODE_TIMER, NRF52_TIM_WIDTH_32B);
+  NRF52_TIM_SETPRE(priv->tim, CONFIG_NRF52_SAADC_PPI_PRE);
+  NRF52_TIM_SETCC(priv->tim, NRF52_TIM_CC0, CONFIG_NRF52_SAADC_PPI_CC);
+  NRF52_TIM_SHORTS(priv->tim, NRF52_TIM_SHORT_COMPARE_CLEAR,
+                   NRF52_TIM_CC0, true);
+
+  /* Ensure compare event is clear before enabling PPI channel */
+
+  putreg32(0, tim_base + NRF52_TIM_EVENTS_COMPARE_OFFSET(0));
+
+  if ((getreg32(NRF52_PPI_CHEN) & PPI_CHEN_CH(ppi_ch)) != 0)
+    {
+      aerr("ERROR: PPI channel %ld already in use\n", (long)ppi_ch);
+      ret = -EBUSY;
+      goto errout;
+    }
+
+  nrf52_ppi_set_event_ep(ppi_ch, tim_base + NRF52_TIM_EVENTS_COMPARE_OFFSET(0));
+  nrf52_ppi_set_task_ep(ppi_ch, priv->base + NRF52_SAADC_TASKS_SAMPLE_OFFSET);
+  nrf52_ppi_channel_enable(ppi_ch, true);
+  priv->ppi_en = true;
+
+errout:
+  if (ret < 0)
+    {
+      nrf52_adc_ppi_shutdown(priv);
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: nrf52_adc_ppi_start
+ *
+ * Description:
+ *   Start TIMER used for PPI-driven sampling.
+ *
+ ****************************************************************************/
+
+static int nrf52_adc_ppi_start(struct nrf52_adc_s *priv)
+{
+  int ret = OK;
+
+  DEBUGASSERT(priv);
+  DEBUGASSERT(priv->tim != NULL);
+
+  /* Clear event/counter and then start periodic triggering */
+
+  NRF52_TIM_STOP(priv->tim);
+  NRF52_TIM_CLEAR(priv->tim);
+  ret = NRF52_TIM_START(priv->tim);
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: nrf52_adc_ppi_shutdown
+ *
+ * Description:
+ *   Release TIMER/PPI resources used for PPI-driven sampling.
+ *
+ ****************************************************************************/
+
+static void nrf52_adc_ppi_shutdown(struct nrf52_adc_s *priv)
+{
+  uint32_t ppi_ch = CONFIG_NRF52_SAADC_PPI_CHANNEL;
+
+  DEBUGASSERT(priv);
+
+  if (priv->ppi_en)
+    {
+      nrf52_ppi_channel_enable(ppi_ch, false);
+      priv->ppi_en = false;
+    }
+
+  if (priv->tim != NULL)
+    {
+      NRF52_TIM_SHORTS(priv->tim, NRF52_TIM_SHORT_COMPARE_CLEAR,
+                       NRF52_TIM_CC0, false);
+      NRF52_TIM_STOP(priv->tim);
+      nrf52_tim_deinit(priv->tim);
+      priv->tim = NULL;
+    }
+}
+#endif
+
 /****************************************************************************
  * Name: nrf52_adc_isr
  *
@@ -190,6 +357,7 @@ static int nrf52_adc_isr(int irq, void *context, void *arg)
   struct nrf52_adc_s *priv = NULL;
   int                 ret  = OK;
   int                 i    = 0;
+  int                 j    = 0;
 
   DEBUGASSERT(dev);
 
@@ -207,14 +375,27 @@ static int nrf52_adc_isr(int irq, void *context, void *arg)
 
       /* Give the ADC data to the ADC driver */
 
-      for (i = 0; i < priv->chan_len; i += 1)
+      for (j = 0; j < CONFIG_NRF52_SAADC_DMA_BATCH; j += 1)
         {
-          priv->cb->au_receive(dev, i, priv->buffer[i]);
+          for (i = 0; i < priv->chan_len; i += 1)
+            {
+              priv->cb->au_receive(dev, i,
+                                   priv->buffer[(j * priv->chan_len) + i]);
+            }
         }
 
       /* Clear event */
 
       nrf52_adc_putreg(priv, NRF52_SAADC_EVENTS_END_OFFSET, 0);
+
+#ifdef CONFIG_NRF52_SAADC_TIMER
+      /* In timer mode, END means DMA buffer is full. Re-start SAADC so
+       * the local sampler timer can keep triggering continuous conversions
+       * after a single ANIOC_TRIGGER.
+       */
+
+      nrf52_adc_putreg(priv, NRF52_SAADC_TASKS_START_OFFSET, 1);
+#endif
     }
 
   return ret;
@@ -256,6 +437,10 @@ static int nrf52_adc_configure(struct nrf52_adc_s *priv)
   /* Trigger on SAMPLE tas */
 
   regval = SAADC_SAMPLERATE_MODE_TASK;
+#elif defined(CONFIG_NRF52_SAADC_TIMER_PPI)
+  /* Trigger on SAMPLE task fed by TIMER compare event through PPI */
+
+  regval = SAADC_SAMPLERATE_MODE_TASK;
 #else
 #  error SAADC trigger not selected
 #endif
@@ -268,7 +453,8 @@ static int nrf52_adc_configure(struct nrf52_adc_s *priv)
   DEBUGASSERT(nrf52_easydma_valid(regval));
   nrf52_adc_putreg(priv, NRF52_SAADC_PTR_OFFSET, regval);
 
-  regval = priv->chan_len;
+  regval = priv->chan_len * CONFIG_NRF52_SAADC_DMA_BATCH;
+  DEBUGASSERT(regval <= SAADC_MAXCNT_MASK);
   nrf52_adc_putreg(priv, NRF52_SAADC_MAXCNT_OFFSET, regval);
 
   return OK;
@@ -765,6 +951,17 @@ static int nrf52_adc_setup(struct adc_dev_s *dev)
         }
     }
 
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+  /* Configure TIMER over PPI trigger path */
+
+  ret = nrf52_adc_ppi_setup(priv);
+  if (ret < 0)
+    {
+      aerr("ERROR: nrf52_adc_ppi_setup failed: %d\n", ret);
+      goto errout;
+    }
+#endif
+
   /* Enable ADC */
 
   nrf52_adc_putreg(priv, NRF52_SAADC_ENABLE_OFFSET, 1);
@@ -792,6 +989,12 @@ static int nrf52_adc_setup(struct adc_dev_s *dev)
   up_enable_irq(priv->irq);
 
 errout:
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+  if (ret < 0)
+    {
+      nrf52_adc_ppi_shutdown(priv);
+    }
+#endif
   return ret;
 }
 
@@ -810,6 +1013,10 @@ static void nrf52_adc_shutdown(struct adc_dev_s *dev)
 
   DEBUGASSERT(dev);
   DEBUGASSERT(priv);
+
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+  nrf52_adc_ppi_shutdown(priv);
+#endif
 
   /* Stop SAADC */
 
@@ -879,9 +1086,17 @@ static int nrf52_adc_ioctl(struct adc_dev_s *dev, int cmd,
 
           nrf52_adc_putreg(priv, NRF52_SAADC_TASKS_START_OFFSET, 1);
 
-          /* Trigger first sample */
+          /* Trigger sampling */
 
+#ifdef CONFIG_NRF52_SAADC_TIMER_PPI
+          ret = nrf52_adc_ppi_start(priv);
+          if (ret < 0)
+            {
+              aerr("ERROR: failed to start SAADC PPI timer: %d\n", ret);
+            }
+#else
           nrf52_adc_putreg(priv, NRF52_SAADC_TASKS_SAMPLE_OFFSET, 1);
+#endif
         }
         break;
 
