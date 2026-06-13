@@ -100,6 +100,14 @@ config MCP73871
 	---help---
 		A simple driver to report MCP73871 status.
 
+config NPM1100
+	bool "Nordic nPM1100 PMIC battery charger support"
+	default n
+	depends on BATTERY_CHARGER
+	---help---
+		A simple driver to report Nordic nPM1100 PMIC charge status from
+		its CHG/ERR GPIOs (the nPM1100 has no register interface).
+
 config BATTERY_GAUGE
 	bool "Battery Fuel Gauge support"
 	default n
