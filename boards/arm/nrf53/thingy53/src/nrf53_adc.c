@@ -64,7 +64,7 @@ static struct nrf53_adc_channel_s g_adc_chanlist[ADC_NCHANNELS] =
   /* Channel 0 */
 
   {
-    .p_psel  = NRF53_ADC_IN_IN1,
+    .p_psel  = NRF53_ADC_IN_IN2,         /* AIN2 / P0.06 - BAT_MEAS */
     .n_psel  = 0,
 #ifdef CONFIG_NRF53_SAADC_LIMITS
     .limith = 0,
