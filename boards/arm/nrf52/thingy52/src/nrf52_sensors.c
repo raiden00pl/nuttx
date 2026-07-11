@@ -28,19 +28,26 @@
 #include <sys/types.h>
 #include <syslog.h>
 
-#ifdef CONFIG_SENSORS_BH1745NUC
-#  include <nrf52_bh1745nuc.h>
+#include <nuttx/i2c/i2c_master.h>
+
+#ifdef CONFIG_SENSORS_HTS221
+#  include <nuttx/sensors/hts221.h>
 #endif
 
+#ifdef CONFIG_SENSORS_LPS22HB
+#  include <nuttx/sensors/lps22hb.h>
+#endif
+
+#ifdef CONFIG_SENSORS_CCS811
+#  include <nuttx/sensors/ccs811.h>
+#endif
+
+#ifdef CONFIG_SENSORS_BH1745NUC
+#  include <nuttx/sensors/bh1745nuc.h>
+#endif
+
+#include "nrf52_i2c.h"
 #include "thingy52.h"
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
 
 /****************************************************************************
  * Public Functions
@@ -56,15 +63,49 @@
 
 int nrf52_sensors_init(void)
 {
+  FAR struct i2c_master_s *i2c;
   int ret = OK;
 
   UNUSED(ret);
 
-#ifdef CONFIG_SENSORS_BH1745NUC
-  ret = nrf52_bh1745nuc_init(0, 0, BH1745NUC_I2C_ADDR);
+  /* All on-board sensors are connected to the I2C0 bus */
+
+  i2c = nrf52_i2cbus_initialize(0);
+  if (i2c == NULL)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to get I2C0 interface\n");
+      return -ENODEV;
+    }
+
+#ifdef CONFIG_SENSORS_HTS221
+  ret = hts221_register_uorb(0, i2c, HTS221_I2C_ADDR);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "ERROR: nrf52_bh1745nuc_init() failed: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: hts221_register_uorb() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_LPS22HB
+  ret = lps22hb_register_uorb(0, i2c, LPS22HB_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: lps22hb_register_uorb() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_CCS811
+  ret = ccs811_register_uorb(0, i2c, CCS811_I2C_ADDR, nrf52_ccs811_wake);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: ccs811_register_uorb() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_BH1745NUC
+  ret = bh1745nuc_register_uorb(0, i2c, BH1745NUC_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: bh1745nuc_register_uorb() failed: %d\n", ret);
     }
 #endif
 

@@ -20,7 +20,7 @@
 #
 # ##############################################################################
 
-set(SRCS nrf52_boot.c nrf52_bringup.c nrf52_senosrs.c)
+set(SRCS nrf52_boot.c nrf52_bringup.c nrf52_sensors.c)
 
 if(CONFIG_ARCH_BUTTONS)
   list(APPEND SRCS nrf52_buttons.c)
@@ -28,6 +28,10 @@ endif()
 
 if(CONFIG_IOEXPANDER_SX1509)
   list(APPEND SRCS nrf52_sx1509.c)
+endif()
+
+if(CONFIG_ADC)
+  list(APPEND SRCS nrf52_adc.c)
 endif()
 
 target_sources(board PRIVATE ${SRCS})

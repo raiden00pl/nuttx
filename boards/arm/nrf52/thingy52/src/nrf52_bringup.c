@@ -50,12 +50,6 @@
 #include "thingy52.h"
 
 /****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-#define BH1745NUC_I2C_ADDR 0x38
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -176,6 +170,18 @@ int nrf52_bringup(void)
              "ERROR: Failed to initialize sensors: %d\n",
              ret);
     }
+
+#ifdef CONFIG_ADC
+  /* Register the ADC driver used for battery voltage measurement */
+
+  ret = nrf52_adc_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR,
+             "ERROR: Failed to initialize ADC: %d\n",
+             ret);
+    }
+#endif
 
   UNUSED(ret);
   return OK;
