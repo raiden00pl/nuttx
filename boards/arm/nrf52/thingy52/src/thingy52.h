@@ -30,6 +30,8 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 
+#include <stdbool.h>
+
 #include "nrf52_gpio.h"
 
 /****************************************************************************
@@ -58,36 +60,42 @@
  *   INT - P0.12
  */
 
+#define LIS2DH12_I2C_ADDR 0x19
 #define GPIO_LIS2DH12_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(12))
 
 /* MPU9250 (I2C address: 0x68)
  *   INT - P0.05
  */
 
+#define MPU9250_I2C_ADDR  0x68
 #define GPIO_MPU9250_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(5))
 
 /* LPS22HB (I2C address: 0x5c)
  *   INT - P0.23
  */
 
+#define LPS22HB_I2C_ADDR  0x5c
 #define GPIO_LPS22HB_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(23))
 
 /* HTS221 (I2C address: 0x5f)
  *   INT - P0.24
  */
 
+#define HTS221_I2C_ADDR   0x5f
 #define GPIO_HTS221_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(24))
 
 /* BH1745NUC (I2C address: 0x38)
  *   INT - P0.31
  */
 
+#define BH1745NUC_I2C_ADDR 0x38
 #define GPIO_BH1745NUC_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(31))
 
 /* CCS811 (I2C address: 0x5a)
  *   INT - P0.22
  */
 
+#define CCS811_I2C_ADDR   0x5a
 #define GPIO_CCS811_INT (GPIO_INPUT | GPIO_PORT0 | GPIO_PIN(22))
 
 /* SX1509 (I2C address: 0x3e)
@@ -96,6 +104,13 @@
  */
 
 #define GPIO_SX1509_RESET (GPIO_OUTPUT | GPIO_VALUE_ONE | GPIO_PORT0 | GPIO_PIN(16))
+
+/* VDD_PWR_CTRL - P0.30
+ *   Enables the board VDD rail that supplies all on-board sensors.
+ *   Must be driven high, otherwise the rail floats at a too-low voltage.
+ */
+
+#define GPIO_VDD_PWR_CTRL (GPIO_OUTPUT | GPIO_VALUE_ONE | GPIO_PORT0 | GPIO_PIN(30))
 
 /****************************************************************************
  * Public Types
@@ -134,6 +149,18 @@ int nrf52_bringup(void);
 
 int nrf52_sensors_init(void);
 
+#ifdef CONFIG_ADC
+/****************************************************************************
+ * Name: nrf52_adc_setup
+ *
+ * Description:
+ *   Initialize the ADC used to measure the battery voltage.
+ *
+ ****************************************************************************/
+
+int nrf52_adc_setup(void);
+#endif
+
 #ifdef CONFIG_IOEXPANDER_SX1509
 /****************************************************************************
  * Name: nrf52_sx1509_initialize
@@ -144,6 +171,16 @@ int nrf52_sensors_init(void);
  ****************************************************************************/
 
 int nrf52_sx1509_initialize(void);
+
+/****************************************************************************
+ * Name: nrf52_ccs811_wake
+ *
+ * Description:
+ *   Drive the CCS811 nWAKE line (SX1509 pin 12, active low).
+ *
+ ****************************************************************************/
+
+void nrf52_ccs811_wake(bool on);
 #endif
 
 #endif /* __ASSEMBLY__ */
