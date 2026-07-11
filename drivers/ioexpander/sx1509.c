@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <nuttx/debug.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/nuttx.h>
 #include <nuttx/irq.h>
 #include <nuttx/i2c/i2c_master.h>
