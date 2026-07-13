@@ -161,6 +161,16 @@ int nrf52_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_RGBLED
+  /* Register the lightwell RGB LED (behind the SX1509 LED driver) */
+
+  ret = nrf52_rgbled_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: nrf52_rgbled_initialize() failed: %d\n", ret);
+    }
+#endif
+
   /* Initialzie on-board sensors */
 
   ret = nrf52_sensors_init();
