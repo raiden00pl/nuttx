@@ -34,6 +34,10 @@ if(CONFIG_ADC)
   list(APPEND SRCS nrf52_adc.c)
 endif()
 
+if(CONFIG_RGBLED)
+  list(APPEND SRCS nrf52_rgbled.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 if(CONFIG_ARCH_BOARD_COMMON)

@@ -181,6 +181,28 @@ int nrf52_sx1509_initialize(void);
  ****************************************************************************/
 
 void nrf52_ccs811_wake(bool on);
+
+/****************************************************************************
+ * Name: nrf52_sx1509_get
+ *
+ * Description:
+ *   Return the io-expander device, or NULL if not yet initialized.
+ *
+ ****************************************************************************/
+
+FAR struct ioexpander_dev_s *nrf52_sx1509_get(void);
+#endif
+
+#ifdef CONFIG_RGBLED
+/****************************************************************************
+ * Name: nrf52_rgbled_initialize
+ *
+ * Description:
+ *   Configure the RGB LED.
+ *
+ ****************************************************************************/
+
+int nrf52_rgbled_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */
