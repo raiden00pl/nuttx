@@ -85,10 +85,11 @@ struct sx1509_config_s g_sx1509_cfg =
 };
 
 /* Saved io-expander handle, used by nrf52_ccs811_wake() to drive the
- * CCS811 nWAKE line (SX1509 pin 12) around each I2C transaction.
+ * CCS811 nWAKE line (SX1509 pin 12) around each I2C transaction and by
+ * nrf52_sx1509_get() to expose the device to other board logic.
  */
 
-static FAR struct ioexpander_dev_s *g_ccs811_ioe;
+static FAR struct ioexpander_dev_s *g_sx1509_ioe;
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -304,10 +305,23 @@ static void nrf52_sx1509_pinscfg(struct ioexpander_dev_s *ioe)
 
 void nrf52_ccs811_wake(bool on)
 {
-  if (g_ccs811_ioe != NULL)
+  if (g_sx1509_ioe != NULL)
     {
-      IOEXP_WRITEPIN(g_ccs811_ioe, 12, !on);
+      IOEXP_WRITEPIN(g_sx1509_ioe, 12, !on);
     }
+}
+
+/****************************************************************************
+ * Name: nrf52_sx1509_get
+ *
+ * Description:
+ *   Return the io-expander device, or NULL if not yet initialized.
+ *
+ ****************************************************************************/
+
+FAR struct ioexpander_dev_s *nrf52_sx1509_get(void)
+{
+  return g_sx1509_ioe;
 }
 
 /****************************************************************************
@@ -352,7 +366,7 @@ int nrf52_sx1509_initialize(void)
 
   /* Remember the io-expander so the CCS811 driver can pulse nWAKE. */
 
-  g_ccs811_ioe = ioe;
+  g_sx1509_ioe = ioe;
 
 #ifdef CONFIG_SX1509_LED_ENABLE
   /* Initialize sx1509 LED driver */
