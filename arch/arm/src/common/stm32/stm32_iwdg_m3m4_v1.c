@@ -685,18 +685,15 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
 #if defined(CONFIG_STM32_JTAG_FULL_ENABLE) || \
     defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
     defined(CONFIG_STM32_JTAG_SW_ENABLE)
-    {
-#if defined(CONFIG_STM32_STM32F20XX) || defined(CONFIG_STM32_STM32F30XX) || \
-    defined(CONFIG_STM32_STM32F4XXX) || defined(CONFIG_STM32_STM32L15XX)
-      uint32_t cr = getreg32(STM32_DBGMCU_APB1_FZ);
-      cr |= DBGMCU_APB1_IWDGSTOP;
-      putreg32(cr, STM32_DBGMCU_APB1_FZ);
-#else /* if defined(CONFIG_STM32_STM32F10XX) */
-      uint32_t cr = getreg32(STM32_DBGMCU_CR);
-      cr |= DBGMCU_CR_IWDGSTOP;
-      putreg32(cr, STM32_DBGMCU_CR);
+#if defined(STM32_DBGMCU_APB4LFZ1)
+  modifyreg32(STM32_DBGMCU_APB4LFZ1, 0, DBGMCU_APB4FZ1_IIWDG1STOP);
+#elif defined(STM32_DBGMCU_APB1_FZ1)
+  modifyreg32(STM32_DBGMCU_APB1_FZ1, 0, DBGMCU_APB1FZ1_IWDGSTOP);
+#elif defined(STM32_DBGMCU_APB1_FZ)
+  modifyreg32(STM32_DBGMCU_APB1_FZ, 0, DBGMCU_APB1_IWDGSTOP);
+#else
+  modifyreg32(STM32_DBGMCU_CR, 0, DBGMCU_CR_IWDGSTOP);
 #endif
-    }
 #endif
 }
 
