@@ -33,9 +33,33 @@ set(SRCS)
 
 list(APPEND SRCS stm32_waste.c)
 list(APPEND SRCS stm32_uid.c)
+list(APPEND SRCS stm32_lsi.c)
+
+if(CONFIG_TIMER AND CONFIG_STM32_TIM)
+  list(APPEND SRCS stm32_tim_lowerhalf.c)
+endif()
+
+if(CONFIG_STM32_TIM)
+  list(APPEND SRCS stm32_tim.c)
+endif()
+
+if(CONFIG_STM32_FREERUN)
+  list(APPEND SRCS stm32_freerun.c)
+endif()
+
+if(CONFIG_STM32_ONESHOT)
+  list(APPEND SRCS stm32_oneshot.c stm32_oneshot_lowerhalf.c)
+endif()
+if(CONFIG_SENSORS_QENCODER AND CONFIG_STM32_QE)
+  list(APPEND SRCS stm32_qencoder.c)
+endif()
 
 if(CONFIG_STM32_PULSECOUNT)
   list(APPEND SRCS stm32_pulsecount.c)
+endif()
+
+if(CONFIG_STM32_1WIREDRIVER)
+  list(APPEND SRCS stm32_1wire_m3m4_v1.c)
 endif()
 
 if(CONFIG_STM32_COMMON_LEGACY)
@@ -45,7 +69,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
     stm32_allocateheap_m3m4_v1.c
     stm32_start_m3m4_v1.c
     stm32_lse_m3m4_v1.c
-    stm32_lsi_m3m4_v1.c
     stm32_irq_m3m4_v1.c
     stm32_capture_m3m4_v1.c)
 
@@ -70,10 +93,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
 
   if(CONFIG_STM32_HAVE_IP_SDIO_M3M4_V1)
     list(APPEND SRCS stm32_sdio_m3m4_v1.c)
-  endif()
-
-  if(CONFIG_STM32_HAVE_IP_TIMERS)
-    list(APPEND SRCS stm32_tim_m3m4_v1v2v3.c)
   endif()
 
   if(CONFIG_STM32_HAVE_IP_CCM_M3M4_V1)
@@ -145,18 +164,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
     elseif(CONFIG_STM32_HAVE_IP_DMA_V2_STREAM)
       list(APPEND SRCS stm32_dma_m3m4_v2_stream.c)
     endif()
-  endif()
-
-  if(CONFIG_TIMER AND CONFIG_STM32_HAVE_IP_TIMERS)
-    list(APPEND SRCS stm32_tim_m3m4_v1v2v3_lowerhalf.c)
-  endif()
-
-  if(CONFIG_STM32_ONESHOT)
-    list(APPEND SRCS stm32_oneshot_m3m4_v1.c stm32_oneshot_m3m4_v1_lowerhalf.c)
-  endif()
-
-  if(CONFIG_STM32_FREERUN)
-    list(APPEND SRCS stm32_freerun_m3m4_v1.c)
   endif()
 
   if(CONFIG_STM32_HAVE_IP_I2C_M3M4_V1)
@@ -261,10 +268,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
     list(APPEND SRCS stm32_hrtim_m3m4_v1.c)
   endif()
 
-  if(CONFIG_STM32_1WIREDRIVER)
-    list(APPEND SRCS stm32_1wire_m3m4_v1.c)
-  endif()
-
   if(CONFIG_STM32_HCIUART)
     list(APPEND SRCS stm32_hciuart_m3m4_v1.c)
   endif()
@@ -287,10 +290,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
 
   if(CONFIG_STM32_CAP)
     list(APPEND SRCS stm32_capture_m3m4_v1_lowerhalf.c)
-  endif()
-
-  if(CONFIG_SENSORS_QENCODER AND CONFIG_STM32_QE)
-    list(APPEND SRCS stm32_qencoder_m3m4_v1v2v3.c)
   endif()
 
   if(CONFIG_STM32_CAN AND CONFIG_STM32_HAVE_IP_CAN_BXCAN_M3M4_V1)
@@ -356,7 +355,7 @@ if(CONFIG_STM32_COMMON_LEGACY)
 endif()
 
 if(CONFIG_ARCH_CORTEXM0)
-  list(APPEND SRCS stm32_irq_m0_v1.c stm32_start_m0_v1.c stm32_lsi_m0_v1.c)
+  list(APPEND SRCS stm32_irq_m0_v1.c stm32_start_m0_v1.c)
 
   if(CONFIG_STM32_HAVE_IP_GPIO_M0_V1)
     list(APPEND SRCS stm32_gpio_m0_v1.c)
@@ -462,10 +461,6 @@ if(CONFIG_ARCH_CORTEXM0)
     list(APPEND SRCS stm32_rng_m0_v1.c)
   endif()
 
-  if(CONFIG_STM32_TIM AND CONFIG_STM32_HAVE_IP_TIMERS_M0_V1)
-    list(APPEND SRCS stm32_tim_m0_v1.c stm32_tim_m0_v1_lowerhalf.c)
-  endif()
-
   if(CONFIG_STM32_IWDG AND CONFIG_STM32_HAVE_IP_WDG_M0_V1)
     list(APPEND SRCS stm32_iwdg_m0_v1.c)
   endif()
@@ -483,9 +478,6 @@ if(CONFIG_ARCH_CORTEXM0)
     endif()
   endif()
 
-  if(CONFIG_SENSORS_QENCODER)
-    list(APPEND SRCS stm32_qencoder_m0_v1.c)
-  endif()
 endif()
 
 if(CONFIG_SENSORS_HALL3PHASE)

@@ -56,10 +56,6 @@ else()
   list(APPEND SRCS stm32_timerisr.c)
 endif()
 
-if(CONFIG_STM32_ONESHOT)
-  list(APPEND SRCS stm32_oneshot.c stm32_oneshot_lowerhalf.c)
-endif()
-
 if(CONFIG_ARM_MPU)
   list(APPEND SRCS stm32_mpuinit.c)
 endif()
@@ -94,10 +90,6 @@ endif()
 
 if(CONFIG_STM32_RNG)
   list(APPEND SRCS stm32_rng.c)
-endif()
-
-if(CONFIG_STM32_IWDG OR CONFIG_STM32_RTC_LSICLOCK)
-  list(APPEND SRCS stm32_lsi.c)
 endif()
 
 if(CONFIG_STM32_RTC_LSECLOCK)
@@ -141,10 +133,6 @@ if(CONFIG_STM32_SDMMC)
   list(APPEND SRCS stm32_sdmmc.c)
 endif()
 
-if(CONFIG_TIMER)
-  list(APPEND SRCS stm32_tim_lowerhalf.c)
-endif()
-
 if(CONFIG_STM32_TIMX_CAP)
   list(APPEND SRCS stm32_capture.c)
 endif()
@@ -172,10 +160,6 @@ if(CONFIG_USBHOST)
   endif()
 endif()
 
-if(CONFIG_STM32_TIM)
-  list(APPEND SRCS stm32_tim.c)
-endif()
-
 if(CONFIG_STM32_LPTIM)
   list(APPEND SRCS stm32_lptim.c)
 endif()
@@ -190,10 +174,6 @@ endif()
 
 if(CONFIG_MDIO_BUS)
   list(APPEND SRCS stm32_mdio.c)
-endif()
-
-if(CONFIG_SENSORS_QENCODER)
-  list(APPEND SRCS stm32_qencoder.c)
 endif()
 
 if(CONFIG_PM)
