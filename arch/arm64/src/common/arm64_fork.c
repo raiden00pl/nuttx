@@ -300,6 +300,8 @@ static pid_t arm64_fork_syscall(bool vfork, struct tcb_s *parent)
   uint64_t newfp;
   uint64_t regtop;
   uint64_t sp;
+  uint64_t stackbase;
+  uint64_t stacktop;
 
   DEBUGASSERT(sregs != NULL);
 
@@ -314,6 +316,20 @@ static pid_t arm64_fork_syscall(bool vfork, struct tcb_s *parent)
   else
     {
       sp = sregs[REG_SP_ELX];
+    }
+
+  /* The saved stack pointer comes from the exception frame and is therefore
+   * untrusted for a user-mode caller.  Validate it before using it to size
+   * and source the stack copy.
+   */
+
+  stackbase = (uint64_t)parent->stack_base_ptr;
+  stacktop  = stackbase + parent->adj_stack_size;
+  if (stacktop < stackbase || sp < stackbase || sp > stacktop)
+    {
+      serr("ERROR: Invalid parent stack pointer: %" PRIx64 "\n", sp);
+      set_errno(EFAULT);
+      return (pid_t)ERROR;
     }
 
   /* Allocate and initialize a TCB for the child task.  The child resumes at
