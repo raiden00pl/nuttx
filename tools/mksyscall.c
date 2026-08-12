@@ -428,6 +428,8 @@ static void generate_stub(int nfixed, int nparms)
           g_parm[0]);
   fprintf(stream, "#include <nuttx/config.h>\n");
   fprintf(stream, "#include <stdint.h>\n");
+  fprintf(stream, "#include <errno.h>\n");
+  fprintf(stream, "#include <nuttx/arch.h>\n");
   fprintf(stream, "#ifdef CONFIG_ARCH_TOOLCHAIN_TASKING\n");
   fprintf(stream, "#include <string.h>\n");
   fprintf(stream, "#endif\n");
@@ -485,6 +487,30 @@ static void generate_stub(int nfixed, int nparms)
           fprintf(stream, "#endif\n");
         }
     }
+
+  /* A kernel syscall executes with supervisor access to all mappings in the
+   * current address environment.  Do not let an untrusted pointer name one
+   * of those supervisor-only mappings.
+   */
+
+  fprintf(stream, "#ifdef CONFIG_BUILD_KERNEL\n");
+  for (i = 0; i < nparms; i++)
+    {
+      get_formalparmtype(g_parm[PARM1_INDEX + i], formal);
+      get_actualparmtype(g_parm[PARM1_INDEX + i], actual);
+
+      if (!is_union(formal) && strchr(actual, '*') != NULL)
+        {
+          fprintf(stream,
+                  "  if (parm%d != 0 && !up_addrenv_user_vaddr(parm%d))\n"
+                  "    {\n"
+                  "      return (uintptr_t)-EFAULT;\n"
+                  "    }\n",
+                  i + 1, i + 1);
+        }
+    }
+
+  fprintf(stream, "#endif\n\n");
 
   /* Then call the proxied function.  Functions that have no return value are
    * a special case.

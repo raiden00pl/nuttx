@@ -209,6 +209,19 @@ static void copy_kernel_mappings(arch_addrenv_t *addrenv)
 }
 
 /****************************************************************************
+ * Name: up_addrenv_user_vaddr
+ *
+ * Description:
+ *   Check if a virtual address is in user virtual address space.
+ *
+ ****************************************************************************/
+
+bool up_addrenv_user_vaddr(uintptr_t vaddr)
+{
+  return x86_64_uservaddr(vaddr);
+}
+
+/****************************************************************************
  * Name: create_region
  *
  * Description:
