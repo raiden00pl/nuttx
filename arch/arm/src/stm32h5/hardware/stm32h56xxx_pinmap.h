@@ -29,8 +29,9 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32_STM32H563XX) || \
-    defined(CONFIG_STM32H5_STM32H562XX)
+#if defined(CONFIG_STM32_STM32H53XXX) || \
+    defined(CONFIG_STM32_STM32H563XX) || \
+    defined(CONFIG_STM32_STM32H562XX)
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/

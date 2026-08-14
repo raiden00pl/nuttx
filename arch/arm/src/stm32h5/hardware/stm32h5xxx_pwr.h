@@ -93,7 +93,7 @@
 #define PWR_PMCR_ETHERNETSO     (1 << 16) /* Ethernet RAM shut-off in Stop Mode */
 #define PWR_PMCR_SRAM3SO        (1 << 23) /* AHB SRAM3 shut-off in Stop mode */
 
-#if defined(CONFIG_STM32H5_STM32H56X) || defined(CONFIG_STM32H5_STM32H7X)
+#if defined(CONFIG_STM32_STM32H56X) || defined(CONFIG_STM32H5_STM32H7X)
 
 #define PWR_PMCR_SRAM2_16SO     (1 << 24) /* AHB SRAM3 16-Kbyte shut-off in Stop mode **/
 #define PWR_PMCR_SRAM2_48SO     (1 << 25) /* AHB SRAM2 48-Kbyte shut-off in Stop mode **/
