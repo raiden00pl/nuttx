@@ -70,6 +70,58 @@ nsh:
 This configuration provides a basic NuttShell configuration (NSH)
 for the Nucleo-H743ZI.  The default console is the VCOM on USART3.
 
+s2opc:
+------
+
+This configuration provides NSH and the S2OPC OPC UA server example for the
+Nucleo-H743ZI2.  Ethernet uses the on-board LAN8742A PHY with the static IPv4
+address ``10.0.0.2/24``.
+
+Build the image with the Arm GNU toolchain::
+
+  $ ./tools/configure.sh -l nucleo-h743zi2:s2opc
+  $ make -j
+
+Connect the board through its ST-LINK USB connector.  Program and reset it
+with OpenOCD::
+
+  $ openocd -f board/st_nucleo_h743zi.cfg \
+      -c "program nuttx verify reset exit"
+
+Alternatively, use stlink-tools::
+
+  $ st-flash --reset write nuttx.bin 0x08000000
+
+Open the ST-LINK virtual serial port at 115200 baud, adjusting the device name
+for the host::
+
+  $ picocom -b 115200 /dev/ttyACM0
+
+The default network settings are:
+
+* NuttX target: ``10.0.0.2/24``
+* Host or gateway: ``10.0.0.1/24``
+* Default OPC UA endpoint: ``opc.tcp://10.0.0.2:4841``
+
+If the LAN uses another subnet, assign a temporary address and gateway at the
+NSH prompt.  For example::
+
+  nsh> ifconfig eth0 192.168.8.2 netmask 255.255.255.0
+  nsh> ifconfig eth0 gw 192.168.8.1
+
+Verify the interface and start the server::
+
+  nsh> ifconfig eth0
+  nsh> ping 10.0.0.1
+  nsh> s2opc
+
+From the host, read the standard server time node::
+
+  $ uaread -u opc.tcp://10.0.0.2:4841 -n i=2258
+
+See :doc:`/applications/examples/s2opc/index` for command-line overrides and
+:doc:`/applications/netutils/s2opc/index` for toolkit configuration.
+
 jumbo:
 ------
 
