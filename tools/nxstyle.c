@@ -31,6 +31,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <unistd.h>
 #include <libgen.h>
@@ -49,6 +50,9 @@
 #define RANGE_NUMBER   4096
 #define DEFAULT_WIDTH  78
 #define MAX_BRACE      64
+
+#define NXSTYLE_CONFIG_FILE        ".nxstyle"
+#define NXSTYLE_IGNORE_WORDS_LIST  "ignore-words-list"
 
 #define FIRST_SECTION  INCLUDED_FILES
 #define LAST_SECTION   PUBLIC_FUNCTION_PROTOTYPES
@@ -121,6 +125,14 @@ struct file_section_s
   uint8_t     ftype;  /* File type where section found */
 };
 
+struct nxstyle_word_s
+{
+  struct nxstyle_word_s *next;
+  char                  *word;
+  size_t                 length;
+  bool                   prefix;
+};
+
 /********************************************************************************
  * Private data
  ********************************************************************************/
@@ -135,6 +147,7 @@ static int g_rangestart[RANGE_NUMBER];
 static int g_rangecount[RANGE_NUMBER];
 static char g_file_name[PATH_MAX];
 static bool g_skipmixedcase;
+static struct nxstyle_word_s *g_config_words;
 
 static const struct file_section_s g_section_info[] =
 {
@@ -935,6 +948,372 @@ static void backslash_to_slash(char *str)
 #endif
 
 /********************************************************************************
+ * Name: config_message
+ *
+ * Description:
+ *   Report an error found while parsing an nxstyle configuration file.
+ *
+ ********************************************************************************/
+
+static int config_message(const char *filename, int lineno,
+                          const char *text)
+{
+  g_status |= 1;
+
+  if (g_verbose == 2)
+    {
+      fprintf(stderr, "%s:%d:1: fatal: %s\n", filename, lineno, text);
+    }
+
+  return -1;
+}
+
+/********************************************************************************
+ * Name: trim_left
+ *
+ * Description:
+ *   Return the first non-whitespace character in a string.
+ *
+ ********************************************************************************/
+
+static char *trim_left(char *str)
+{
+  while (isspace((unsigned char)*str))
+    {
+      str++;
+    }
+
+  return str;
+}
+
+/********************************************************************************
+ * Name: trim_right
+ *
+ * Description:
+ *   Remove trailing whitespace from a string.
+ *
+ ********************************************************************************/
+
+static void trim_right(char *str)
+{
+  size_t len = strlen(str);
+
+  while (len > 0 && isspace((unsigned char)str[len - 1]))
+    {
+      str[--len] = '\0';
+    }
+}
+
+/********************************************************************************
+ * Name: make_child_path
+ *
+ * Description:
+ *   Append a child name to a directory path.
+ *
+ ********************************************************************************/
+
+static int make_child_path(char *path, size_t path_size,
+                           const char *directory, const char *child)
+{
+  const char *separator;
+  int ret;
+
+  separator = directory[strlen(directory) - 1] == '/' ? "" : "/";
+  ret = snprintf(path, path_size, "%s%s%s", directory, separator, child);
+
+  return ret >= 0 && (size_t)ret < path_size ? 0 : -1;
+}
+
+/********************************************************************************
+ * Name: free_config_words
+ *
+ * Description:
+ *   Release all words loaded from nxstyle configuration files.
+ *
+ ********************************************************************************/
+
+static void free_config_words(void)
+{
+  struct nxstyle_word_s *word;
+
+  while (g_config_words != NULL)
+    {
+      word = g_config_words;
+      g_config_words = word->next;
+      free(word->word);
+      free(word);
+    }
+}
+
+/********************************************************************************
+ * Name: add_config_word
+ *
+ * Description:
+ *   Validate and add one ignore-words-list entry.
+ *
+ ********************************************************************************/
+
+static int add_config_word(char *value, const char *filename, int lineno)
+{
+  struct nxstyle_word_s *word;
+  struct nxstyle_word_s *iter;
+  char message[LINE_SIZE];
+  bool prefix = false;
+  size_t length;
+  size_t i;
+
+  length = strlen(value);
+  if (length > 0 && value[length - 1] == '*')
+    {
+      prefix = true;
+      value[--length] = '\0';
+    }
+
+  if (length == 0 || (!isalpha((unsigned char)value[0]) &&
+                      value[0] != '_'))
+    {
+      snprintf(message, sizeof(message), "Invalid ignored word: %s", value);
+      return config_message(filename, lineno, message);
+    }
+
+  for (i = 1; i < length; i++)
+    {
+      if (!isalnum((unsigned char)value[i]) && value[i] != '_')
+        {
+          snprintf(message, sizeof(message), "Invalid ignored word: %s",
+                   value);
+          return config_message(filename, lineno, message);
+        }
+    }
+
+  for (iter = g_config_words; iter != NULL; iter = iter->next)
+    {
+      if (iter->prefix == prefix && strcmp(iter->word, value) == 0)
+        {
+          return 0;
+        }
+    }
+
+  word = malloc(sizeof(*word));
+  if (word == NULL)
+    {
+      return config_message(filename, lineno, "Out of memory");
+    }
+
+  word->word = strndup(value, length);
+  if (word->word == NULL)
+    {
+      free(word);
+      return config_message(filename, lineno, "Out of memory");
+    }
+
+  word->length = length;
+  word->prefix = prefix;
+  word->next = g_config_words;
+  g_config_words = word;
+  return 0;
+}
+
+/********************************************************************************
+ * Name: parse_ignore_words
+ *
+ * Description:
+ *   Parse one line of a comma-separated ignore-words-list value.
+ *
+ ********************************************************************************/
+
+static int parse_ignore_words(char *value, const char *filename, int lineno)
+{
+  char *comma;
+  char *word;
+
+  value = trim_left(value);
+  trim_right(value);
+
+  if (*value == '\0')
+    {
+      return 0;
+    }
+
+  for (; ; )
+    {
+      comma = strchr(value, ',');
+      if (comma != NULL)
+        {
+          *comma = '\0';
+        }
+
+      word = trim_left(value);
+      trim_right(word);
+      if (*word == '\0')
+        {
+          return config_message(filename, lineno,
+                                "Empty ignore-words-list entry");
+        }
+
+      if (add_config_word(word, filename, lineno) < 0)
+        {
+          return -1;
+        }
+
+      if (comma == NULL)
+        {
+          return 0;
+        }
+
+      value = trim_left(comma + 1);
+      if (*value == '\0')
+        {
+          return 0;
+        }
+    }
+}
+
+/********************************************************************************
+ * Name: parse_config_file
+ *
+ * Description:
+ *   Load supported options from one nxstyle configuration file.
+ *
+ ********************************************************************************/
+
+static int parse_config_file(const char *filename)
+{
+  FILE *stream;
+  char line[LINE_SIZE];
+  char *separator;
+  char *text;
+  bool continuation = false;
+  bool indented;
+  int lineno = 0;
+  int ret = 0;
+
+  stream = fopen(filename, "r");
+  if (stream == NULL)
+    {
+      if (errno == ENOENT)
+        {
+          return 0;
+        }
+
+      return config_message(filename, 1,
+                            "Unable to open nxstyle configuration");
+    }
+
+  while (fgets(line, sizeof(line), stream) != NULL)
+    {
+      lineno++;
+      if (strchr(line, '\n') == NULL && !feof(stream))
+        {
+          ret = config_message(filename, lineno,
+                               "Configuration line is too long");
+          break;
+        }
+
+      indented = isspace((unsigned char)line[0]);
+      text = trim_left(line);
+      trim_right(text);
+
+      if (*text == '\0' || *text == '#' || *text == ';')
+        {
+          continue;
+        }
+
+      separator = strchr(text, '=');
+      if (separator != NULL)
+        {
+          continuation = false;
+          *separator = '\0';
+          trim_right(text);
+          if (strcasecmp(text, NXSTYLE_IGNORE_WORDS_LIST) == 0)
+            {
+              continuation = true;
+              ret = parse_ignore_words(separator + 1, filename, lineno);
+              if (ret < 0)
+                {
+                  break;
+                }
+            }
+
+          continue;
+        }
+
+      if (continuation && indented)
+        {
+          ret = parse_ignore_words(text, filename, lineno);
+          if (ret < 0)
+            {
+              break;
+            }
+        }
+      else if (strcasecmp(text, NXSTYLE_IGNORE_WORDS_LIST) == 0)
+        {
+          ret = config_message(filename, lineno,
+                               "Missing '=' after ignore-words-list");
+          break;
+        }
+      else
+        {
+          continuation = false;
+        }
+    }
+
+  if (ret == 0 && ferror(stream))
+    {
+      ret = config_message(filename, lineno,
+                           "Unable to read nxstyle configuration");
+    }
+
+  fclose(stream);
+  return ret;
+}
+
+/********************************************************************************
+ * Name: load_config_file
+ *
+ * Description:
+ *   Load the nxstyle configuration for the checked file.
+ *
+ ********************************************************************************/
+
+static int load_config_file(void)
+{
+  char directory[PATH_MAX];
+  char filename[PATH_MAX];
+  char *slash;
+
+  strncpy(directory, g_file_name, sizeof(directory));
+  directory[sizeof(directory) - 1] = '\0';
+  slash = strrchr(directory, '/');
+  if (slash == NULL)
+    {
+      return 0;
+    }
+
+  if (slash == directory)
+    {
+      directory[1] = '\0';
+    }
+  else if (slash == directory + 2 && directory[1] == ':')
+    {
+      directory[3] = '\0';
+    }
+  else
+    {
+      *slash = '\0';
+    }
+
+  if (make_child_path(filename, sizeof(filename), directory,
+                      NXSTYLE_CONFIG_FILE) < 0)
+    {
+      return config_message(g_file_name, 1,
+                            "Nxstyle configuration path is too long");
+    }
+
+  return parse_config_file(filename);
+}
+
+/********************************************************************************
  * Name: skip
  *
  * Description:
@@ -1356,6 +1735,33 @@ static bool white_content_list(const char *ident, int lineno)
 }
 
 /********************************************************************************
+ * Name: configured_content_list
+ *
+ * Description:
+ *   Return true if an identifier matches an entry loaded from .nxstyle.
+ *
+ ********************************************************************************/
+
+static bool configured_content_list(const char *ident, size_t ident_length)
+{
+  struct nxstyle_word_s *word;
+
+  for (word = g_config_words; word != NULL; word = word->next)
+    {
+      if ((word->prefix && ident_length >= word->length) ||
+          (!word->prefix && ident_length == word->length))
+        {
+          if (strncmp(ident, word->word, word->length) == 0)
+            {
+              return true;
+            }
+        }
+    }
+
+  return false;
+}
+
+/********************************************************************************
  * Name: check_keyword
  *
  * Description:
@@ -1531,11 +1937,18 @@ int main(int argc, char **argv, char **envp)
       return 0;
     }
 
+  if (load_config_file() < 0)
+    {
+      free_config_words();
+      return g_status;
+    }
+
   instream = fopen(g_file_name, "r");
 
   if (!instream)
     {
       FATALFL("Failed to open", g_file_name);
+      free_config_words();
       return 1;
     }
 
@@ -2575,7 +2988,9 @@ int main(int argc, char **argv, char **envp)
                   /* Ignore symbols that begin with white-listed prefixes */
 
                   if (g_skipmixedcase ||
-                      white_content_list(&line[ident_index], lineno))
+                      white_content_list(&line[ident_index], lineno) ||
+                      configured_content_list(&line[ident_index],
+                                              (size_t)(n - ident_index)))
                     {
                       /* No error */
                     }
@@ -3964,6 +4379,7 @@ int main(int argc, char **argv, char **envp)
     }
 
   fclose(instream);
+  free_config_words();
   if (g_verbose == 1)
     {
       fprintf(stderr, "%s: %s nxstyle check\n", g_file_name,
