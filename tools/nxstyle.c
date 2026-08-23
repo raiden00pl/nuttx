@@ -300,6 +300,11 @@ static const char *g_white_prefix[] =
   "SystemCoreClock",  /* SystemCoreClock, SystemCoreClockUpdate */
   "cmse_",            /* ARM CMSE TrustZone intrinsics (arm_cmse.h) */
   "MQTTErrors",       /* apps/tools/netutils/mqttc/MQTT-C/include/mqtt.h */
+
+  /* Ref:  apps/netutils/s2opc, apps/examples/s2opc */
+
+  "SOPC_",
+  "OpcUa_",
   NULL
 };
 
@@ -761,6 +766,14 @@ static const char *g_white_content_list[] =
   "xedgeInitDiskIo",
   "xedgeOpenAUX",
   "baParseDate",
+
+  /* Ref:  apps/netutils/s2opc, apps/examples/s2opc */
+
+  "buildBuildDate",
+  "buildDockerId",
+  "buildSrcCommit",
+  "buildVersion",
+  "logSystem",
 
   NULL
 };
