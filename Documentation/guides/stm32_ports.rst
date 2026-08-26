@@ -1005,6 +1005,10 @@ of a peripheral on a given core is ``V1``.
   ``CONFIG_STM32_HAVE_IP_EXTI_M33_V1``, and
   ``CONFIG_STM32_HAVE_IP_USART_M33_V3``
 
+All instances of the GPDMA/LPDMA IP family are named ``STM32_DMAx`` in the
+memory maps, regardless of the GPDMA or LPDMA marketing name.  Register bit
+and interrupt vector names keep the reference manual names.
+
 Note that in the future the core prefix may be dropped and a single
 version number space used across all cores.  For now the core prefix is
 kept to make migration of families into common code simpler.
