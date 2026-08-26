@@ -142,6 +142,9 @@
 #define STM32_NCOMP                    (0)   /* Comparators */
 #define STM32_NOPAMP                   (0)   /* Operational Amplifiers */
 
+#define STM32_PRIMARY_SRAM_SIZE \
+  (STM32_SRAM1_SIZE + STM32_SRAM2_SIZE + STM32_SRAM3_SIZE)
+
 /* NVIC priority levels *****************************************************/
 
 /* 16 Programmable interrupt levels */
