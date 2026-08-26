@@ -234,20 +234,38 @@
    *   UARTDIV = 2 * fCK / baud
    */
 
-#  define STM32_USARTDIV8 \
+#  if defined(CONFIG_LPUART1_SERIAL_CONSOLE)
+
+  /* Baud rate for LPUART:
+   *
+   *   baud      = 256 * fCK / LPUARTDIV
+   *   LPUARTDIV = 256 * fCK / baud
+   *
+   * LPUARTDIV must be in range [0x300, 0xFFFFF].
+   */
+
+#    define STM32_BRR_VALUE \
+      ((((uint64_t)STM32_APBCLOCK << 8) + \
+        (STM32_CONSOLE_BAUD >> 1)) / STM32_CONSOLE_BAUD)
+
+#  else
+
+#    define STM32_USARTDIV8 \
       (((STM32_APBCLOCK << 1) + (STM32_CONSOLE_BAUD >> 1)) / STM32_CONSOLE_BAUD)
-#  define STM32_USARTDIV16 \
+#    define STM32_USARTDIV16 \
       ((STM32_APBCLOCK + (STM32_CONSOLE_BAUD >> 1)) / STM32_CONSOLE_BAUD)
 
-  /* Use oversamply by 8 only if the divisor is small.  But what is small? */
+  /* Use oversampling by 8 only if the divisor is small */
 
-#  if STM32_USARTDIV8 > 2000
-#    define STM32_BRR_VALUE STM32_USARTDIV16
-#  else
-#    define USE_OVER8 1
-#    define STM32_BRR_VALUE \
-      ((STM32_USARTDIV8 & 0xfff0) | ((STM32_USARTDIV8 & 0x000f) >> 1))
-#  endif
+#    if STM32_USARTDIV8 > 2000
+#      define STM32_BRR_VALUE STM32_USARTDIV16
+#    else
+#      define USE_OVER8 1
+#      define STM32_BRR_VALUE \
+        ((STM32_USARTDIV8 & 0xfff0) | ((STM32_USARTDIV8 & 0x000f) >> 1))
+#    endif
+
+#  endif /* CONFIG_LPUART1_SERIAL_CONSOLE */
 
 #endif /* HAVE_CONSOLE */
 
