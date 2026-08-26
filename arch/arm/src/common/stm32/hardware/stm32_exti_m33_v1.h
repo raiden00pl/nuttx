@@ -36,7 +36,13 @@
 
 /* EXTI Line Inventory ******************************************************/
 
-#if defined(CONFIG_STM32_STM32L562XX)
+#if defined(CONFIG_STM32_STM32H50XXX)
+#  define STM32_EXTI_NLINES  54
+#elif defined(CONFIG_STM32_STM32H53XXX)
+#  define STM32_EXTI_NLINES  59
+#elif defined(CONFIG_STM32_STM32H56XXX)
+#  define STM32_EXTI_NLINES  58
+#elif defined(CONFIG_STM32_STM32L562XX)
 #  define STM32_EXTI_NLINES  43
 #elif defined(CONFIG_STM32_STM32U3C5XX)
 #  define STM32_EXTI_NLINES  23
