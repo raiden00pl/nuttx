@@ -88,10 +88,6 @@ if(CONFIG_STM32_ETHMAC)
   list(APPEND SRCS stm32_ethernet.c)
 endif()
 
-if(CONFIG_STM32_DMA)
-  list(APPEND SRCS stm32_dma.c)
-endif()
-
 if(CONFIG_STM32_DTS)
   list(APPEND SRCS stm32_dts.c)
 endif()
