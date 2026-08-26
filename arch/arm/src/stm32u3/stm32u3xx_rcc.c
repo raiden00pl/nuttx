@@ -75,6 +75,10 @@ void stm32_stdclockconfig(void)
 
   /* The EPOD booster and voltage scaling control require the PWR clock. */
 
+#ifdef CONFIG_STM32_DMA1
+  modifyreg32(STM32_RCC_AHB1ENR1, 0, RCC_AHB1ENR1_GPDMA1EN);
+#endif
+
   modifyreg32(STM32_RCC_AHB1ENR2, 0, RCC_AHB1ENR2_PWREN);
 
   /* Select the board regulator and wait until the transition completes. */
