@@ -3825,6 +3825,7 @@ static int up_pm_prepare(struct pm_callback_s *cb, int domain,
 
 uart_dev_t *stm32_serial_get_uart(int uart_num)
 {
+#ifdef HAVE_UART
   int uart_idx = uart_num - 1;
 
   if (uart_idx < 0 || uart_idx >= STM32_NSERIAL || !g_uart_devs[uart_idx])
@@ -3838,6 +3839,10 @@ uart_dev_t *stm32_serial_get_uart(int uart_num)
     }
 
   return &g_uart_devs[uart_idx]->dev;
+#else
+  UNUSED(uart_num);
+  return NULL;
+#endif /* HAVE_UART */
 }
 
 /****************************************************************************
