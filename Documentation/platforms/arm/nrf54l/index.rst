@@ -23,7 +23,7 @@ RADIO       No
 RRAMC       No
 SAADC       No
 SPIM        No
-TIMER       No
+TIMER       Yes
 TWIM        No
 UARTE       Yes     No hardware flow control
 USBHS       No
@@ -38,6 +38,13 @@ GPIOTE supports channel events and tasks, with optional per-pin callbacks
 for PORT events. Channels 0 through 7 belong to GPIOTE20 and serve P1 and
 P3. Channels 8 through 11 belong to GPIOTE30 and serve P0. P2 does not
 support GPIOTE.
+
+TIMER
+-----
+
+TIMER0 through TIMER6 correspond to TIMER20, TIMER21, TIMER22, TIMER23,
+TIMER24, TIMER00 and TIMER10. The timer lower-half driver uses a 1 MHz
+counter clock on each instance.
 
 UARTE
 -----
