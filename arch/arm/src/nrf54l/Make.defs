@@ -54,6 +54,10 @@ ifeq ($(CONFIG_NRF54L_SAADC),y)
 CHIP_CSRCS += nrf54l_adc.c
 endif
 
+ifeq ($(CONFIG_NRF54L_QDEC),y)
+CHIP_CSRCS += nrf54l_qdec.c
+endif
+
 ifeq ($(CONFIG_NRF54L_GPIOTE),y)
 CHIP_CSRCS += nrf54l_gpiote.c
 endif

@@ -18,7 +18,7 @@ GPIO        Yes
 GPIOTE      Yes
 GRTC        Yes     Counter and tickless scheduling
 PWM         Yes
-QDEC        No
+QDEC        Yes
 RADIO       No
 RRAMC       No
 SAADC       Yes
@@ -54,6 +54,14 @@ PWM
 PWM0 through PWM2 correspond to PWM20, PWM21 and PWM22. Each instance
 supports four output channels. The board must provide an
 ``NRF54L_PWMn_CHm_PIN`` definition for each enabled channel.
+
+QDEC
+----
+
+QDEC0 and QDEC1 correspond to QDEC20 and QDEC21. Each enabled decoder
+requires ``BOARD_QDECn_A_PIN`` and ``BOARD_QDECn_B_PIN`` definitions.
+``nrf54l_qeinitialize()`` provides the quadrature encoder lower half.
+Index inputs use GPIOTE and require ``BOARD_QDECn_INDEX_PIN`` definitions.
 
 SAADC
 -----

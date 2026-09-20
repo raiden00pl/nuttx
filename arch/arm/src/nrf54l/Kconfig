@@ -48,6 +48,10 @@ config NRF54L_PWM
 	bool
 	default n
 
+config NRF54L_QDEC
+	bool
+	default n
+
 menu "nRF54L Peripheral Selection"
 
 config NRF54L_GPIOTE
@@ -534,3 +538,27 @@ config NRF54L_I2C_MASTER_TIMEOUT
 endif # NRF54L_I2C_MASTER
 
 endmenu # I2C Master Configuration
+
+config NRF54L_QDEC0
+	bool "Qencoder 0 (QDEC20) support"
+	default n
+	select NRF54L_QDEC
+	---help---
+		Enable Qencoder 0 support. The board must provide
+		BOARD_QDEC0_A_PIN and BOARD_QDEC0_B_PIN.
+
+config NRF54L_QDEC1
+	bool "Qencoder 1 (QDEC21) support"
+	default n
+	select NRF54L_QDEC
+	---help---
+		Enable Qencoder 1 support. The board must provide
+		BOARD_QDEC1_A_PIN and BOARD_QDEC1_B_PIN.
+
+config NRF54L_QENCODER_INDEX
+	bool "Enable QDEC index pin support"
+	default n
+	depends on NRF54L_GPIOTE && NRF54L_QDEC
+	---help---
+		Enable the quadrature encoder index input using a GPIOTE channel.
+		The board must provide BOARD_QDECn_INDEX_PIN for each decoder.
