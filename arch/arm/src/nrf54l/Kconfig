@@ -139,6 +139,10 @@ config NRF54L_TIMER6
 	select NRF54L_TIMER
 	default n
 
+config NRF54L_GRTC
+	bool "GRTC"
+	default n
+
 endmenu # nRF54L Peripheral Selection
 
 menu "System Timer"
@@ -152,6 +156,17 @@ config NRF54L_SYSTIMER_SYSTICK
 	select TIMER
 	select TIMER_ARCH
 	select ARMV8M_SYSTICK
+
+config NRF54L_SYSTIMER_GRTC
+	bool "GRTC"
+	select NRF54L_GRTC
+	select ARCH_HAVE_TICKLESS
+	select SCHED_TICKLESS
+	select SCHED_TICKLESS_ALARM
+	---help---
+		Use the GRTC 1 MHz system counter and compare channel zero
+		for tickless scheduling. The counter is kept active and uses
+		the internal low-power RC oscillator as its LF clock source.
 
 endchoice # System Timer Source
 
