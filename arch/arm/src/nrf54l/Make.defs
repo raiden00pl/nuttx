@@ -34,6 +34,10 @@ ifeq ($(CONFIG_NRF54L_UART),y)
 CHIP_CSRCS += nrf54l_serial.c
 endif
 
+ifeq ($(CONFIG_NRF54L_GPIOTE),y)
+CHIP_CSRCS += nrf54l_gpiote.c
+endif
+
 ifneq ($(CONFIG_ARCH_IDLE_CUSTOM),y)
 CHIP_CSRCS += nrf54l_idle.c
 endif
