@@ -20,7 +20,7 @@ GRTC        Yes     Counter and tickless scheduling
 PWM         Yes
 QDEC        Yes
 RADIO       No
-RRAMC       No
+RRAMC       Yes     Progmem erase/write interface
 SAADC       Yes
 SPIM        Yes
 TIMER       Yes
@@ -62,6 +62,13 @@ QDEC0 and QDEC1 correspond to QDEC20 and QDEC21. Each enabled decoder
 requires ``BOARD_QDECn_A_PIN`` and ``BOARD_QDECn_B_PIN`` definitions.
 ``nrf54l_qeinitialize()`` provides the quadrature encoder lower half.
 Index inputs use GPIOTE and require ``BOARD_QDECn_INDEX_PIN`` definitions.
+
+RRAMC
+-----
+
+``CONFIG_NRF54L_PROGMEM`` enables the progmem interface. RRAM supports
+overwriting either bit value; erase operations fill emulated 4 KiB blocks
+with ``0xff``. Writes require word-aligned addresses and lengths.
 
 SAADC
 -----
