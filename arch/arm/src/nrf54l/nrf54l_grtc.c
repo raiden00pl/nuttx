@@ -99,7 +99,11 @@ static struct nrf54l_grtc_priv_s g_nrf54l_grtc_priv =
   .ops   = &nrf54l_grtc_ops,
   .base  = NRF54L_GRTC_BASE,
   .irq   = NRF54L_IRQ_GRTC_0,
+#ifdef CONFIG_NRF54L_SOFTDEVICE_CONTROLLER
+  .chan  = 7,
+#else
   .chan  = 12,
+#endif
 };
 
 /****************************************************************************
@@ -435,8 +439,13 @@ struct nrf54l_grtc_dev_s *nrf54l_grtc_init(int grtc)
   nrf54l_grtc_putreg(dev, NRF54L_GRTC_INTENCLR_OFFSET(0), 0xffffffff);
   nrf54l_grtc_putreg(dev, NRF54L_GRTC_SHORTS_OFFSET, 0);
   nrf54l_grtc_putreg(dev, NRF54L_GRTC_INTERVAL_OFFSET, 0);
+#ifdef CONFIG_NRF54L_SOFTDEVICE_CONTROLLER
+  nrf54l_grtc_putreg(dev, NRF54L_GRTC_CLKCFG_OFFSET,
+                   GRTC_CLKCFG_CLKSEL_LFCLK | GRTC_CLKCFG_CLKFASTDIV(1));
+#else
   nrf54l_grtc_putreg(dev, NRF54L_GRTC_CLKCFG_OFFSET,
                    GRTC_CLKCFG_CLKSEL_LFLPRC | GRTC_CLKCFG_CLKFASTDIV(1));
+#endif
 
   for (i = 0; i < priv->chan; i++)
     {

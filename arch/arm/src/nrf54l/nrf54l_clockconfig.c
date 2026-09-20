@@ -156,6 +156,27 @@ void nrf54l_clockconfig(void)
       PANIC();
     }
 
+#ifdef CONFIG_NRF54L_SOFTDEVICE_CONTROLLER
+  /* Keep a crystal-derived LF clock available to GRTC and MPSL. */
+
+  putreg32(CLOCK_LFCLK_SRC_SRC_LFSYNT, NRF54L_CLOCK_LFCLK_SRC);
+  putreg32(0, NRF54L_CLOCK_EVENTS_LFCLKSTARTED);
+  putreg32(1, NRF54L_CLOCK_TASKS_LFCLKSTART);
+
+  for (i = 0; i < 10000000; i++)
+    {
+      if (getreg32(NRF54L_CLOCK_EVENTS_LFCLKSTARTED) != 0)
+        {
+          break;
+        }
+    }
+
+  if (i == 10000000)
+    {
+      PANIC();
+    }
+#endif
+
 #ifndef CONFIG_ARCH_CHIP_NRF54L15
   for (i = 0; i < 10000000 && getreg32(NRF54L_KMU_STATUS) == 1; i++)
     {

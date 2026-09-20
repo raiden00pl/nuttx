@@ -19,7 +19,7 @@ GPIOTE      Yes
 GRTC        Yes     Counter and tickless scheduling
 PWM         Yes
 QDEC        Yes
-RADIO       No
+RADIO       Yes     Bluetooth LE through SDC
 RRAMC       Yes     Progmem erase/write interface
 SAADC       Yes
 SPIM        Yes
@@ -46,7 +46,8 @@ GRTC
 and twelve compare channels. ``CONFIG_NRF54L_SYSTIMER_GRTC`` reserves the
 instance and compare channel zero for tickless scheduling. The driver uses
 the internal low-power RC oscillator as its LF clock source and keeps the
-system counter active.
+system counter active. With SDC enabled, channels 7 through 11 are reserved
+for MPSL and the clock source is synthesized LFCLK.
 
 PWM
 ---
@@ -62,6 +63,22 @@ QDEC0 and QDEC1 correspond to QDEC20 and QDEC21. Each enabled decoder
 requires ``BOARD_QDECn_A_PIN`` and ``BOARD_QDECn_B_PIN`` definitions.
 ``nrf54l_qeinitialize()`` provides the quadrature encoder lower half.
 Index inputs use GPIOTE and require ``BOARD_QDECn_INDEX_PIN`` definitions.
+
+RADIO
+-----
+
+``CONFIG_NRF54L_SOFTDEVICE_CONTROLLER`` enables Nordic's SoftDevice Controller
+using nrfxlib 3.4.1. The integration follows the nRF53 driver and supports
+legacy advertising, scanning, central and peripheral connections, Data Length
+Extension, and 1M, 2M and Coded PHYs. It provides the NuttX Bluetooth driver
+interface for the native host or HCI transport. The build downloads nrfxlib;
+``CONFIG_ALLOW_BSDNORDIC_COMPONENTS`` must be enabled.
+
+MPSL and SDC reserve TIMER10, TIMER20, GRTC channels 7 through 11, RADIO,
+ECB00, AAR00, CCM00, CLOCK, TEMP and RRAMC, together with their DPPI/PPIB
+resources. TIMER0, TIMER6 and progmem are unavailable while SDC is enabled.
+The remaining GRTC channels can be used by the tickless scheduler. HFXO
+remains running, with LFCLK synthesized from HFXO.
 
 RRAMC
 -----
