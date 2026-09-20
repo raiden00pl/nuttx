@@ -21,7 +21,7 @@ PWM         Yes
 QDEC        No
 RADIO       No
 RRAMC       No
-SAADC       No
+SAADC       Yes
 SPIM        No
 TIMER       Yes
 TWIM        No
@@ -54,6 +54,21 @@ PWM
 PWM0 through PWM2 correspond to PWM20, PWM21 and PWM22. Each instance
 supports four output channels. The board must provide an
 ``NRF54L_PWMn_CHm_PIN`` definition for each enabled channel.
+
+SAADC
+-----
+
+``nrf54l_adcinitialize()`` provides the ADC lower half, with up to eight
+single-ended or differential channels, 8/10/12/14-bit resolution and
+optional oversampling. Each ``ANIOC_TRIGGER`` collects one result per
+channel. The local timer supports a single channel; scanning with
+oversampling requires burst mode on every channel.
+
+The internal reference is 0.9 V. Available gains range from 1/4 to 2.
+External analog and reference pins must have their digital input buffers,
+outputs and pulls disconnected before opening the device. AIN0 through
+AIN7 map to P1.04/05/06/07/11/12/13/14 on L15 and
+P1.00/31/30/29/06/05/04/03 on LM20.
 
 TIMER
 -----
