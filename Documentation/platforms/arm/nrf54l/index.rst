@@ -17,7 +17,7 @@ Peripheral  Support Notes
 GPIO        Yes
 GPIOTE      Yes
 GRTC        Yes     Counter and tickless scheduling
-PWM         No
+PWM         Yes
 QDEC        No
 RADIO       No
 RRAMC       No
@@ -47,6 +47,13 @@ and twelve compare channels. ``CONFIG_NRF54L_SYSTIMER_GRTC`` reserves the
 instance and compare channel zero for tickless scheduling. The driver uses
 the internal low-power RC oscillator as its LF clock source and keeps the
 system counter active.
+
+PWM
+---
+
+PWM0 through PWM2 correspond to PWM20, PWM21 and PWM22. Each instance
+supports four output channels. The board must provide an
+``NRF54L_PWMn_CHm_PIN`` definition for each enabled channel.
 
 TIMER
 -----
