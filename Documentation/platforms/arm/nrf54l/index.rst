@@ -26,7 +26,7 @@ SPIM        Yes
 TIMER       Yes
 TWIM        Yes
 UARTE       Yes     No hardware flow control
-USBHS       No
+USBHS       Yes     LM20A/B device controller
 WDT         No
 ==========  ======= =====================================
 
@@ -135,6 +135,14 @@ pin assignment table.
 ``CONFIG_SERIAL_TERMIOS`` enables runtime baud rate, data bits, parity and
 stop bit configuration. A format change returns ``-EBUSY`` while a byte is
 being transmitted or DMA error recovery is in progress.
+
+USBHS
+-----
+
+``CONFIG_NRF54L_USBDEV`` enables the LM20A/B USB device controller.
+``CONFIG_USBDEV_DUALSPEED`` enables high-speed operation; otherwise the
+controller uses full speed. The driver provides sixteen endpoints in each
+direction, including EP0. IN endpoints support packets up to 512 bytes.
 
 Power Management
 ================

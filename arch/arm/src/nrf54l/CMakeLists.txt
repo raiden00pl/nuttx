@@ -77,4 +77,8 @@ if(CONFIG_PM)
   list(APPEND SRCS nrf54l_pminitialize.c)
 endif()
 
+if(CONFIG_USBDEV)
+  list(APPEND SRCS nrf54l_usbhs.c nrf54l_usbd.c)
+endif()
+
 target_sources(arch PRIVATE ${SRCS})

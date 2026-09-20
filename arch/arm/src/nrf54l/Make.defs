@@ -84,3 +84,7 @@ endif
 ifeq ($(CONFIG_PM),y)
 CHIP_CSRCS += nrf54l_pminitialize.c
 endif
+
+ifeq ($(CONFIG_USBDEV),y)
+CHIP_CSRCS += nrf54l_usbhs.c nrf54l_usbd.c
+endif
