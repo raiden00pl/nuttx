@@ -230,6 +230,7 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
   FAR struct adc_dev_s  *dev   = inode->i_private;
   FAR struct adc_fifo_s *fifo  = &dev->ad_recv;
   size_t                nread;
+  irqstate_t            flags;
   int                   ret    = 0;
   int                   msglen;
 
@@ -270,8 +271,6 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
 
   if (buflen >= msglen)
     {
-      /* Interrupts must be disabled while accessing the fifo FIFO */
-
       ret = nxmutex_lock(&dev->ad_lock);
 
       if (ret < 0)
@@ -279,6 +278,9 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
           return ret;
         }
 
+      /* Protect the FIFO check and waiter registration from receive IRQs. */
+
+      flags = enter_critical_section();
       while (fifo->af_head == fifo->af_tail)
         {
           /* Check if there was an overrun, if set we need to return EIO */
@@ -417,6 +419,7 @@ static ssize_t adc_read(FAR struct file *filep, FAR char *buffer,
       ret = nread;
 
 return_with_irqdisabled:
+      leave_critical_section(flags);
       nxmutex_unlock(&dev->ad_lock);
     }
 
