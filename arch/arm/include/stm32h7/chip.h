@@ -58,6 +58,11 @@
 #if defined(CONFIG_STM32_STM32H7RSXX) || \
     defined (CONFIG_ARCH_CHIP_STM32H723VG) || \
     defined (CONFIG_ARCH_CHIP_STM32H723ZG) || \
+    defined (CONFIG_ARCH_CHIP_STM32H735AG) || \
+    defined (CONFIG_ARCH_CHIP_STM32H735IG) || \
+    defined (CONFIG_ARCH_CHIP_STM32H735RG) || \
+    defined (CONFIG_ARCH_CHIP_STM32H735VG) || \
+    defined (CONFIG_ARCH_CHIP_STM32H735ZG) || \
     defined (CONFIG_ARCH_CHIP_STM32H743AG) || \
     defined (CONFIG_ARCH_CHIP_STM32H743AI) || \
     defined (CONFIG_ARCH_CHIP_STM32H743BG) || \
@@ -124,7 +129,8 @@
 #elif defined(CONFIG_STM32_STM32H7X0XX) || defined(CONFIG_STM32_STM32H7X3XX) || defined(CONFIG_STM32_STM32H7X5XX)
 /* Memory */
 
-#  ifdef CONFIG_STM32_STM32H72XXX_OR_STM32H73XXX
+#  if defined(CONFIG_STM32_STM32H72XXX) || \
+      defined(CONFIG_STM32_STM32H73XXX)
 #    define STM32_SRAM_SIZE             (320*1024)  /* 320Kb SRAM on AXI bus Matrix (D1) */
 #    define STM32_SRAM1_SIZE            (16*1024)   /*  16Kb SRAM1 on AHB bus Matrix (D2) */
 #    define STM32_SRAM2_SIZE            (16*1024)   /*  16Kb SRAM2 on AHB bus Matrix (D2) */
@@ -153,11 +159,23 @@
 /* Peripherals */
 
 #  if defined(CONFIG_STM32H7_IO_CONFIG_A)
+#    if defined(CONFIG_STM32_STM32H72XXX) || \
+        defined(CONFIG_STM32_STM32H73XXX)
+#      define STM32_NGPIO               (8)         /* GPIOA-GPIOH */
+#    else
 #      define STM32_NGPIO               (10)        /* GPIOA-GPIOJ */
+#    endif
 #  elif defined(CONFIG_STM32H7_IO_CONFIG_B)
 #      define STM32_NGPIO               (11)        /* GPIOA-GPIOK */
 #  elif defined(CONFIG_STM32H7_IO_CONFIG_I)
+#    if defined(CONFIG_STM32_STM32H72XXX) || \
+        defined(CONFIG_STM32_STM32H73XXX)
+#      define STM32_NGPIO               (11)        /* GPIOA-H, GPIOJ-K */
+#    else
 #      define STM32_NGPIO               (9)         /* GPIOA-GPIOI */
+#    endif
+#  elif defined(CONFIG_STM32H7_IO_CONFIG_R)
+#      define STM32_NGPIO               (8)         /* GPIOA-D, GPIOH */
 #  elif defined(CONFIG_STM32H7_IO_CONFIG_V)
 #      define STM32_NGPIO               (8)         /* GPIOA-GPIOH, missing GPIOF-GPIOG */
 #  elif defined(CONFIG_STM32H7_IO_CONFIG_X)

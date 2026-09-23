@@ -65,7 +65,8 @@
 
 #ifdef CONFIG_ARCH_CHIP_STM32H7_CORTEXM7
 #  define STM32_SRAM1_BASE   0x30000000     /* 0x30000000-0x30003fff: System SRAM1 */
-#  ifdef CONFIG_STM32_STM32H72XXX_OR_STM32H73XXX
+#  if defined(CONFIG_STM32_STM32H72XXX) || \
+      defined(CONFIG_STM32_STM32H73XXX)
 #  define STM32_SRAM2_BASE   0x30004000     /* 0x30004000-0x30007fff: System SRAM2 */
 #  else /* STM32H74XXX or STM32H75XXX with full SRAM configuration  */
 #  define STM32_SRAM2_BASE   0x30020000     /* 0x30020000-0x3003ffff: System SRAM2 */
@@ -199,6 +200,13 @@
 #define STM32_SDMMC1_BASE      0x52007000     /* 0x52007000-0x52007fff SDMMC1 */
 #define STM32_DLYBSDMMC1_BASE  0x52008000     /* 0x52008000-0x52008fff Delay Block SDMMC1 */
 
+#if defined(CONFIG_STM32_STM32H72XXX) || \
+    defined(CONFIG_STM32_STM32H73XXX)
+#  define STM32_OCTOSPI1_BASE   0x52005000
+#  define STM32_OCTOSPI2_BASE   0x5200a000
+#  define STM32_OCTOSPIM_BASE   0x5200b400
+#endif
+
 /* APB4 Base Addresses ******************************************************/
 
 #define STM32_EXTI_BASE        0x58000000     /* 0x58000000-0x580003ff EXTI */
@@ -226,7 +234,12 @@
 #define STM32_GPIOF_BASE       0x58021400     /* 0x58021400-0x580217ff GPIOF */
 #define STM32_GPIOG_BASE       0x58021800     /* 0x58021800-0x58021bff GPIOG */
 #define STM32_GPIOH_BASE       0x58021c00     /* 0x58021c00-0x58021fff GPIOH */
-#define STM32_GPIOI_BASE       0x58022000     /* 0x58022000-0x580223ff GPIOI */
+
+#if !defined(CONFIG_STM32_STM32H72XXX) && \
+    !defined(CONFIG_STM32_STM32H73XXX)
+#  define STM32_GPIOI_BASE     0x58022000     /* 0x58022000-0x580223ff GPIOI */
+#endif
+
 #define STM32_GPIOJ_BASE       0x58022400     /* 0x58022400-0x580227ff GPIOJ */
 #define STM32_GPIOK_BASE       0x58022800     /* 0x58022800-0x58022bff GPIOK */
 #define STM32_RCC_BASE         0x58024400     /* 0x58024400-0x580247ff RCC */

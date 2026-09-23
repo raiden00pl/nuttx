@@ -691,6 +691,10 @@
 #define RCC_AHB3RSTR_DMA2DRST           (1 << 4)  /* RCC AHB3RSTR: DMA2DRST */
 #define RCC_AHB3RSTR_JPGDECRST          (1 << 5)  /* RCC AHB3RSTR: JPGDECRST */
 #define RCC_AHB3RSTR_FMCRST             (1 << 12) /* RCC AHB3RSTR: FMCRST */
+#if defined(CONFIG_STM32_STM32H72XXX) || \
+    defined(CONFIG_STM32_STM32H73XXX)
+#  define RCC_AHB3RSTR_OSPI2RST         (1 << 19)
+#endif
 #define RCC_AHB3RSTR_QSPIRST            (1 << 14) /* RCC AHB3RSTR: QSPIRST */
 #define RCC_AHB3RSTR_SDMMC1RST          (1 << 16) /* RCC AHB3RSTR: SDMMC1RST */
 #define RCC_AHB3RSTR_CPURST             (1 << 31) /* RCC AHB3RSTR: CPURST */
@@ -863,6 +867,11 @@
 #define RCC_AHB3ENR_DMA2DEN             (1 << 4)  /* RCC AHB3ENR: DMA2DEN */
 #define RCC_AHB3ENR_JPGDECEN            (1 << 5)  /* RCC AHB3ENR: JPGDECEN */
 #define RCC_AHB3ENR_FMCEN               (1 << 12) /* RCC AHB3ENR: FMCEN */
+#if defined(CONFIG_STM32_STM32H72XXX) || \
+    defined(CONFIG_STM32_STM32H73XXX)
+#  define RCC_AHB3ENR_OSPI2EN           (1 << 19)
+#  define RCC_AHB3ENR_IOMNGREN          (1 << 21)
+#endif
 #define RCC_AHB3ENR_QSPIEN              (1 << 14) /* RCC AHB3ENR: QSPIEN */
 #define RCC_AHB3ENR_SDMMC1EN            (1 << 16) /* RCC AHB3ENR: SDMMC1EN */
 

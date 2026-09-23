@@ -437,7 +437,7 @@ static inline void rcc_enableahb4(void)
 #if STM32_NGPIO > 7
              | RCC_AHB4ENR_GPIOHEN
 #endif
-#if STM32_NGPIO > 8
+#if STM32_NGPIO > 8 && defined(STM32_GPIOI_BASE)
              | RCC_AHB4ENR_GPIOIEN
 #endif
 #if STM32_NGPIO > 9
