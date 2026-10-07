@@ -611,7 +611,8 @@ static int ctucanfd_chrdev_send(FAR struct can_dev_s *dev,
   if (msg->cm_hdr.ch_extid)
     {
       fmt.s.ide   = 1;
-      id.s.id_ext = msg->cm_hdr.ch_id;
+      id.s.id     = (msg->cm_hdr.ch_id >> 18) & 0x7ff;
+      id.s.id_ext = msg->cm_hdr.ch_id & 0x3ffff;
     }
   else
 #endif
@@ -793,7 +794,7 @@ static void ctucanfd_chardev_receive(FAR struct ctucanfd_can_s *priv)
 
       if (hdr.ch_extid)
         {
-          hdr.ch_id = frame->id.id_ext;
+          hdr.ch_id = (frame->id.id << 18) | frame->id.id_ext;
         }
       else
         {
@@ -1127,7 +1128,8 @@ static int ctucanfd_sock_transmit(FAR struct netdev_lowerhalf_s *dev,
       if (frame->can_id & CAN_EFF_FLAG)
         {
           fmt.s.ide   = 1;
-          id.s.id_ext = (frame->can_id & 0x1ffffff);
+          id.s.id     = (frame->can_id >> 18) & 0x7ff;
+          id.s.id_ext = frame->can_id & 0x3ffff;
         }
       else
 #endif
@@ -1173,7 +1175,8 @@ static int ctucanfd_sock_transmit(FAR struct netdev_lowerhalf_s *dev,
       if (frame->can_id & CAN_EFF_FLAG)
         {
           fmt.s.ide   = 1;
-          id.s.id_ext = (frame->can_id & 0x1ffffff);
+          id.s.id     = (frame->can_id >> 18) & 0x7ff;
+          id.s.id_ext = frame->can_id & 0x3ffff;
         }
       else
 #endif
@@ -1295,7 +1298,7 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
 
       if (rxframe->fmt.ide)
         {
-          frame->can_id = rxframe->id.id_ext;
+          frame->can_id = (rxframe->id.id << 18) | rxframe->id.id_ext;
           frame->can_id |= CAN_EFF_FLAG;
         }
       else
@@ -1360,7 +1363,7 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
 
       if (rxframe->fmt.ide)
         {
-          frame->can_id = rxframe->id.id_ext;
+          frame->can_id = (rxframe->id.id << 18) | rxframe->id.id_ext;
           frame->can_id |= CAN_EFF_FLAG;
         }
       else
