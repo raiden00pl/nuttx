@@ -189,6 +189,7 @@ static int sim_can_send(struct can_dev_s *dev, struct can_msg_s *msg)
     {
       struct canfd_frame frame;
 
+      memset(&frame, 0, sizeof(frame));
       frame.can_id = msg->cm_hdr.ch_id;
 
       if (msg->cm_hdr.ch_rtr)
@@ -226,6 +227,7 @@ static int sim_can_send(struct can_dev_s *dev, struct can_msg_s *msg)
     {
       struct can_frame frame;
 
+      memset(&frame, 0, sizeof(frame));
       frame.can_id  = msg->cm_hdr.ch_id;
       frame.can_dlc = msg->cm_hdr.ch_dlc;
 
@@ -324,6 +326,13 @@ static void sim_can_work(void *arg)
       hdr.ch_extid = (bool)(frame.can_id & CAN_EFF_FLAG);
 #endif
 #ifdef CONFIG_CAN_FD
+      /* flags is only valid for CAN FD frames (CANFD_MTU read) */
+
+      if (ret != sizeof(struct canfd_frame))
+        {
+          frame.flags = 0;
+        }
+
       hdr.ch_edl   = (bool)(frame.flags & CANFD_FDF);
       hdr.ch_brs   = (bool)(frame.flags & CANFD_BRS);
       hdr.ch_esi   = (bool)(frame.flags & CANFD_ESI);
