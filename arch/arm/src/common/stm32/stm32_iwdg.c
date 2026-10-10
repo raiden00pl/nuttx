@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h5/stm32_iwdg.c
+ * arch/arm/src/common/stm32/stm32_iwdg.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -40,8 +40,16 @@
 
 #include "arm_internal.h"
 #include "stm32_rcc.h"
-#include "hardware/stm32_dbgmcu.h"
+#if defined(CONFIG_STM32_HAVE_IP_DBGMCU_M0_V1) || \
+    defined(CONFIG_STM32_HAVE_IP_DBGMCU_M3M4_V1) || \
+    defined(CONFIG_STM32_HAVE_IP_DBGMCU_M3M4_V2) || \
+    defined(CONFIG_STM32_HAVE_IP_DBGMCU_M3M4_V3) || \
+    defined(CONFIG_STM32_HAVE_IP_DBGMCU_M7_V1)
+#  include "hardware/stm32_dbgmcu.h"
+#endif
 #include "stm32_wdg.h"
+
+#if defined(CONFIG_WATCHDOG) && defined(CONFIG_STM32_IWDG)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -51,7 +59,7 @@
 
 /* The minimum frequency of the IWDG clock is:
  *
- *  Fmin = Flsi / 1024
+ *  Fmin = Flsi / 256
  *
  * So the maximum delay (in milliseconds) is then:
  *
@@ -60,11 +68,11 @@
  * For example, if Flsi = 30Khz (the nominal, uncalibrated value), then the
  * maximum delay is:
  *
- *   Fmin = 29.296875
- *   1000 * 4095 / Fmin = 139,776 MSec
+ *   Fmin = 117.1875
+ *   1000 * 4095 / Fmin = 34,944 MSec
  */
 
-#define IWDG_FMIN       (STM32_LSI_FREQUENCY / 1024)
+#define IWDG_FMIN       (STM32_LSI_FREQUENCY / (4 << IWDG_PR_MAX))
 #define IWDG_MAXTIMEOUT (1000 * IWDG_RLR_MAX / IWDG_FMIN)
 
 /* Configuration ************************************************************/
@@ -525,17 +533,7 @@ static int stm32_settimeout(struct watchdog_lowerhalf_s *lower,
 
   for (prescaler = 0; ; prescaler++)
     {
-      /* PR = 0 -> Divider = 4    = 1 << 2
-       * PR = 1 -> Divider = 8    = 1 << 3
-       * PR = 2 -> Divider = 16   = 1 << 4
-       * PR = 3 -> Divider = 32   = 1 << 5
-       * PR = 4 -> Divider = 64   = 1 << 6
-       * PR = 5 -> Divider = 128  = 1 << 7
-       * PR = 6 -> Divider = 256  = 1 << 8
-       * PR = 7 -> Divider = 512  = 1 << 9
-       * PR = 8 -> Divider = 1024 = 1 << 10
-       * PR = n -> Divider        = 1 << (n+2)
-       */
+      /* PR = n -> Divider = 1 << (n + 2), n = 0..IWDG_PR_MAX */
 
       shift = prescaler + 2;
 
@@ -558,7 +556,7 @@ static int stm32_settimeout(struct watchdog_lowerhalf_s *lower,
        * settings.
        */
 
-      if (reload <= IWDG_RLR_MAX || prescaler == 8)
+      if (reload <= IWDG_RLR_MAX || prescaler == IWDG_PR_MAX)
         {
           /* Note that we explicitly break out of the loop rather than using
            * the 'for' loop termination logic because we do not want the
@@ -663,7 +661,13 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
    */
 
   stm32_rcc_enablelsi();
+#if defined(STM32_RCC_CSR)
+  wdinfo("RCC CSR: %08" PRIx32 "\n", getreg32(STM32_RCC_CSR));
+#elif defined(STM32_RCC_CSR2)
+  wdinfo("RCC CSR2: %08" PRIx32 "\n", getreg32(STM32_RCC_CSR2));
+#elif defined(STM32_RCC_BDCR)
   wdinfo("RCC BDCR: %08" PRIx32 "\n", getreg32(STM32_RCC_BDCR));
+#endif
 
   /* Select an arbitrary initial timeout value.  But don't start the watchdog
    * yet. NOTE: If the "Hardware watchdog" feature is enabled through the
@@ -685,10 +689,16 @@ void stm32_iwdginitialize(const char *devpath, uint32_t lsifreq)
 #if defined(CONFIG_STM32_JTAG_FULL_ENABLE) || \
     defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
     defined(CONFIG_STM32_JTAG_SW_ENABLE)
-    {
-      uint32_t cr = getreg32(STM32_DBGMCU_APB1_FZ);
-      cr |= DBGMCU_APB1_IWDGSTOP;
-      putreg32(cr, STM32_DBGMCU_APB1_FZ);
-    }
+#if defined(DBGMCU_APB4FZ1_IIWDG1STOP)
+  modifyreg32(STM32_DBGMCU_APB4LFZ1, 0, DBGMCU_APB4FZ1_IIWDG1STOP);
+#elif defined(DBGMCU_APB1FZ1_IWDGSTOP)
+  modifyreg32(STM32_DBGMCU_APB1_FZ1, 0, DBGMCU_APB1FZ1_IWDGSTOP);
+#elif defined(DBGMCU_APB1_IWDGSTOP)
+  modifyreg32(STM32_DBGMCU_APB1_FZ, 0, DBGMCU_APB1_IWDGSTOP);
+#elif defined(DBGMCU_CR_IWDGSTOP)
+  modifyreg32(STM32_DBGMCU_CR, 0, DBGMCU_CR_IWDGSTOP);
+#endif
 #endif
 }
+
+#endif /* CONFIG_WATCHDOG && CONFIG_STM32_IWDG */
