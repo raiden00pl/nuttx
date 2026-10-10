@@ -948,6 +948,13 @@ static inline ssize_t can_rtrread(FAR struct file *filep,
                                SEC2TICK(request->ci_timeout.tv_sec) +
                                NSEC2TICK(request->ci_timeout.tv_nsec));
         }
+
+      /* No response was received, release the pending RTR count */
+
+      if (ret < 0)
+        {
+          dev->cd_npendrtr--;
+        }
     }
 
   return ret;
