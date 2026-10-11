@@ -53,63 +53,59 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* RCC clock enable register and bit, the register the bit is cleared in
- * by stm32_lptim_deinit() and the reset register and bit of each instance
+/* RCC clock enable and reset register of each LPTIM instance, given as
+ * <bus>ENR<n> / <bus>RSTR<n> (from the reference SVD files).
  */
 
-#if defined(CONFIG_ARCH_CHIP_STM32H5)
-#  define LPTIM1_ENR  STM32_RCC_APB3ENR
-#  define LPTIM1_EN   RCC_APB3ENR_LPTIM1EN
-#  define LPTIM1_OFFR STM32_RCC_APB3ENR
-#  define LPTIM1_RSTR STM32_RCC_APB3RSTR
-#  define LPTIM1_RST  RCC_APB3RSTR_LPTIM1RST
-#  define LPTIM3_ENR  STM32_RCC_APB3ENR
-#  define LPTIM3_EN   RCC_APB3ENR_LPTIM3EN
-#  define LPTIM3_OFFR STM32_RCC_APB3ENR
-#  define LPTIM3_RSTR STM32_RCC_APB3RSTR
-#  define LPTIM3_RST  RCC_APB3RSTR_LPTIM3RST
-#  define LPTIM4_ENR  STM32_RCC_APB3ENR
-#  define LPTIM4_EN   RCC_APB3ENR_LPTIM4EN
-#  define LPTIM4_OFFR STM32_RCC_APB3ENR
-#  define LPTIM4_RSTR STM32_RCC_APB3RSTR
-#  define LPTIM4_RST  RCC_APB3RSTR_LPTIM4RST
-#  define LPTIM5_ENR  STM32_RCC_APB3ENR
-#  define LPTIM5_EN   RCC_APB3ENR_LPTIM5EN
-#  define LPTIM5_OFFR STM32_RCC_APB3ENR
-#  define LPTIM5_RSTR STM32_RCC_APB3RSTR
-#  define LPTIM5_RST  RCC_APB3RSTR_LPTIM5RST
-#  define LPTIM6_ENR  STM32_RCC_APB3ENR
-#  define LPTIM6_EN   RCC_APB3ENR_LPTIM6EN
-#  define LPTIM6_OFFR STM32_RCC_APB3ENR
-#  define LPTIM6_RSTR STM32_RCC_APB3RSTR
-#  define LPTIM6_RST  RCC_APB3RSTR_LPTIM6RST
-#elif defined(CONFIG_ARCH_CHIP_STM32H7)
-#  define LPTIM1_ENR  STM32_RCC_APB1LENR
-#  define LPTIM1_EN   RCC_APB1LENR_LPTIM1EN
-#  define LPTIM1_OFFR STM32_RCC_APB1LLPENR
-#  define LPTIM1_RSTR STM32_RCC_APB1LRSTR
-#  define LPTIM1_RST  RCC_APB1LRSTR_LPTIM1RST
-#  define LPTIM2_ENR  STM32_RCC_APB4ENR
-#  define LPTIM2_EN   RCC_APB4ENR_LPTIM2EN
-#  define LPTIM2_OFFR STM32_RCC_APB4LPENR
-#  define LPTIM2_RSTR STM32_RCC_APB4RSTR
-#  define LPTIM2_RST  RCC_APB4RSTR_LPTIM2RST
-#  define LPTIM3_ENR  STM32_RCC_APB4ENR
-#  define LPTIM3_EN   RCC_APB4ENR_LPTIM3EN
-#  define LPTIM3_OFFR STM32_RCC_APB4LPENR
-#  define LPTIM3_RSTR STM32_RCC_APB4RSTR
-#  define LPTIM3_RST  RCC_APB4RSTR_LPTIM3RST
-#  define LPTIM4_ENR  STM32_RCC_APB4ENR
-#  define LPTIM4_EN   RCC_APB4ENR_LPTIM4EN
-#  define LPTIM4_OFFR STM32_RCC_APB4LPENR
-#  define LPTIM4_RSTR STM32_RCC_APB4RSTR
-#  define LPTIM4_RST  RCC_APB4RSTR_LPTIM4RST
-#  define LPTIM5_ENR  STM32_RCC_APB4ENR
-#  define LPTIM5_EN   RCC_APB4ENR_LPTIM5EN
-#  define LPTIM5_OFFR STM32_RCC_APB4LPENR
-#  define LPTIM5_RSTR STM32_RCC_APB4RSTR
-#  define LPTIM5_RST  RCC_APB4RSTR_LPTIM5RST
+#if defined(CONFIG_ARCH_CHIP_STM32C5) || defined(CONFIG_ARCH_CHIP_STM32H5) || \
+    defined(CONFIG_ARCH_CHIP_STM32U3) || defined(CONFIG_ARCH_CHIP_STM32U5)
+#  define LPTIM1_RCC APB3,
+#  define LPTIM3_RCC APB3,
+#  define LPTIM4_RCC APB3,
+#  define LPTIM5_RCC APB3,
+#  define LPTIM6_RCC APB3,
+#  ifdef CONFIG_ARCH_CHIP_STM32H5
+#    define LPTIM2_RCC APB1H,
+#  else
+#    define LPTIM2_RCC APB1, 2
+#  endif
+#elif defined(CONFIG_STM32_STM32H7RSXX) || defined(CONFIG_ARCH_CHIP_STM32H7)
+#  ifdef CONFIG_STM32_STM32H7RSXX
+#    define LPTIM1_RCC APB1, 1
+#  else
+#    define LPTIM1_RCC APB1L,
+#  endif
+#  define LPTIM2_RCC APB4,
+#  define LPTIM3_RCC APB4,
+#  define LPTIM4_RCC APB4,
+#  define LPTIM5_RCC APB4,
+#elif defined(CONFIG_ARCH_CHIP_STM32N6)
+#  define LPTIM1_RCC APB1L,
+#  define LPTIM2_RCC APB4L,
+#  define LPTIM3_RCC APB4L,
+#  define LPTIM4_RCC APB4L,
+#  define LPTIM5_RCC APB4L,
+#elif defined(CONFIG_ARCH_CHIP_STM32G4) || defined(CONFIG_ARCH_CHIP_STM32L4) || \
+      defined(CONFIG_ARCH_CHIP_STM32L5) || defined(CONFIG_ARCH_CHIP_STM32WB) || \
+      defined(CONFIG_ARCH_CHIP_STM32WL5)
+#  define LPTIM1_RCC APB1, 1
+#  define LPTIM2_RCC APB1, 2
+#  define LPTIM3_RCC APB1, 2
+#else
+#  define LPTIM1_RCC APB1,
+#  define LPTIM2_RCC APB1,
+#  define LPTIM3_RCC APB1,
 #endif
+
+#define LPTIM_EN_REG_(b, s)      STM32_RCC_##b##ENR##s
+#define LPTIM_EN_BIT_(b, s, n)   RCC_##b##ENR##s##_LPTIM##n##EN
+#define LPTIM_RST_REG_(b, s)     STM32_RCC_##b##RSTR##s
+#define LPTIM_RST_BIT_(b, s, n)  RCC_##b##RSTR##s##_LPTIM##n##RST
+
+#define LPTIM_EN_REG(r)          LPTIM_EN_REG_(r)
+#define LPTIM_EN_BIT(r, n)       LPTIM_EN_BIT_(r, n)
+#define LPTIM_RST_REG(r)         LPTIM_RST_REG_(r)
+#define LPTIM_RST_BIT(r, n)      LPTIM_RST_BIT_(r, n)
 
 /* LPTIM kernel clock frequency, optionally provided by board.h.  It is
  * needed only by setclock().
@@ -288,7 +284,6 @@ struct stm32_lptim_priv_s
   uint32_t freq;                   /* LPTIMn kernel clock frequency */
   uint32_t enreg;                  /* RCC clock enable register */
   uint32_t enbit;                  /* RCC clock enable bit */
-  uint32_t offreg;                 /* Register cleared by deinit() */
   uint32_t rstreg;                 /* RCC reset register */
   uint32_t rstbit;                 /* RCC reset bit */
   uint32_t pins[LPTIM_NCHANNELS];  /* Output channel pin configurations */
@@ -362,18 +357,17 @@ static const struct stm32_lptim_ops_s g_lptim_ops =
   .ackint         = stm32_lptim_ackint,
 };
 
-#if defined(CONFIG_STM32_LPTIM1) && defined(LPTIM1_ENR)
+#ifdef CONFIG_STM32_LPTIM1
 static struct stm32_lptim_priv_s g_lptim1 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM1_BASE,
   .irq        = STM32_IRQ_LPTIM1,
   .freq       = LPTIM1_CLKIN,
-  .enreg      = LPTIM1_ENR,
-  .enbit      = LPTIM1_EN,
-  .offreg     = LPTIM1_OFFR,
-  .rstreg     = LPTIM1_RSTR,
-  .rstbit     = LPTIM1_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM1_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM1_RCC, 1),
+  .rstreg     = LPTIM_RST_REG(LPTIM1_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM1_RCC, 1),
   .pins       =
   {
     LPTIM1_CH1OUT, LPTIM1_CH2OUT, LPTIM1_CH3OUT, LPTIM1_CH4OUT
@@ -381,18 +375,17 @@ static struct stm32_lptim_priv_s g_lptim1 =
 };
 #endif
 
-#if defined(CONFIG_STM32_LPTIM2) && defined(LPTIM2_ENR)
+#ifdef CONFIG_STM32_LPTIM2
 static struct stm32_lptim_priv_s g_lptim2 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM2_BASE,
   .irq        = STM32_IRQ_LPTIM2,
   .freq       = LPTIM2_CLKIN,
-  .enreg      = LPTIM2_ENR,
-  .enbit      = LPTIM2_EN,
-  .offreg     = LPTIM2_OFFR,
-  .rstreg     = LPTIM2_RSTR,
-  .rstbit     = LPTIM2_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM2_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM2_RCC, 2),
+  .rstreg     = LPTIM_RST_REG(LPTIM2_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM2_RCC, 2),
   .pins       =
   {
     LPTIM2_CH1OUT, LPTIM2_CH2OUT, LPTIM2_CH3OUT, LPTIM2_CH4OUT
@@ -400,18 +393,17 @@ static struct stm32_lptim_priv_s g_lptim2 =
 };
 #endif
 
-#if defined(CONFIG_STM32_LPTIM3) && defined(LPTIM3_ENR)
+#ifdef CONFIG_STM32_LPTIM3
 static struct stm32_lptim_priv_s g_lptim3 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM3_BASE,
   .irq        = STM32_IRQ_LPTIM3,
   .freq       = LPTIM3_CLKIN,
-  .enreg      = LPTIM3_ENR,
-  .enbit      = LPTIM3_EN,
-  .offreg     = LPTIM3_OFFR,
-  .rstreg     = LPTIM3_RSTR,
-  .rstbit     = LPTIM3_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM3_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM3_RCC, 3),
+  .rstreg     = LPTIM_RST_REG(LPTIM3_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM3_RCC, 3),
   .pins       =
   {
     LPTIM3_CH1OUT, LPTIM3_CH2OUT, LPTIM3_CH3OUT, LPTIM3_CH4OUT
@@ -419,18 +411,17 @@ static struct stm32_lptim_priv_s g_lptim3 =
 };
 #endif
 
-#if defined(CONFIG_STM32_LPTIM4) && defined(LPTIM4_ENR)
+#ifdef CONFIG_STM32_LPTIM4
 static struct stm32_lptim_priv_s g_lptim4 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM4_BASE,
   .irq        = STM32_IRQ_LPTIM4,
   .freq       = LPTIM4_CLKIN,
-  .enreg      = LPTIM4_ENR,
-  .enbit      = LPTIM4_EN,
-  .offreg     = LPTIM4_OFFR,
-  .rstreg     = LPTIM4_RSTR,
-  .rstbit     = LPTIM4_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM4_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM4_RCC, 4),
+  .rstreg     = LPTIM_RST_REG(LPTIM4_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM4_RCC, 4),
   .pins       =
   {
     LPTIM4_CH1OUT, LPTIM4_CH2OUT, LPTIM4_CH3OUT, LPTIM4_CH4OUT
@@ -438,18 +429,17 @@ static struct stm32_lptim_priv_s g_lptim4 =
 };
 #endif
 
-#if defined(CONFIG_STM32_LPTIM5) && defined(LPTIM5_ENR)
+#ifdef CONFIG_STM32_LPTIM5
 static struct stm32_lptim_priv_s g_lptim5 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM5_BASE,
   .irq        = STM32_IRQ_LPTIM5,
   .freq       = LPTIM5_CLKIN,
-  .enreg      = LPTIM5_ENR,
-  .enbit      = LPTIM5_EN,
-  .offreg     = LPTIM5_OFFR,
-  .rstreg     = LPTIM5_RSTR,
-  .rstbit     = LPTIM5_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM5_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM5_RCC, 5),
+  .rstreg     = LPTIM_RST_REG(LPTIM5_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM5_RCC, 5),
   .pins       =
   {
     LPTIM5_CH1OUT, LPTIM5_CH2OUT, LPTIM5_CH3OUT, LPTIM5_CH4OUT
@@ -457,18 +447,17 @@ static struct stm32_lptim_priv_s g_lptim5 =
 };
 #endif
 
-#if defined(CONFIG_STM32_LPTIM6) && defined(LPTIM6_ENR)
+#ifdef CONFIG_STM32_LPTIM6
 static struct stm32_lptim_priv_s g_lptim6 =
 {
   .ops        = &g_lptim_ops,
   .base       = STM32_LPTIM6_BASE,
   .irq        = STM32_IRQ_LPTIM6,
   .freq       = LPTIM6_CLKIN,
-  .enreg      = LPTIM6_ENR,
-  .enbit      = LPTIM6_EN,
-  .offreg     = LPTIM6_OFFR,
-  .rstreg     = LPTIM6_RSTR,
-  .rstbit     = LPTIM6_RST,
+  .enreg      = LPTIM_EN_REG(LPTIM6_RCC),
+  .enbit      = LPTIM_EN_BIT(LPTIM6_RCC, 6),
+  .rstreg     = LPTIM_RST_REG(LPTIM6_RCC),
+  .rstbit     = LPTIM_RST_BIT(LPTIM6_RCC, 6),
   .pins       =
   {
     LPTIM6_CH1OUT, LPTIM6_CH2OUT, LPTIM6_CH3OUT, LPTIM6_CH4OUT
@@ -480,22 +469,22 @@ static struct stm32_lptim_priv_s g_lptim6 =
 
 static struct stm32_lptim_priv_s * const g_lptim[] =
 {
-#if defined(CONFIG_STM32_LPTIM1) && defined(LPTIM1_ENR)
+#ifdef CONFIG_STM32_LPTIM1
   [0] = &g_lptim1,
 #endif
-#if defined(CONFIG_STM32_LPTIM2) && defined(LPTIM2_ENR)
+#ifdef CONFIG_STM32_LPTIM2
   [1] = &g_lptim2,
 #endif
-#if defined(CONFIG_STM32_LPTIM3) && defined(LPTIM3_ENR)
+#ifdef CONFIG_STM32_LPTIM3
   [2] = &g_lptim3,
 #endif
-#if defined(CONFIG_STM32_LPTIM4) && defined(LPTIM4_ENR)
+#ifdef CONFIG_STM32_LPTIM4
   [3] = &g_lptim4,
 #endif
-#if defined(CONFIG_STM32_LPTIM5) && defined(LPTIM5_ENR)
+#ifdef CONFIG_STM32_LPTIM5
   [4] = &g_lptim5,
 #endif
-#if defined(CONFIG_STM32_LPTIM6) && defined(LPTIM6_ENR)
+#ifdef CONFIG_STM32_LPTIM6
   [5] = &g_lptim6,
 #endif
 };
@@ -1017,7 +1006,7 @@ int stm32_lptim_deinit(struct stm32_lptim_dev_s *dev)
 
   DEBUGASSERT(dev != NULL);
 
-  modifyreg32(priv->offreg, priv->enbit, 0);
+  modifyreg32(priv->enreg, priv->enbit, 0);
   priv->inuse = false;
   return OK;
 }
