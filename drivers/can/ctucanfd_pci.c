@@ -147,6 +147,7 @@ static void ctucanfd_shutdown(FAR struct ctucanfd_can_s *priv);
 static void ctucanfd_setup(FAR struct ctucanfd_can_s *priv);
 static void ctucanfd_rxint(FAR struct ctucanfd_can_s *priv, bool enable);
 static void ctucanfd_txint(FAR struct ctucanfd_can_s *priv, bool enable);
+static int ctucanfd_txbuf_reclaim(FAR struct ctucanfd_can_s *priv);
 
 #ifdef CONFIG_CAN_CTUCANFD_CHARDEV
 
@@ -384,6 +385,40 @@ static void ctucanfd_txint(FAR struct ctucanfd_can_s *priv, bool enable)
     {
       ctucanfd_putreg(priv, CTUCANFD_INTENCLR, CTUCANFD_INT_TXI);
     }
+}
+
+/*****************************************************************************
+ * Name: ctucanfd_txbuf_reclaim
+ *
+ * Description:
+ *   Mark all TXT buffers in "TX OK" state as empty ("set empty" command),
+ *   so they can be used for the next frames.
+ *
+ * Returned Value:
+ *   Number of TXT buffers marked as empty.
+ *
+ *****************************************************************************/
+
+static int ctucanfd_txbuf_reclaim(FAR struct ctucanfd_can_s *priv)
+{
+  uint32_t regval;
+  int      count = 0;
+  int      i;
+
+  regval = ctucanfd_getreg(priv, CTUCANFD_TXSTAT);
+
+  for (i = 0; i < priv->txbufcnt; i++)
+    {
+      if (CTUCANFD_TXSTAT_GET(regval, i) == CTUCANFD_TXSTAT_TOK)
+        {
+          ctucanfd_putreg(priv, CTUCANFD_TXINFOCMD,
+                          CTUCANFD_TXCMD_TXCE +
+                          (1 << (CTUCANFD_TXCMD_TXB_SHIFT + i)));
+          count++;
+        }
+    }
+
+  return count;
 }
 
 #ifdef CONFIG_CAN_CTUCANFD_CHARDEV
@@ -922,10 +957,9 @@ static void ctucanfd_chardev_error(FAR struct ctucanfd_can_s *priv,
 
 static void ctucanfd_chardev_interrupt(FAR struct ctucanfd_driver_s *priv)
 {
-  uint32_t stat   = 0;
-  uint32_t regval = 0;
-  int      i      = 0;
-  int      txidx  = 0;
+  uint32_t stat  = 0;
+  int      i     = 0;
+  int      count = 0;
 
   for (i = 0; i < priv->count; i++)
     {
@@ -950,21 +984,23 @@ static void ctucanfd_chardev_interrupt(FAR struct ctucanfd_driver_s *priv)
 
       if (stat & CTUCANFD_INT_TXI)
         {
-          regval = ctucanfd_getreg(&priv->devs[i], CTUCANFD_TXSTAT);
+          /* Clear TXI before reading the TX status, so a frame that
+           * completes later (e.g. one queued by can_txdone() below) raises
+           * it again and is not lost by the final clear.
+           */
 
-          for (txidx = 0; txidx < priv->devs[i].txbufcnt; txidx++)
+          ctucanfd_putreg(&priv->devs[i], CTUCANFD_INTSTAT,
+                          CTUCANFD_INT_TXI);
+          stat &= ~CTUCANFD_INT_TXI;
+
+          /* Empty all completed buffers first, then let the upper half
+           * send the next frames.
+           */
+
+          count = ctucanfd_txbuf_reclaim(&priv->devs[i]);
+          while (count-- > 0)
             {
-              if (CTUCANFD_TXSTAT_GET(regval, txidx) ==
-                  CTUCANFD_TXSTAT_TOK)
-                {
-                  can_txdone(&priv->devs[i].dev);
-
-                  /* Mark buffer as empty */
-
-                  regval = (CTUCANFD_TXCMD_TXCE +
-                            (1 << (CTUCANFD_TXCMD_TXB_SHIFT + txidx)));
-                  ctucanfd_putreg(&priv->devs[i], CTUCANFD_TXINFOCMD, regval);
-                }
+              can_txdone(&priv->devs[i].dev);
             }
         }
 
@@ -1086,20 +1122,32 @@ static int ctucanfd_sock_transmit(FAR struct netdev_lowerhalf_s *dev,
   uint32_t                    regval;
   uint32_t                    offset;
   int                         txidx;
+  int                         pass;
   int                         i;
 
-  /* Get TX empty buffer */
-
-  regval = ctucanfd_getreg(priv, CTUCANFD_TXSTAT);
+  /* Get TX empty buffer.  If there is none, empty the buffers whose
+   * frames are already sent but not yet handled by the TX interrupt and
+   * try again, instead of dropping the packet.
+   */
 
   offset = 0;
-  for (i = 0; i < priv->txbufcnt; i++)
+  for (pass = 0; pass < 2 && offset == 0; pass++)
     {
-      if (CTUCANFD_TXSTAT_GET(regval, i) == CTUCANFD_TXSTAT_ETY)
+      if (pass > 0 && ctucanfd_txbuf_reclaim(priv) == 0)
         {
-          offset = CTUCANFD_TXT1 + CTUCANFD_TXT_SIZE * i;
-          txidx = i;
           break;
+        }
+
+      regval = ctucanfd_getreg(priv, CTUCANFD_TXSTAT);
+
+      for (i = 0; i < priv->txbufcnt; i++)
+        {
+          if (CTUCANFD_TXSTAT_GET(regval, i) == CTUCANFD_TXSTAT_ETY)
+            {
+              offset = CTUCANFD_TXT1 + CTUCANFD_TXT_SIZE * i;
+              txidx = i;
+              break;
+            }
         }
     }
 
@@ -1485,10 +1533,9 @@ static FAR netpkt_t *ctucanfd_sock_error(FAR struct netdev_lowerhalf_s *dev)
 
 static void ctucanfd_sock_interrupt(FAR struct ctucanfd_driver_s *priv)
 {
-  uint32_t stat   = 0;
-  uint32_t regval = 0;
-  int      i      = 0;
-  int      txidx  = 0;
+  uint32_t stat  = 0;
+  int      i     = 0;
+  int      count = 0;
 
   for (i = 0; i < priv->count; i++)
     {
@@ -1513,21 +1560,21 @@ static void ctucanfd_sock_interrupt(FAR struct ctucanfd_driver_s *priv)
 
       if (stat & CTUCANFD_INT_TXI)
         {
-          regval = ctucanfd_getreg(&priv->devs[i], CTUCANFD_TXSTAT);
+          /* Clear TXI before reading the TX status, so a frame that
+           * completes later raises it again and is not lost by the final
+           * clear.
+           */
 
-          for (txidx = 0; txidx < priv->devs[i].txbufcnt; txidx++)
+          ctucanfd_putreg(&priv->devs[i], CTUCANFD_INTSTAT,
+                          CTUCANFD_INT_TXI);
+          stat &= ~CTUCANFD_INT_TXI;
+
+          /* Empty all completed buffers */
+
+          count = ctucanfd_txbuf_reclaim(&priv->devs[i]);
+          while (count-- > 0)
             {
-              if (CTUCANFD_TXSTAT_GET(regval, txidx) ==
-                  CTUCANFD_TXSTAT_TOK)
-                {
-                  netdev_lower_txdone(&priv->devs[i].dev);
-
-                  /* Mark buffer as empty */
-
-                  regval = (CTUCANFD_TXCMD_TXCE +
-                            (1 << (CTUCANFD_TXCMD_TXB_SHIFT + txidx)));
-                  ctucanfd_putreg(&priv->devs[i], CTUCANFD_TXINFOCMD, regval);
-                }
+              netdev_lower_txdone(&priv->devs[i].dev);
             }
         }
 
@@ -1535,11 +1582,22 @@ static void ctucanfd_sock_interrupt(FAR struct ctucanfd_driver_s *priv)
 
       ctucanfd_putreg(&priv->devs[i], CTUCANFD_INTSTAT, stat);
 
-      /* Re-enable TX interrupts.
-       * NOTE: RX interrupts are re-enabled in ctucanfd_sock_recv.
-       */
+      /* Re-enable TX interrupts */
 
       ctucanfd_txint(&priv->devs[i], true);
+
+      /* Re-enable RX interrupts if the RX buffer was empty (RBNEI is
+       * level-triggered), otherwise ctucanfd_sock_recv() re-enables them
+       * once the RX buffer is drained.  Without this, an interrupt with
+       * only TXI or error bits set leaves RX interrupts disabled when
+       * no TX done notification follows (e.g. the TX buffers were
+       * already emptied by ctucanfd_sock_transmit()).
+       */
+
+      if ((stat & CTUCANFD_INT_RBNEI) == 0)
+        {
+          ctucanfd_rxint(&priv->devs[i], true);
+        }
     }
 }
 #endif    /* CONFIG_CAN_CTUCANFD_SOCKET */
