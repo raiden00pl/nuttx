@@ -735,10 +735,11 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
         {
           /* The transmit sender is full. In order to resolve the Lower half
            * interrupt exception, attempt to release invalid unconfirm
-           * messages and trigger can_xmit.
+           * messages and trigger can_xmit.  Only messages already passed
+           * to the H/W can be unconfirmed.
            */
 
-          if (dev_txempty(dev))
+          if (SENDING_COUNT(sender) > 0 && dev_txempty(dev))
             {
               can_send_done(sender);
 
