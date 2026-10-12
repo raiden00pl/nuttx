@@ -223,7 +223,15 @@ union ctucanfd_frame_fmt_u
   uint32_t                    u32;
 };
 
-/* CAN FD frame ID */
+/* CAN FD frame ID.
+ *
+ * A 29-bit extended identifier is split across both fields: its upper
+ * 11 bits (28..18) go to the base identifier field and its lower 18 bits
+ * (17..0) go to the identifier extension field.
+ */
+
+#define CTUCANFD_ID_EXT_BITS         (18)
+#define CTUCANFD_ID_EXT_MASK         ((1 << CTUCANFD_ID_EXT_BITS) - 1)
 
 begin_packed_struct struct ctucanfd_frame_id_s
 {
