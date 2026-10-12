@@ -973,9 +973,13 @@ static void ctucanfd_chardev_interrupt(FAR struct ctucanfd_driver_s *priv)
           continue;
         }
 
-      /* Frame received */
+      /* Frame received.  RBNEI is the enabled RX interrupt and stays set
+       * while the RX buffer is not empty; RXI is set only when a frame
+       * arrives and is cleared below together with the other status bits,
+       * so it may be gone while frames are still in the RX buffer.
+       */
 
-      if (stat & CTUCANFD_INT_RXI)
+      if (stat & (CTUCANFD_INT_RXI | CTUCANFD_INT_RBNEI))
         {
           ctucanfd_chardev_receive(&priv->devs[i]);
         }
