@@ -147,6 +147,7 @@ uint32_t tcp_get_recvwindow(FAR struct net_driver_s *dev,
 {
   uint32_t tailroom;
   uint32_t recvwndo;
+  uint32_t rcvseq;
   int niob_avail;
 
   /* Update the TCP received window based on read-ahead I/O buffer
@@ -264,6 +265,26 @@ uint32_t tcp_get_recvwindow(FAR struct net_driver_s *dev,
   recvwndo <<= conn->rcv_scale;
 #endif
 
+  /* Do not shrink the window, i.e. do not move its right edge to the left
+   * (RFC 9293, section 3.8.6).  The peer may have sent data up to the
+   * edge advertised before, and that data would be dropped.  The window
+   * follows the free IOBs, which can drop for a while, e.g. while the
+   * network driver takes IOBs to refill its RX ring.
+   */
+
+  rcvseq = tcp_getsequence(conn->rcvseq);
+  if (TCP_SEQ_LT(TCP_SEQ_ADD(rcvseq, recvwndo), conn->rcv_adv))
+    {
+      recvwndo = TCP_SEQ_SUB(conn->rcv_adv, rcvseq);
+
+#ifdef CONFIG_NET_TCP_WINDOW_SCALE
+      /* Round up, the window is advertised in units of the scale */
+
+      recvwndo = ((recvwndo + (1 << conn->rcv_scale) - 1) >>
+                  conn->rcv_scale) << conn->rcv_scale;
+#endif
+    }
+
   return recvwndo;
 }
 
@@ -277,11 +298,8 @@ bool tcp_should_send_recvwindow(FAR struct tcp_conn_s *conn)
   uint32_t adv;
   uint16_t mss;
 
-  /* Note: rcv_adv can be smaller than rcvseq.
-   * For examples, when:
-   *
-   * - we shrunk the window
-   * - zero window probes advanced rcvseq
+  /* Note: rcv_adv can be smaller than rcvseq, e.g. when zero window
+   * probes advanced rcvseq.
    */
 
   rcvseq = tcp_getsequence(conn->rcvseq);
