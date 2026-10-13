@@ -780,13 +780,12 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
               if (nsent == 0)
                 {
                   ret = -EAGAIN;
-                }
-              else
-                {
-                  ret = nsent;
+                  goto return_with_irqdisabled;
                 }
 
-              goto return_with_irqdisabled;
+              /* Start the messages queued so far */
+
+              goto xmit;
             }
 
           /* If the TX hardware was inactive when we started, then we will
@@ -865,6 +864,7 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
    * we need to kick off the XMIT sequence.
    */
 
+xmit:
   if (inactive)
     {
       can_xmit(dev);
