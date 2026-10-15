@@ -41,6 +41,20 @@
 #include "iob.h"
 
 /****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* Semaphore posts that no longer have a committed IOB: a wait that failed
+ * after iob_free() had committed an IOB to it took that IOB, and the post
+ * that goes with it is left for another waiter.  Protected by g_iob_lock.
+ */
+
+static int16_t g_iob_surplus;
+#if CONFIG_IOB_THROTTLE > 0
+static int16_t g_throttle_surplus;
+#endif
+
+/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -66,20 +80,13 @@ static clock_t iob_allocwait_gettimeout(clock_t start, unsigned int timeout)
  *
  * Description:
  *   Allocate an I/O buffer by taking the buffer at the head of the committed
- *   list.
+ *   list.  The caller holds g_iob_lock.
  *
  ****************************************************************************/
 
 static FAR struct iob_s *iob_alloc_committed(void)
 {
-  FAR struct iob_s *iob = NULL;
-  irqstate_t flags;
-
-  /* We don't know what context we are called from so we use extreme measures
-   * to protect the committed list:  We disable interrupts very briefly.
-   */
-
-  flags = spin_lock_irqsave(&g_iob_lock);
+  FAR struct iob_s *iob;
 
   /* Take the I/O buffer from the head of the committed list */
 
@@ -99,7 +106,6 @@ static FAR struct iob_s *iob_alloc_committed(void)
       iob->io_conn   = NULL;
     }
 
-  spin_unlock_irqrestore(&g_iob_lock, flags);
   return iob;
 }
 
@@ -157,17 +163,21 @@ static FAR struct iob_s *iob_tryalloc_internal(bool throttled)
 static FAR struct iob_s *iob_allocwait(bool throttled, unsigned int timeout)
 {
   FAR struct iob_s *iob;
+  FAR int16_t *surplus;
   irqstate_t flags;
   FAR sem_t *sem;
   clock_t start;
-  int ret = OK;
+  bool committed;
+  int ret;
 
 #if CONFIG_IOB_THROTTLE > 0
   /* Select the semaphore to wait. */
 
   sem = (throttled ? &g_throttle_sem : &g_iob_sem);
+  surplus = (throttled ? &g_throttle_surplus : &g_iob_surplus);
 #else
   sem = &g_iob_sem;
+  surplus = &g_iob_surplus;
 #endif
 
   /* The following must be atomic; interrupt must be disabled so that there
@@ -181,19 +191,29 @@ static FAR struct iob_s *iob_allocwait(bool throttled, unsigned int timeout)
   /* Try to get an I/O buffer */
 
   iob = iob_tryalloc_internal(throttled);
-  if (iob == NULL)
+  if (iob != NULL)
     {
-#if CONFIG_IOB_THROTTLE > 0
-      if (throttled)
-        {
-          g_throttle_wait++;
-        }
-      else
-#endif
-        {
-          g_iob_count--;
-        }
+      spin_unlock_irqrestore(&g_iob_lock, flags);
+      return iob;
+    }
 
+  /* Reserve the next freed I/O buffer */
+
+#if CONFIG_IOB_THROTTLE > 0
+  if (throttled)
+    {
+      g_throttle_wait++;
+    }
+  else
+#endif
+    {
+      g_iob_count--;
+    }
+
+  start = clock_systime_ticks();
+
+  for (; ; )
+    {
       spin_unlock_irqrestore(&g_iob_lock, flags);
 
       if (timeout == UINT_MAX)
@@ -202,22 +222,61 @@ static FAR struct iob_s *iob_allocwait(bool throttled, unsigned int timeout)
         }
       else
         {
-          start = clock_systime_ticks();
           ret = nxsem_tickwait_uninterruptible(sem,
                                    iob_allocwait_gettimeout(start, timeout));
         }
 
+      flags = spin_lock_irqsave(&g_iob_lock);
+
       if (ret >= 0)
         {
-          /* When we wake up from wait successfully, an I/O buffer was
-           * freed and we hold a count for one IOB.
+          /* An I/O buffer was committed to us, unless this post is one
+           * whose buffer a failed wait already took.  Then keep waiting.
            */
+
+          if (*surplus > 0)
+            {
+              (*surplus)--;
+              continue;
+            }
 
           iob = iob_alloc_committed();
           DEBUGASSERT(iob != NULL);
+          break;
         }
 
-      return iob;
+      /* The wait failed.  Drop the reservation if iob_free() has not
+       * fulfilled it yet.  Otherwise an I/O buffer is already on the
+       * committed list for us: take it and leave its post as surplus.
+       */
+
+#if CONFIG_IOB_THROTTLE > 0
+      if (throttled)
+        {
+          committed = (g_throttle_wait <= 0);
+          if (!committed)
+            {
+              g_throttle_wait--;
+            }
+        }
+      else
+#endif
+        {
+          committed = (g_iob_count >= 0);
+          if (!committed)
+            {
+              g_iob_count++;
+            }
+        }
+
+      if (committed)
+        {
+          iob = iob_alloc_committed();
+          DEBUGASSERT(iob != NULL);
+          (*surplus)++;
+        }
+
+      break;
     }
 
   spin_unlock_irqrestore(&g_iob_lock, flags);
