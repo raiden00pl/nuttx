@@ -10,6 +10,10 @@ config STM32_F0_PERIPHERALS
 	bool
 	default y
 	select STM32_HAVE_IP_SYSCORE_M0_V1
+	select STM32_HAVE_SPI_COMMTYPE
+	select STM32_HAVE_SPI_CORE_DMA
+	select STM32_HAVE_SPI_INTERRUPTS
+	select STM32_HAVE_TIM_PWM
 
 choice
 	prompt "ST STM32F0 Chip Selection"
