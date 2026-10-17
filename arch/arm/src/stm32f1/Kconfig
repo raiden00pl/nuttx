@@ -6,6 +6,11 @@ comment "STM32 F1 configuration"
 
 if ARCH_CHIP_STM32F1
 
+config STM32_F1_PERIPHERALS
+	bool
+	default y
+	select STM32_HAVE_IP_SYSCORE_M3M4_V1
+
 choice
 	prompt "STM32F1 Chip Selection"
 	default ARCH_CHIP_STM32F103ZE

@@ -6,6 +6,11 @@ comment "STM32 L0 configuration"
 
 if ARCH_CHIP_STM32L0
 
+config STM32_L0_PERIPHERALS
+	bool
+	default y
+	select STM32_HAVE_IP_SYSCORE_M0_V1
+
 choice
 	prompt "ST STM32L0 Chip Selection"
 	default ARCH_CHIP_STM32L073RZ

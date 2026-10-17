@@ -6,6 +6,11 @@ comment "STM32 F2 configuration"
 
 if ARCH_CHIP_STM32F2
 
+config STM32_F2_PERIPHERALS
+	bool
+	default y
+	select STM32_HAVE_IP_SYSCORE_M3M4_V1
+
 choice
 	prompt "STM32F2 Chip Selection"
 	depends on ARCH_CHIP_STM32F2

@@ -6,6 +6,11 @@ comment "STM32 U0 configuration"
 
 if ARCH_CHIP_STM32U0
 
+config STM32_U0_PERIPHERALS
+	bool
+	default y
+	select STM32_HAVE_IP_SYSCORE_M0_V1
+
 choice
 	prompt "ST STM32U0 Chip Selection"
 	default ARCH_CHIP_STM32U083RC

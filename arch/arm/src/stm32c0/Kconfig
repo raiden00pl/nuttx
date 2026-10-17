@@ -6,6 +6,11 @@ comment "STM32 C0 configuration"
 
 if ARCH_CHIP_STM32C0
 
+config STM32_C0_PERIPHERALS
+	bool
+	default y
+	select STM32_HAVE_IP_SYSCORE_M0_V1
+
 choice
 	prompt "ST STM32C0 Chip Selection"
 	default ARCH_CHIP_STM32C071RB
