@@ -855,7 +855,7 @@ static struct stm32_ltdcdev_s g_vtable =
       .blend           = stm32_blend
 #  endif
 #endif /* CONFIG_FB_OVERLAY */
-  },
+    },
 #ifdef CONFIG_STM32_LTDC_L2
   .pinfo =
     {
@@ -1708,6 +1708,7 @@ static void stm32_ltdc_enable(bool enable)
 static void stm32_ltdc_lpixelformat(struct stm32_ltdc_s *layer)
 {
   uint8_t overlay = layer->layerno;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   /* Configure PFCR register */
@@ -1814,6 +1815,7 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
 static void stm32_ltdc_lenable(struct stm32_ltdc_s *layer, bool enable)
 {
   uint32_t   regval;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   regval = getreg32(stm32_cr_layer_t[layer->layerno]);
@@ -1913,6 +1915,7 @@ static void stm32_ltdc_lchromakey(struct stm32_ltdc_s *layer,
                                   uint32_t chroma)
 {
   uint32_t rgb;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   reginfo("%08" PRIx32 "\n", getreg32(stm32_cr_layer_t[layer->layerno]));
@@ -1923,6 +1926,7 @@ static void stm32_ltdc_lchromakey(struct stm32_ltdc_s *layer,
   uint8_t r = g_vtable.cmap.red[chroma];
   uint8_t g = g_vtable.cmap.green[chroma];
   uint8_t b = g_vtable.cmap.blue[chroma];
+
   rgb = ((r << 16) | (g << 8) | b);
 #else
   rgb = ARGB8888(chroma);
@@ -1954,6 +1958,7 @@ static void stm32_ltdc_lchromakeyenable(struct stm32_ltdc_s *layer,
                                         bool enable)
 {
   uint32_t   regval;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   regval = getreg32(stm32_cr_layer_t[layer->layerno]);
@@ -2494,6 +2499,7 @@ static int stm32_putcmap(struct fb_vtable_s *vtable,
       for (n = 0; n < LTDC_NLAYERS; n++)
         {
           struct stm32_ltdc_s *layer = &priv->layer[n];
+
           stm32_ltdc_lputclut(layer, priv_cmap);
         }
 
@@ -2551,6 +2557,7 @@ static int stm32_getoverlayinfo(struct fb_vtable_s *vtable,
   if (overlayno < LTDC_NOVERLAYS)
     {
       struct stm32_ltdc_s *layer = &priv->layer[overlayno];
+
       memcpy(oinfo, &layer->oinfo, sizeof(struct fb_overlayinfo_s));
       return OK;
     }
@@ -2956,6 +2963,7 @@ static int stm32_blend(struct fb_vtable_s *vtable,
 void stm32_ltdcreset(void)
 {
   uint32_t regval = getreg32(STM32_RCC_APB2RSTR);
+
   putreg32(regval | RCC_APB2RSTR_LTDCRST, STM32_RCC_APB2RSTR);
   putreg32(regval & ~RCC_APB2RSTR_LTDCRST, STM32_RCC_APB2RSTR);
 }
