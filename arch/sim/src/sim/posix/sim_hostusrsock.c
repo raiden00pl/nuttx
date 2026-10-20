@@ -284,8 +284,13 @@ static int tcp_optname_to_native(int optname)
       case NUTTX_TCP_NODELAY:
         return TCP_NODELAY;
 
+#if defined(TCP_KEEPIDLE)
       case NUTTX_TCP_KEEPIDLE:
         return TCP_KEEPIDLE;
+#elif defined(TCP_KEEPALIVE)
+      case NUTTX_TCP_KEEPIDLE:
+        return TCP_KEEPALIVE;
+#endif
 
       case NUTTX_TCP_KEEPINTVL:
         return TCP_KEEPINTVL;
@@ -296,8 +301,13 @@ static int tcp_optname_to_native(int optname)
       case NUTTX_TCP_MAXSEG:
         return TCP_MAXSEG;
 
+#if defined(TCP_CORK)
       case NUTTX_TCP_CORK:
         return TCP_CORK;
+#elif defined(TCP_NOPUSH)
+      case NUTTX_TCP_CORK:
+        return TCP_NOPUSH;
+#endif
 
       default:
         syslog(LOG_ERR, "Invalid TCP optname: %x\n", optname);
