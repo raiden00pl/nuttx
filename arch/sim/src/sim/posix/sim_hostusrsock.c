@@ -234,7 +234,11 @@ static int optname_to_native(int optname)
         return SO_KEEPALIVE;
 
       case NUTTX_SO_LINGER:
+#ifdef SO_LINGER_SEC
+        return SO_LINGER_SEC;
+#else
         return SO_LINGER;
+#endif
 
       case NUTTX_SO_OOBINLINE:
         return SO_OOBINLINE;
