@@ -2382,10 +2382,19 @@ static int fat_putlfname(FAR struct fat_mountpt_s *fs,
   dirinfo->dir.fd_index       = dirinfo->fd_seq.ds_lfnoffset / DIR_SIZE;
 
   /* ds_lfnoffset is the offset in the sector. However fd_index is used as
-   * index for the entire cluster. We need to add that offset
+   * index for the entire cluster (or the FAT12/16 root directory, cluster
+   * 0). We need to add that offset.
    */
 
-  startsector = fat_cluster2sector(fs, dirinfo->dir.fd_currcluster);
+  if (dirinfo->dir.fd_currcluster == 0)
+    {
+      startsector = fs->fs_rootbase;
+    }
+  else
+    {
+      startsector = fat_cluster2sector(fs, dirinfo->dir.fd_currcluster);
+    }
+
   dirinfo->dir.fd_index += (dirinfo->dir.fd_currsector - startsector) *
                            DIRSEC_NDIRS(fs);
 
@@ -2921,10 +2930,18 @@ int fat_freedirentry(FAR struct fat_mountpt_s *fs, struct fat_dirseq_s *seq)
   dir.fd_index       = seq->ds_lfnoffset / DIR_SIZE;
 
   /* Remember that ds_lfnoffset is the offset in the sector and not the
-   * cluster.
+   * cluster (or the FAT12/16 root directory, cluster 0).
    */
 
-  startsector        = fat_cluster2sector(fs, dir.fd_currcluster);
+  if (dir.fd_currcluster == 0)
+    {
+      startsector    = fs->fs_rootbase;
+    }
+  else
+    {
+      startsector    = fat_cluster2sector(fs, dir.fd_currcluster);
+    }
+
   dir.fd_index      += (dir.fd_currsector - startsector) * DIRSEC_NDIRS(fs);
 
   /* Free all of the directory entries used for the sequence of long file
