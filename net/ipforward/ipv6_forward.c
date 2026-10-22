@@ -191,113 +191,50 @@ static int ipv6_packet_conversion(FAR struct net_driver_s *dev,
                                   FAR struct net_driver_s *fwddev,
                                   FAR struct ipv6_hdr_s *ipv6)
 {
-  int ret = PACKET_NOT_FORWARDED;
+  int ret;
 
-  if (dev->d_len > 0)
+  if (dev->d_len == 0)
     {
-      /* Check if this is a device served by 6LoWPAN */
-
-      if (fwddev->d_lltype != NET_LL_IEEE802154 &&
-          fwddev->d_lltype != NET_LL_PKTRADIO)
-        {
-          nwarn("WARNING:  Unsupported link layer... Not forwarded\n");
-        }
-      else
-#ifdef CONFIG_NET_TCP
-      if (ipv6->proto == IP_PROTO_TCP)
-        {
-          /* Decrement the TTL in the IPv6 header.  If it decrements to
-           * zero, then drop the packet.
-           */
-
-          ret = ipv6_decr_ttl(ipv6);
-          if (ret < 1)
-            {
-              nwarn("WARNING: Hop limit exceeded... Dropping!\n");
-              ret = -EMULTIHOP;
-            }
-          else
-            {
-              /* Let 6LoWPAN convert IPv6 TCP output into IEEE802.15.4
-               * frames.
-               */
-
-              sixlowpan_tcp_send(dev, fwddev, ipv6);
-
-              /* The packet was forwarded */
-
-              dev->d_len = 0;
-              return PACKET_FORWARDED;
-            }
-        }
-      else
-#endif
-#ifdef CONFIG_NET_UDP
-      if (ipv6->proto == IP_PROTO_UDP)
-        {
-          /* Decrement the TTL in the IPv6 header.  If it decrements to
-           * zero, then drop the packet.
-           */
-
-          ret = ipv6_decr_ttl(ipv6);
-          if (ret < 1)
-            {
-              nwarn("WARNING: Hop limit exceeded... Dropping!\n");
-              ret = -EMULTIHOP;
-            }
-          else
-            {
-              /* Let 6LoWPAN convert IPv6 UDP output into IEEE802.15.4
-               * frames.
-               */
-
-              sixlowpan_udp_send(dev, fwddev, ipv6);
-
-              /* The packet was forwarded */
-
-              dev->d_len = 0;
-              return PACKET_FORWARDED;
-            }
-        }
-      else
-#endif
-
-#ifdef CONFIG_NET_ICMPv6
-      if (ipv6->proto == IP_PROTO_ICMP6)
-        {
-          /* Decrement the TTL in the IPv6 header.  If it decrements to
-           * zero, then drop the packet.
-           */
-
-          ret = ipv6_decr_ttl(ipv6);
-          if (ret < 1)
-            {
-              nwarn("WARNING: Hop limit exceeded... Dropping!\n");
-              ret = -EMULTIHOP;
-            }
-          else
-            {
-              /* Let 6LoWPAN convert IPv6 ICMPv6 output into IEEE802.15.4
-               * frames.
-               */
-
-              sixlowpan_icmpv6_send(dev, fwddev, ipv6);
-
-              /* The packet was forwarded */
-
-              dev->d_len = 0;
-              return PACKET_FORWARDED;
-            }
-        }
-      else
-#endif
-        {
-          /* Otherwise, we cannot forward the packet */
-
-          nwarn("WARNING: Dropping. Unsupported 6LoWPAN protocol: %d\n",
-                ipv6->proto);
-        }
+      return PACKET_NOT_FORWARDED;
     }
+
+  /* Check if this is a device served by 6LoWPAN */
+
+  if (fwddev->d_lltype != NET_LL_IEEE802154 &&
+      fwddev->d_lltype != NET_LL_PKTRADIO)
+    {
+      nwarn("WARNING:  Unsupported link layer... Not forwarded\n");
+      return PACKET_NOT_FORWARDED;
+    }
+
+  if (dev->d_len > NETDEV_PKTSIZE(fwddev))
+    {
+      nwarn("WARNING: Packet > MTU... Dropping\n");
+      ret = -EFBIG;
+      goto drop;
+    }
+
+  /* Decrement the TTL in the IPv6 header.  If it decrements to zero, then
+   * drop the packet.
+   */
+
+  ret = ipv6_decr_ttl(ipv6);
+  if (ret < 1)
+    {
+      nwarn("WARNING: Hop limit exceeded... Dropping!\n");
+      ret = -EMULTIHOP;
+      goto drop;
+    }
+
+  /* The packet is in the IOB chain of dev, 6LoWPAN reads it from the flat
+   * buffer of the radio.
+   */
+
+  iob_copyout(fwddev->d_buf, dev->d_iob, dev->d_len, 0);
+  sixlowpan_ipv6_send(dev, fwddev, (FAR struct ipv6_hdr_s *)fwddev->d_buf);
+  return PACKET_FORWARDED;
+
+drop:
 
   /* The packet was not forwarded (or the HOP limit was exceeded) */
 
@@ -657,43 +594,26 @@ int ipv6_forward(FAR struct net_driver_s *dev, FAR struct ipv6_hdr_s *ipv6)
        * other endpoints, but seems less useful for a wired network.
        */
 
-      /* Perform any necessary packet conversions.  If the packet was handled
-       * via a backdoor path (or dropped), then dev->d_len will be zero.  If
-       * the packet needs to be forwarded in the normal manner then
-       * dev->d_len will be unchanged.
-       */
-
-      ret = ipv6_packet_conversion(dev, dev, ipv6);
-      if (ret < 0)
+      if (dev->d_lltype != NET_LL_IEEE802154 &&
+          dev->d_lltype != NET_LL_PKTRADIO)
         {
-          nwarn("WARNING: ipv6_packet_conversion failed: %d\n", ret);
-          goto drop;
-        }
-      else if (ret == PACKET_NOT_FORWARDED)
-        {
-#ifdef CONFIG_NET_ETHERNET
-          /* REVISIT:
-           *  For Ethernet we may have to fix up the Ethernet header:
-           * - source MAC, the MAC of the current device.
-           * - dest MAC, the MAC associated with the destination IPv6
-           *   address.
-           *   This  will involve ICMPv6 and Neighbor Discovery.
-           */
-
-          /* Correct dev->d_buf by adding back the L1 header length */
-
-#endif
-
-          /* Nothing other 6LoWPAN forwarding is currently handled and that
-           * case was dealt with in ipv6_packet_conversion().
-           *
-           * REVISIT: Is this an issue?  Do other use cases make sense?
-           */
-
           nwarn("WARNING: Packet forwarding supported only for 6LoWPAN\n");
           ret = -ENOSYS;
           goto drop;
         }
+
+      ret = ipv6_decr_ttl(ipv6);
+      if (ret < 1)
+        {
+          nwarn("WARNING: Hop limit exceeded... Dropping!\n");
+          ret = -EMULTIHOP;
+          goto drop;
+        }
+
+      /* Keep d_len, the reply of the input is sent back on the radio from
+       * the flat buffer.
+       */
+
 #else /* CONFIG_NET_6LOWPAN */
       nwarn(
          "WARNING: Packet forwarding not supported in this configuration\n");
