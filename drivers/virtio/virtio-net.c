@@ -439,6 +439,7 @@ static void virtio_net_free_vq_buffers(FAR struct virtio_device *vdev)
 static int virtio_net_ifup(FAR struct netdev_lowerhalf_s *dev)
 {
   FAR struct virtio_net_priv_s *priv = (FAR struct virtio_net_priv_s *)dev;
+  FAR struct virtqueue *vq = priv->vdev->vrings_info[VIRTIO_NET_RX].vq;
 
 #ifdef CONFIG_NET_IPv4
   vrtinfo("Bringing up: %u.%u.%u.%u\n",
@@ -453,10 +454,16 @@ static int virtio_net_ifup(FAR struct netdev_lowerhalf_s *dev)
           dev->netdev.d_ipv6addr[6], dev->netdev.d_ipv6addr[7]);
 #endif
 
-  /* Prepare interrupt and packets for receiving */
+  /* Prepare interrupt and packets for receiving.  The buffers used while
+   * the interface was down raised no notification, receive them now.
+   */
 
-  virtqueue_enable_cb_lock(priv->vdev->vrings_info[VIRTIO_NET_RX].vq,
-                           &priv->lock[VIRTIO_NET_RX]);
+  if (virtqueue_enable_cb_lock(vq, &priv->lock[VIRTIO_NET_RX]))
+    {
+      virtqueue_disable_cb_lock(vq, &priv->lock[VIRTIO_NET_RX]);
+      netdev_lower_rxready(dev);
+    }
+
   virtio_net_rxfill(dev);
 
 #ifdef CONFIG_DRIVERS_WIFI_SIM
