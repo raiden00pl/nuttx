@@ -301,7 +301,8 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
   FAR socklen_t *fromlen = &msg->msg_namelen;
   FAR struct sockaddr_in6 *inaddr;
   FAR struct icmpv6_conn_s *conn;
-  FAR struct net_driver_s *dev = NULL;
+  FAR struct net_driver_s *reqdev = NULL;
+  FAR struct net_driver_s *dev;
   struct icmpv6_recvfrom_s state;
   ssize_t ret;
 
@@ -332,12 +333,14 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
     }
 
   conn = psock->s_conn;
-  conn_dev_lock(&conn->sconn, conn->dev);
+  dev = conn->dev;
+
+  conn_dev_lock(&conn->sconn, dev);
   if (psock->s_type != SOCK_RAW)
     {
       /* Get the device that was used to send the ICMPv6 request. */
 
-      dev = conn->dev;
+      reqdev = dev;
       DEBUGASSERT(dev != NULL);
       if (dev == NULL)
         {
@@ -376,7 +379,7 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
 
       /* Set up the callback */
 
-      state.recv_cb = icmpv6_callback_alloc(dev, conn);
+      state.recv_cb = icmpv6_callback_alloc(reqdev, conn);
       if (state.recv_cb)
         {
           state.recv_cb->flags = (ICMPv6_NEWDATA | NETDEV_DOWN);
@@ -398,7 +401,7 @@ ssize_t icmpv6_recvmsg(FAR struct socket *psock, FAR struct msghdr *msg,
               state.recv_result = ret;
             }
 
-          icmpv6_callback_free(dev, conn, state.recv_cb);
+          icmpv6_callback_free(reqdev, conn, state.recv_cb);
         }
 
       nxsem_destroy(&state.recv_sem);
@@ -440,7 +443,7 @@ errout:
         }
     }
 
-  conn_dev_unlock(&conn->sconn, conn->dev);
+  conn_dev_unlock(&conn->sconn, dev);
 
   return ret;
 }
