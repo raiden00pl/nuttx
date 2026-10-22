@@ -32,6 +32,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -47,12 +48,26 @@
 #include "sim_hostusrsock.h"
 
 /****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+struct host_keeptime_s
+{
+  bool     set;
+  uint16_t dsecs;
+};
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
 static int    g_active_maxfd = -1;
 static fd_set g_active_read_fds;
 static fd_set g_active_write_fds;
+
+/* TCP_KEEPIDLE and TCP_KEEPINTVL as set by NuttX, in deciseconds */
+
+static struct host_keeptime_s g_keeptime[FD_SETSIZE][2];
 
 /****************************************************************************
  * Private Functions
@@ -290,10 +305,120 @@ static int tcp_optname_to_native(int optname)
     }
 }
 
+/* NuttX keeps TCP_KEEPIDLE and TCP_KEEPINTVL in deciseconds and takes them
+ * as an int in deciseconds or as a struct timeval (net/tcp/tcp_setsockopt.c
+ * and tcp_getsockopt.c).  The host takes an int in seconds, so the value is
+ * rounded up to whole seconds for the host and the decisecond value is kept
+ * for getsockopt().
+ */
+
+static void host_usrsock_clear_keeptime(int sockfd)
+{
+  if (sockfd >= 0 && sockfd < FD_SETSIZE)
+    {
+      memset(g_keeptime[sockfd], 0, sizeof(g_keeptime[sockfd]));
+    }
+}
+
+static int host_usrsock_set_keeptime(int sockfd, int optname, int idx,
+                                     const void *optval,
+                                     nuttx_socklen_t optlen)
+{
+  unsigned int dsecs;
+  int secs;
+
+  if (optval == NULL)
+    {
+      return -EINVAL;
+    }
+  else if (optlen == sizeof(struct nuttx_timeval))
+    {
+      const struct nuttx_timeval *tv = optval;
+      unsigned long adjust = 100000 - 1;
+
+      /* Round the microsecond remainder up to the next decisecond */
+
+      dsecs = (unsigned int)(tv->tv_sec * 10 +
+                             (tv->tv_usec + adjust) / 100000);
+    }
+  else if (optlen == sizeof(int))
+    {
+      dsecs = *(const int *)optval;
+    }
+  else
+    {
+      return -EDOM;
+    }
+
+  if (dsecs > UINT16_MAX)
+    {
+      return -EDOM;
+    }
+
+  secs = (dsecs + 9) / 10;
+  if (setsockopt(sockfd, IPPROTO_TCP, optname, &secs, sizeof(secs)) < 0)
+    {
+      return -errno;
+    }
+
+  if (sockfd >= 0 && sockfd < FD_SETSIZE)
+    {
+      g_keeptime[sockfd][idx].set   = true;
+      g_keeptime[sockfd][idx].dsecs = dsecs;
+    }
+
+  return 0;
+}
+
+static int host_usrsock_get_keeptime(int sockfd, int optname, int idx,
+                                     void *optval,
+                                     nuttx_socklen_t *optlen)
+{
+  socklen_t len = sizeof(int);
+  int dsecs;
+  int secs;
+
+  if (optval == NULL || (*optlen != sizeof(struct nuttx_timeval) &&
+                         *optlen != sizeof(int)))
+    {
+      return -EINVAL;
+    }
+
+  if (sockfd >= 0 && sockfd < FD_SETSIZE &&
+      g_keeptime[sockfd][idx].set)
+    {
+      dsecs = g_keeptime[sockfd][idx].dsecs;
+    }
+  else
+    {
+      if (getsockopt(sockfd, IPPROTO_TCP, optname, &secs, &len) < 0)
+        {
+          return -errno;
+        }
+
+      dsecs = secs * 10;
+    }
+
+  if (*optlen == sizeof(struct nuttx_timeval))
+    {
+      struct nuttx_timeval *tv = optval;
+
+      tv->tv_sec  = dsecs / 10;
+      tv->tv_usec = (dsecs % 10) * 100000;
+    }
+  else
+    {
+      *(int *)optval = dsecs;
+    }
+
+  return 0;
+}
+
 static int host_usrsock_sockopt(int sockfd, int level, int optname,
                                 const void *optval, nuttx_socklen_t *optlen,
                                 bool set)
 {
+  int nuttx_optname = optname;
   int ret = -EINVAL;
 
   /* For the parameters that nuttx does not support,
@@ -318,6 +443,21 @@ static int host_usrsock_sockopt(int sockfd, int level, int optname,
   if (optname < 0)
     {
       return optname;
+    }
+
+  if (level == IPPROTO_TCP && (nuttx_optname == NUTTX_TCP_KEEPIDLE ||
+                               nuttx_optname == NUTTX_TCP_KEEPINTVL))
+    {
+      int idx = nuttx_optname == NUTTX_TCP_KEEPIDLE ? 0 : 1;
+
+      if (set)
+        {
+          return host_usrsock_set_keeptime(sockfd, optname, idx, optval,
+                                           *optlen);
+        }
+
+      return host_usrsock_get_keeptime(sockfd, optname, idx,
+                                       (void *)optval, optlen);
     }
 
   if (set)
@@ -436,6 +576,7 @@ int host_usrsock_socket(int domain, int type, int protocol)
   setsockopt(ret, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
   sock_nonblock(ret, true);
+  host_usrsock_clear_keeptime(ret);
   host_usrsock_set_fd(ret, &g_active_read_fds);
 
   return ret;
@@ -668,6 +809,7 @@ int host_usrsock_accept(int sockfd, struct nuttx_sockaddr *addr,
     }
 
   sock_nonblock(ret, true);
+  host_usrsock_clear_keeptime(ret);
   host_usrsock_set_fd(ret, &g_active_read_fds);
   host_usrsock_set_fd(sockfd, &g_active_read_fds);
 

@@ -239,6 +239,12 @@ struct nuttx_sockaddr_un
   char        sun_path[NUTTX_UNIX_PATH_MAX];
 };
 
+struct nuttx_timeval
+{
+  int64_t tv_sec;   /* Seconds */
+  long    tv_usec;  /* Microseconds */
+};
+
 struct nuttx_linger
 {
   int  l_onoff;   /* Indicates whether linger option is enabled. */
