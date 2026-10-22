@@ -44,7 +44,6 @@
 #include "neighbor/neighbor.h"
 #include "tcp/tcp.h"
 #include "udp/udp.h"
-#include "sixlowpan/sixlowpan.h"
 #include "pkt/pkt.h"
 #include "icmpv6/icmpv6.h"
 
@@ -494,42 +493,6 @@ static int ipv6_in(FAR struct net_driver_s *dev)
         /* Forward the IPv6 TCP packet */
 
         tcp_ipv6_input(dev, iphdrlen);
-
-#ifdef CONFIG_NET_6LOWPAN
-        /* TCP output comes through three different mechanisms.  Either from:
-         *
-         *   1. TCP socket output.  For the case of TCP output to an
-         *      IEEE802.15.4, the TCP output is caught in the socket
-         *      send()/sendto() logic and and redirected to 6LoWPAN logic.
-         *   2. TCP output from the TCP state machine.  That will occur
-         *      during TCP packet processing by the TCP state machine.
-         *   3. TCP output resulting from TX or timer polling
-         *
-         * Case 3 is handled here.  Logic here detects if (1) an attempt
-         * to return with d_len > 0 and (2) that the device is an
-         * IEEE802.15.4 MAC or PKTRADIO network driver .
-         * Under those conditions, 6LoWPAN logic will be called to create the
-         * IEEE80215.4 or PKTRADIO frames.
-         */
-
-        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
-            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
-          {
-            /* tcp_ipv6_input() can update dev->d_iob. Update ipv6 to ensure
-             * using the correct data.
-             */
-
-            ipv6 = IPv6BUF;
-
-            /* Let 6LoWPAN handle the TCP output */
-
-            sixlowpan_tcp_send(dev, dev, ipv6);
-
-            /* Drop the packet in the d_buf */
-
-            goto drop;
-          }
-#endif /* CONFIG_NET_6LOWPAN */
         break;
 #endif /* NET_TCP_HAVE_STACK */
 
@@ -539,35 +502,6 @@ static int ipv6_in(FAR struct net_driver_s *dev)
         /* Forward the IPv6 UDP packet */
 
         udp_ipv6_input(dev, iphdrlen);
-
-#if defined(CONFIG_NET_6LOWPAN) && defined(CONFIG_NET_ICMPv6)
-        /* udp_ipv6 processing can return a icmpv6 frame when enabled.
-         * Logic here detects (1) if an attempt to return with d_len > 0 and
-         * (2) that the device is an IEEE802.15.4 MAC or PKTRADIO network
-         * driver.
-         * Under those conditions, 6LoWPAN logic will be called to create the
-         * IEEE80215.4 or PKTRADIO frames.
-         */
-
-        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
-            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
-          {
-            /* udp_ipv6_input() might update dev->d_iob. Make sure to use
-             * the correct data by updating ipv6.
-             */
-
-            ipv6 = IPv6BUF;
-
-            /* Let 6LoWPAN handle the udp output */
-
-            sixlowpan_icmpv6_send(dev, dev, ipv6);
-
-            /* Drop the packet in the d_buf */
-
-            goto drop;
-          }
-#endif /* CONFIG_NET_6LOWPAN && CONFIG_NET_ICMPV6 */
-
         break;
 #endif
 
@@ -579,40 +513,6 @@ static int ipv6_in(FAR struct net_driver_s *dev)
         /* Forward the ICMPv6 packet */
 
         icmpv6_input(dev, iphdrlen);
-
-#ifdef CONFIG_NET_6LOWPAN
-        /* All outgoing ICMPv6 messages come through one of two mechanisms:
-         *
-         *   1. The output from internal ICMPv6 message passing.  These
-         *      outgoing  messages will use device polling and will be
-         *      handled elsewhere.
-         *   2. ICMPv6 output resulting from TX or timer polling.
-         *
-         * Case 2 is handled here.  Logic here detects if (1) an attempt
-         * to return with d_len > 0 and (2) that the device is an
-         * IEEE802.15.4 MAC or PKTRADIO network driver.
-         * Under those conditions, 6LoWPAN logic will be called to create the
-         * IEEE80215.4 or PKTRADIO frames.
-         */
-
-        if ((dev->d_len > 0 && dev->d_lltype == NET_LL_IEEE802154) ||
-            (dev->d_len > 0 && dev->d_lltype == NET_LL_PKTRADIO))
-          {
-            /* icmpv6_input() might update dev->d_iob. Make sure to use the
-             * correct data by updating ipv6.
-             */
-
-            ipv6 = IPv6BUF;
-
-            /* Let 6LoWPAN handle the ICMPv6 output */
-
-            sixlowpan_icmpv6_send(dev, dev, ipv6);
-
-            /* Drop the packet in the d_buf */
-
-            goto drop;
-          }
-#endif /* CONFIG_NET_6LOWPAN */
         break;
 #endif /* NET_ICMPv6_HAVE_STACK */
 
