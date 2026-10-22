@@ -181,9 +181,8 @@ static uint32_t arp_send_eventhandler(FAR struct net_driver_s *dev,
  *   Zero (OK) is returned on success and the IP address mapping can now be
  *   found in the ARP table.  On error a negated errno value is returned:
  *
- *     -EHOSTUNREACH: Could not find a route to the host, or the address
- *                    resolution failed
- *     -ENETUNREACH:  The interface went down
+ *     -EHOSTUNREACH: The address resolution failed
+ *     -ENETUNREACH:  No route to the network, or the interface went down
  *     -ENOBUFS:      No room in the ARP table
  *     -ENOMEM:       No callback available
  *
@@ -235,7 +234,7 @@ int arp_send(in_addr_t ipaddr)
   if (!dev)
     {
       nerr("ERROR: Unreachable: %08lx\n", (unsigned long)ipaddr);
-      return -EHOSTUNREACH;
+      return -ENETUNREACH;
     }
 
   /* ARP support is only built if the Ethernet link layer is supported.
@@ -275,7 +274,7 @@ int arp_send(in_addr_t ipaddr)
       ipaddr = dripaddr;
       if (ipaddr == INADDR_ANY)
         {
-          return -EHOSTUNREACH;
+          return -ENETUNREACH;
         }
     }
 
