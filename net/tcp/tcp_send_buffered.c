@@ -1136,6 +1136,17 @@ static uint32_t psock_send_eventhandler(FAR struct net_driver_s *dev,
                                TCP_WBSENT(wrb), tcpip_hdrsize(conn));
           if (ret <= 0)
             {
+              /* The segment was not sent, e.g. no IOB for it.  Freeing
+               * IOBs does not poll the connection again, so unless the
+               * retransmission or zero window probe timer runs already,
+               * start the timer: its expiry polls for the queued data.
+               */
+
+              if (conn->timer == 0)
+                {
+                  tcp_update_retrantimer(conn, conn->rto);
+                }
+
               return flags;
             }
 
