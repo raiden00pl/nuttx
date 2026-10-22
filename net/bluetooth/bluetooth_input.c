@@ -32,6 +32,7 @@
 
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 #include <nuttx/debug.h>
 
 #include <nuttx/mm/iob.h>
@@ -260,8 +261,11 @@ int bluetooth_input(FAR struct radio_driver_s *radio,
           ret = bluetooth_queue_frame(conn, frame, meta);
           if (ret < 0)
             {
+              /* The frame is dropped, the others are still delivered */
+
               nerr("ERROR: Failed to queue frame: %d\n", ret);
               iob_free(frame);
+              ret = OK;
             }
         }
 
@@ -277,7 +281,10 @@ int bluetooth_input(FAR struct radio_driver_s *radio,
     }
   else
     {
+      /* The frames are left to the caller */
+
       nwarn("WARNING: No listener\n");
+      ret = -ENOENT;
     }
 
   return ret;

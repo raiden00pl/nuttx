@@ -262,10 +262,8 @@ FAR struct bluetooth_conn_s *
  *               must apply to all of the frames in the list.
  *
  * Returned Value:
- *   OK    The Bluetooth has been processed  and can be deleted
- *   ERROR Hold the Bluetooth and try again later. There is a listening
- *         socket but no recv in place to catch the Bluetooth yet.
- *         Useful when a packet arrives before a recv call is in place.
+ *   OK      The frames were taken by a socket and are freed by it.
+ *   -ENOENT No socket listens for the frames, they are left to the caller.
  *
  * Assumptions:
  *   Called from the network diver with the network locked.

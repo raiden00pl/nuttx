@@ -276,10 +276,8 @@ FAR struct ieee802154_conn_s *
  *               must apply to all of the frames in the list.
  *
  * Returned Value:
- *   OK    The IEEE 802.15.4 has been processed  and can be deleted
- *   ERROR Hold the IEEE 802.15.4 and try again later. There is a listening
- *         socket but no recv in place to catch the IEEE 802.15.4 yet.
- *         Useful when a packet arrives before a recv call is in place.
+ *   OK      The frames were taken by a socket and are freed by it.
+ *   -ENOENT No socket listens for the frames, they are left to the caller.
  *
  * Assumptions:
  *   Called from the network diver with the network locked.
