@@ -451,7 +451,8 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
       /* Failed to determine the size of the header failed. */
 
       nerr("ERROR: sixlowpan_frame_hdrlen() failed: %d\n", framer_hdrlen);
-      return framer_hdrlen;
+      ret = framer_hdrlen;
+      goto errout_with_iob;
     }
 
   /* This sill be the initial offset into io_data.  Valid data begins at
@@ -497,7 +498,7 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
   if (ret < 0)
     {
       nerr("ERROR: sixlowpan_radio_framelen() failed: %d\n", ret);
-      return ret;
+      goto errout_with_iob;
     }
 
   /* Limit to the maximum size supported by the IOBs */
@@ -515,7 +516,8 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
   if (ret < MAX_MACHDR || ret > UINT16_MAX)
     {
       nerr("ERROR: Invalid frame size: %d\n", ret);
-      return ret;
+      ret = -EINVAL;
+      goto errout_with_iob;
     }
 
   framelen = (uint16_t)ret;
@@ -773,6 +775,10 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
     }
 
   return OK;
+
+errout_with_iob:
+  iob_free(iob);
+  return ret;
 }
 
 #endif /* CONFIG_NET_6LOWPAN */
