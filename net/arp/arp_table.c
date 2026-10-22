@@ -273,6 +273,7 @@ static void arp_get_arpreq(FAR struct arpreq *output,
 static void arp_unreach_work(FAR void *param)
 {
   FAR struct arp_entry_s *tabptr = (FAR struct arp_entry_s *)param;
+
   iob_free_queue(&tabptr->at_queue);
 }
 #endif
