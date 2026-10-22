@@ -261,5 +261,29 @@ void sixlowpan_udp_send(FAR struct net_driver_s *dev,
                         FAR struct ipv6_hdr_s *ipv6);
 #endif
 
+/****************************************************************************
+ * Name: sixlowpan_ipv6_send
+ *
+ * Description:
+ *   Convert the IPv6 packet of d_len bytes in the flat device buffer into
+ *   frames of the radio fwddev, according to its protocol.
+ *
+ * Input Parameters:
+ *   dev    - The network device holding the packet
+ *   fwddev - The radio network device the packet is sent on
+ *   ipv6   - The IPv6 header at the beginning of the packet
+ *
+ * Returned Value:
+ *   None.  dev->d_len is zero on return.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void sixlowpan_ipv6_send(FAR struct net_driver_s *dev,
+                         FAR struct net_driver_s *fwddev,
+                         FAR struct ipv6_hdr_s *ipv6);
+
 #endif /* CONFIG_NET_6LOWPAN */
 #endif /* __NET_SIXLOWPAN_SIXLOWPAN_H */

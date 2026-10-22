@@ -54,20 +54,6 @@
 #include "inet/inet.h"
 
 /****************************************************************************
- * Private Types
- ****************************************************************************/
-
-enum devif_packet_type
-{
-  DEVIF_PKT = 0,
-  DEVIF_ICMP,
-  DEVIF_IGMP,
-  DEVIF_TCP,
-  DEVIF_UDP,
-  DEVIF_ICMP6
-};
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -99,92 +85,39 @@ enum devif_packet_type
  *      messages will use device polling and will be handled here.
  *   2. ICMPv6 output resulting from TX or timer polling.
  *
+ *   Called with the packet in the flat device buffer.
+ *
  * Assumptions:
  *   The network is locked.
  *
  ****************************************************************************/
 
 #ifdef CONFIG_NET_6LOWPAN
-static void devif_packet_conversion(FAR struct net_driver_s *dev,
-                                    enum devif_packet_type pkttype)
+static void devif_packet_conversion(FAR struct net_driver_s *dev)
 {
-  if (dev->d_len > 0)
-    {
-      /* Check if this is a device served by 6LoWPAN */
+  FAR struct ipv6_hdr_s *ipv6 = (FAR struct ipv6_hdr_s *)dev->d_buf;
 
-      if (dev->d_lltype == NET_LL_IEEE802154 ||
-          dev->d_lltype == NET_LL_PKTRADIO)
-        {
-          FAR struct ipv6_hdr_s *ipv6 = (FAR struct ipv6_hdr_s *)dev->d_buf;
+  if (dev->d_len == 0 ||
+      (dev->d_lltype != NET_LL_IEEE802154 &&
+       dev->d_lltype != NET_LL_PKTRADIO))
+    {
+      return;
+    }
 
 #ifdef CONFIG_NET_IPv4
-          if ((ipv6->vtc & IP_VERSION_MASK) != IPv6_VERSION)
-            {
-              nerr("ERROR: IPv6 version error: %02x...  Packet dropped\n",
-                   ipv6->vtc);
-            }
-          else
-#endif
-#ifdef CONFIG_NET_TCP
-          if (pkttype == DEVIF_TCP)
-            {
-              /* This packet came from a response to TCP polling and is
-               * directed to an radio driver using 6LoWPAN.  Verify that the
-               * outgoing packet is IPv6 with TCP protocol.
-               */
-
-              if (ipv6->proto == IP_PROTO_TCP)
-                {
-                  /* Let 6LoWPAN convert IPv6 TCP output into radio frames. */
-
-                  sixlowpan_tcp_send(dev, dev, ipv6);
-                }
-              else
-                {
-                  nerr("ERROR: TCP protocol error: %u...  Packet dropped\n",
-                       ipv6->proto);
-                }
-            }
-          else
-#endif
-#ifdef CONFIG_NET_ICMPv6
-          if (pkttype == DEVIF_ICMP6)
-            {
-              /* This packet came from a response to ICMPv6 polling and is
-               * directed to a radio using 6LoWPAN.  Verify that the outgoing
-               * packet is IPv6 with TCP protocol.
-               */
-
-              if (ipv6->proto == IP_PROTO_ICMP6)
-                {
-                  /* Let 6LoWPAN convert IPv6 ICMPv6 output into radio
-                   * frames.
-                   */
-
-                  sixlowpan_icmpv6_send(dev, dev, ipv6);
-                }
-              else
-                {
-                  nerr("ERROR: ICMPv6 protocol error: %u..."
-                        "  Packet dropped\n",
-                       ipv6->proto);
-                }
-            }
-          else
-#endif
-            {
-              nerr("ERROR: Unhandled packet dropped."
-                    "  pkttype=%u protocol=%u\n",
-                    pkttype, ipv6->proto);
-            }
-
-          UNUSED(ipv6);
-          dev->d_len = 0;
-        }
+  if ((ipv6->vtc & IP_VERSION_MASK) != IPv6_VERSION)
+    {
+      nerr("ERROR: IPv6 version error: %02x...  Packet dropped\n",
+           ipv6->vtc);
+      dev->d_len = 0;
+      return;
     }
+#endif
+
+  /* Let 6LoWPAN convert the IPv6 output into radio frames */
+
+  sixlowpan_ipv6_send(dev, dev, ipv6);
 }
-#else
-#  define devif_packet_conversion(dev,pkttype)
 #endif /* CONFIG_NET_6LOWPAN */
 
 /****************************************************************************
@@ -248,10 +181,6 @@ devif_poll_pkt_connections(FAR struct net_driver_s *dev,
           /* Perform the packet TX poll */
 
           pkt_poll(dev, pkt_conn);
-
-          /* Perform any necessary conversions on outgoing packets */
-
-          devif_packet_conversion(dev, DEVIF_PKT);
 
           /* Call back into the driver */
 
@@ -445,10 +374,6 @@ static inline_function int devif_poll_icmp(FAR struct net_driver_s *dev,
 
           icmp_poll(dev, conn);
 
-          /* Perform any necessary conversions on outgoing packets */
-
-          devif_packet_conversion(dev, DEVIF_ICMP);
-
           /* Call back into the driver */
 
           bstop = devif_poll_local_out(dev, callback);
@@ -492,10 +417,6 @@ static inline_function int devif_poll_icmpv6(FAR struct net_driver_s *dev,
            */
 
           icmpv6_poll(dev, conn);
-
-          /* Perform any necessary conversions on outgoing packets */
-
-          devif_packet_conversion(dev, DEVIF_ICMP6);
 
           /* Call back into the driver */
 
@@ -555,10 +476,6 @@ static inline_function int devif_poll_igmp(FAR struct net_driver_s *dev,
 
   igmp_poll(dev);
 
-  /* Perform any necessary conversions on outgoing packets */
-
-  devif_packet_conversion(dev, DEVIF_IGMP);
-
   /* Call back into the driver */
 
   return devif_poll_out(dev, callback);
@@ -584,10 +501,6 @@ static inline_function int devif_poll_mld(FAR struct net_driver_s *dev,
   /* Perform the MLD TX poll */
 
   mld_poll(dev);
-
-  /* Perform any necessary conversions on outgoing ICMPv6 packets */
-
-  devif_packet_conversion(dev, DEVIF_ICMP6);
 
   /* Call back into the driver */
 
@@ -632,10 +545,6 @@ devif_poll_udp_connections(FAR struct net_driver_s *dev,
 
           udp_poll(dev, conn);
 
-          /* Perform any necessary conversions on outgoing packets */
-
-          devif_packet_conversion(dev, DEVIF_UDP);
-
           /* Call back into the driver */
 
           bstop = devif_poll_local_out(dev, callback);
@@ -679,10 +588,6 @@ devif_poll_tcp_connections(FAR struct net_driver_s *dev,
           /* Perform the TCP TX poll */
 
           tcp_poll(dev, conn);
-
-          /* Perform any necessary conversions on outgoing packets */
-
-          devif_packet_conversion(dev, DEVIF_TCP);
 
           /* Call back into the driver */
 
@@ -1173,6 +1078,12 @@ int devif_poll(FAR struct net_driver_s *dev, devif_poll_callback_t callback)
           /* Restore flat buffer pointer */
 
           dev->d_buf = buf;
+
+#ifdef CONFIG_NET_6LOWPAN
+          /* Convert the packet to radio frames */
+
+          devif_packet_conversion(dev);
+#endif
 
           /* Call the real device callback */
 

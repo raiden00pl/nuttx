@@ -63,6 +63,7 @@
 
 #include "route/route.h"
 #include "inet/inet.h"
+#include "sixlowpan/sixlowpan.h"
 #include "sixlowpan/sixlowpan_internal.h"
 
 #ifdef CONFIG_NET_6LOWPAN
@@ -590,6 +591,57 @@ bool sixlowpan_ismacbased(const net_ipv6addr_t ipaddr,
       default:
         nerr("ERROR: Unsupported address length: %u\n", addr->nv_addrlen);
         return false;
+    }
+}
+
+/****************************************************************************
+ * Name: sixlowpan_ipv6_send
+ *
+ * Description:
+ *   Convert the IPv6 packet of d_len bytes in the flat device buffer into
+ *   frames of the radio fwddev, according to its protocol.
+ *
+ * Input Parameters:
+ *   dev    - The network device holding the packet
+ *   fwddev - The radio network device the packet is sent on
+ *   ipv6   - The IPv6 header at the beginning of the packet
+ *
+ * Returned Value:
+ *   None.  dev->d_len is zero on return.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+void sixlowpan_ipv6_send(FAR struct net_driver_s *dev,
+                         FAR struct net_driver_s *fwddev,
+                         FAR struct ipv6_hdr_s *ipv6)
+{
+  switch (ipv6->proto)
+    {
+#ifdef CONFIG_NET_TCP
+      case IP_PROTO_TCP:
+        sixlowpan_tcp_send(dev, fwddev, ipv6);
+        break;
+#endif
+
+#ifdef CONFIG_NET_ICMPv6
+      case IP_PROTO_ICMP6:
+        sixlowpan_icmpv6_send(dev, fwddev, ipv6);
+        break;
+#endif
+
+#if defined(CONFIG_NET_UDP) && defined(CONFIG_NET_IPFORWARD)
+      case IP_PROTO_UDP:
+        sixlowpan_udp_send(dev, fwddev, ipv6);
+        break;
+#endif
+
+      default:
+        nwarn("WARNING: Unsupported 6LoWPAN protocol: %u\n", ipv6->proto);
+        dev->d_len = 0;
+        break;
     }
 }
 
