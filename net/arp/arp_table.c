@@ -73,7 +73,8 @@
 
 #define ARP_MAXAGE_TICK SEC2TICK(10 * CONFIG_NET_ARP_MAXAGE)
 #define ARP_MAXAGE_UNREACHABLE_TICK SEC2TICK(10 * CONFIG_NET_ARP_MAXAGE_UNREACHABLE)
-#define ARP_INPROGRESS_TICK MSEC2TICK(CONFIG_ARP_SEND_MAXTRIES * CONFIG_ARP_SEND_DELAYMSEC)
+#define ARP_REQUEST_TICK MSEC2TICK(CONFIG_ARP_SEND_DELAYMSEC)
+#define ARP_RESOLVE_TICK (CONFIG_ARP_SEND_MAXTRIES * ARP_REQUEST_TICK)
 
 /****************************************************************************
  * Private Types
@@ -240,6 +241,50 @@ static FAR struct arp_entry_s *arp_lookup(in_addr_t ipaddr,
 }
 
 /****************************************************************************
+ * Name: arp_pending
+ *
+ * Description:
+ *   Return the resolution state of an unresolved ARP table entry.  at_time
+ *   is the time of the last request and at_nreq the number of requests
+ *   sent.
+ *
+ * Input Parameters:
+ *   tabptr - The unresolved ARP table entry
+ *   delay  - Location to return the clock ticks until the next request may
+ *            be sent
+ *
+ * Returned Value:
+ *   -EINPROGRESS if the last request is still waiting for a reply, OK if
+ *   the next request is due, -EHOSTUNREACH if the resolution has failed
+ *   and -ENOENT if the failure has expired.
+ *
+ ****************************************************************************/
+
+static int arp_pending(FAR struct arp_entry_s *tabptr, FAR clock_t *delay)
+{
+  clock_t elapsed = clock_systime_ticks() - tabptr->at_time;
+
+  *delay = 0;
+  if (elapsed < ARP_REQUEST_TICK)
+    {
+      *delay = ARP_REQUEST_TICK - elapsed;
+      return -EINPROGRESS;
+    }
+  else if (tabptr->at_nreq < CONFIG_ARP_SEND_MAXTRIES)
+    {
+      return OK;
+    }
+  else if (elapsed < ARP_REQUEST_TICK + ARP_MAXAGE_UNREACHABLE_TICK)
+    {
+      return -EHOSTUNREACH;
+    }
+  else
+    {
+      return -ENOENT;
+    }
+}
+
+/****************************************************************************
  * Name: arp_get_arpreq
  *
  * Description:
@@ -368,6 +413,9 @@ int arp_update(FAR struct net_driver_s *dev, in_addr_t ipaddr,
     }
 #endif
 
+  /* No address yet: the caller sends the first ARP request for it */
+
+  tabptr->at_nreq = ethaddr == NULL ? 1 : 0;
   if (ethaddr == NULL)
     {
       ethaddr = g_zero_ethaddr.ether_addr_octet;
@@ -459,9 +507,12 @@ void arp_hdr_update(FAR struct net_driver_s *dev, FAR uint16_t *pipaddr,
 {
   in_addr_t ipaddr = net_ip4addr_conv32(pipaddr);
 
-  /* Update the ARP table */
+  /* Update the ARP table and wake up any logic waiting for the mapping */
 
-  arp_update(dev, ipaddr, ethaddr, 0);
+  if (arp_update(dev, ipaddr, ethaddr, 0) == OK)
+    {
+      arp_notify(ipaddr);
+    }
 }
 
 /****************************************************************************
@@ -495,27 +546,15 @@ int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
   tabptr = arp_lookup(ipaddr, dev);
   if (tabptr != NULL)
     {
-      /* Addresses that have failed to be searched will return a special
-       * error code so that the upper layer can return faster.
-       */
+      /* The address is still being resolved, or its resolution failed */
 
-      if (memcmp(&tabptr->at_ethaddr, &g_zero_ethaddr,
-                 sizeof(tabptr->at_ethaddr)) == 0)
+      if (tabptr->at_nreq > 0)
         {
-          clock_t elapsed;
-          elapsed = clock_systime_ticks() - tabptr->at_time;
-          if (elapsed <= ARP_INPROGRESS_TICK)
-            {
-              return -EINPROGRESS;
-            }
-          else if (elapsed <= ARP_MAXAGE_UNREACHABLE_TICK)
-            {
-              return -ENETUNREACH;
-            }
-          else
-            {
-              return -ENOENT;
-            }
+          clock_t delay;
+          int ret;
+
+          ret = arp_pending(tabptr, &delay);
+          return ret == OK ? -EINPROGRESS : ret;
         }
 
       /* Yes.. return the Ethernet MAC address if the caller has provided a
@@ -551,6 +590,102 @@ int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
   /* Not found */
 
   return -ENOENT;
+}
+
+/****************************************************************************
+ * Name: arp_request
+ *
+ * Description:
+ *   Check whether an ARP request for an unresolved IP address may be sent
+ *   now and, if so, account for it in the ARP table.
+ *
+ * Input Parameters:
+ *   dev    - Device structure
+ *   ipaddr - Refers to an IP address in network order
+ *   delay  - Location to return the clock ticks until the next request may
+ *            be sent, may be NULL
+ *
+ * Returned Value:
+ *   OK if the caller must send an ARP request now, -EINPROGRESS if a
+ *   request is outstanding or the address was resolved meanwhile,
+ *   -EHOSTUNREACH if the resolution has failed or -ENOBUFS if the ARP
+ *   table has no room for the entry.
+ *
+ * Assumptions
+ *   The network is locked to assure exclusive access to the ARP table.
+ *
+ ****************************************************************************/
+
+int arp_request(FAR struct net_driver_s *dev, in_addr_t ipaddr,
+                FAR clock_t *delay)
+{
+  FAR struct arp_entry_s *tabptr;
+  clock_t ticks = ARP_REQUEST_TICK;
+  int ret = -ENOENT;
+
+  tabptr = arp_lookup(ipaddr, dev);
+  if (tabptr != NULL && tabptr->at_nreq == 0)
+    {
+      /* Resolved since arp_find(), e.g. by SIOCSARP, which does not hold
+       * the device lock: no request is needed.
+       */
+
+      ticks = 0;
+      ret = -EINPROGRESS;
+    }
+  else if (tabptr != NULL)
+    {
+      ret = arp_pending(tabptr, &ticks);
+      if (ret == OK)
+        {
+          /* Retransmit: the last request is unanswered */
+
+          tabptr->at_nreq++;
+          tabptr->at_time = clock_systime_ticks();
+          ticks = ARP_REQUEST_TICK;
+        }
+    }
+
+  if (ret == -ENOENT)
+    {
+      /* First request: add the entry that rate limits the next ones */
+
+      ret = arp_update(dev, ipaddr, NULL, 0) < 0 ? -ENOBUFS : OK;
+    }
+
+  if (delay != NULL)
+    {
+      *delay = ticks;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: arp_request_sent
+ *
+ * Description:
+ *   Restart the request interval of an unresolved IP address when its
+ *   request, accounted for by arp_request(), is actually sent.
+ *
+ * Input Parameters:
+ *   dev    - Device structure
+ *   ipaddr - Refers to an IP address in network order
+ *
+ * Assumptions
+ *   The network is locked to assure exclusive access to the ARP table.
+ *
+ ****************************************************************************/
+
+void arp_request_sent(FAR struct net_driver_s *dev, in_addr_t ipaddr)
+{
+  FAR struct arp_entry_s *tabptr;
+
+  tabptr = arp_lookup(ipaddr, dev);
+  if (tabptr != NULL && tabptr->at_nreq > 0)
+    {
+      tabptr->at_time = clock_systime_ticks();
+    }
 }
 
 /****************************************************************************
@@ -683,6 +818,7 @@ unsigned int arp_snapshot(FAR struct arpreq *snapshot,
  * Description:
  *   Queue an IOB which L2 layer is unfinished to the target arp entry's
  *   delay queue while the entry is in progress waiting for an ARP response
+ *   The IOB replaces any IOB queued before for the entry.
  *
  * Input Parameters:
  *   dev     - The device driver structure
@@ -707,17 +843,19 @@ int arp_queue_iob(FAR struct net_driver_s *dev, in_addr_t ipaddr,
   /* the IPv4 address should in the ARP table and arp in progress. */
 
   tabptr = arp_lookup(ipaddr, dev);
-  if (tabptr && memcmp(&tabptr->at_ethaddr, &g_zero_ethaddr,
-                       sizeof(tabptr->at_ethaddr)) == 0)
+  if (tabptr != NULL && tabptr->at_nreq > 0)
     {
+      /* Keep only the latest packet (RFC 1122, 2.3.2.2), for as long as
+       * a resolution may take.  Stop the drop work first, it frees the
+       * queue without the device lock.
+       */
+
+      work_cancel_sync(LPWORK, &tabptr->at_work);
+      iob_free_queue(&tabptr->at_queue);
       if (iob_tryadd_queue(iob, &tabptr->at_queue) == 0)
         {
-          if (work_available(&tabptr->at_work))
-            {
-              work_queue(LPWORK, &tabptr->at_work, arp_unreach_work,
-                         tabptr, ARP_INPROGRESS_TICK);
-            }
-
+          work_queue(LPWORK, &tabptr->at_work, arp_unreach_work,
+                     tabptr, ARP_RESOLVE_TICK);
           return OK;
         }
 

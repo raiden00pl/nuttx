@@ -142,7 +142,7 @@ int arp_wait_cancel(FAR struct arp_notify_s *notify)
  * Description:
  *   Called each time that a ARP request is sent.  This function will sleep
  *   until either: (1) the matching ARP response is received, or (2) a
- *   timeout occurs.
+ *   timeout (in clock ticks) occurs.
  *
  * Assumptions:
  *   This function is called from ARP send must execute with the network
@@ -150,13 +150,13 @@ int arp_wait_cancel(FAR struct arp_notify_s *notify)
  *
  ****************************************************************************/
 
-int arp_wait(FAR struct arp_notify_s *notify, unsigned int timeout)
+int arp_wait(FAR struct arp_notify_s *notify, clock_t timeout)
 {
   int ret;
 
   /* And wait for the ARP response (or a timeout). */
 
-  nxsem_tickwait_uninterruptible(&notify->nt_sem, MSEC2TICK(timeout));
+  nxsem_tickwait_uninterruptible(&notify->nt_sem, timeout);
 
   /* Then get the real result of the transfer */
 

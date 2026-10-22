@@ -65,7 +65,7 @@
 #endif
 
 #ifndef CONFIG_ARP_SEND_DELAYMSEC
-#  define CONFIG_ARP_SEND_DELAYMSEC 20
+#  define CONFIG_ARP_SEND_DELAYMSEC 1000
 #endif
 
 /* ARP Definitions **********************************************************/
@@ -137,7 +137,6 @@ struct arp_send_s
   FAR struct devif_callback_s *snd_cb; /* Reference to callback instance */
   FAR arp_send_finish_cb_t finish_cb;  /* Reference to send finish callback */
   sem_t     snd_sem;                   /* Used to wake up the waiting thread */
-  uint8_t   snd_retries;               /* Retry count */
   volatile bool snd_sent;              /* True: if request sent */
   uint8_t   snd_ifname[IFNAMSIZ];      /* Interface name */
   int16_t   snd_result;                /* The result of the send operation */
@@ -163,8 +162,9 @@ struct arp_entry_s
 {
   in_addr_t                at_ipaddr;   /* IP address */
   struct ether_addr        at_ethaddr;  /* Hardware address */
-  clock_t                  at_time;     /* Time of last usage */
+  clock_t                  at_time;     /* Time of last usage or request */
   uint8_t                  at_flags;    /* Flags, examples: ATF_PERM */
+  uint8_t                  at_nreq;     /* Requests sent, 0 if resolved */
   FAR struct net_driver_s *at_dev;      /* The device driver structure */
 #ifdef CONFIG_NET_ARP_SEND_QUEUE
   struct iob_queue_s       at_queue;    /* Queue iobs to wait arp complete */
@@ -375,7 +375,7 @@ int arp_wait_cancel(FAR struct arp_notify_s *notify);
  * Description:
  *   Called each time that a ARP request is sent.  This function will sleep
  *   until either: (1) the matching ARP response is received, or (2) a
- *   timeout occurs.
+ *   timeout (in clock ticks) occurs.
  *
  * Assumptions:
  *   This function is called from ARP send and must execute with the network
@@ -384,7 +384,7 @@ int arp_wait_cancel(FAR struct arp_notify_s *notify);
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ARP_SEND
-int arp_wait(FAR struct arp_notify_s *notify, unsigned int timeout);
+int arp_wait(FAR struct arp_notify_s *notify, clock_t timeout);
 #else
 #  define arp_wait(n,t) (0)
 #endif
@@ -431,6 +431,56 @@ void arp_notify(in_addr_t ipaddr);
 struct ether_addr;  /* Forward reference */
 int arp_find(in_addr_t ipaddr, FAR uint8_t *ethaddr,
              FAR struct net_driver_s *dev);
+
+/****************************************************************************
+ * Name: arp_request
+ *
+ * Description:
+ *   Check whether an ARP request for an unresolved IP address may be sent
+ *   now and, if so, account for it in the ARP table.  To be called after
+ *   arp_find() failed, with the same lock held.  At most one request
+ *   per CONFIG_ARP_SEND_DELAYMSEC is sent for a destination (RFC 1122,
+ *   2.3.2.1).  When CONFIG_ARP_SEND_MAXTRIES requests stay unanswered, the
+ *   resolution has failed and no request is sent for
+ *   CONFIG_NET_ARP_MAXAGE_UNREACHABLE.
+ *
+ * Input Parameters:
+ *   dev    - Device structure
+ *   ipaddr - Refers to an IP address in network order
+ *   delay  - Location to return the clock ticks until the next request may
+ *            be sent, may be NULL
+ *
+ * Returned Value:
+ *   OK if the caller must send an ARP request now, -EINPROGRESS if a
+ *   request is outstanding or the address was resolved meanwhile,
+ *   -EHOSTUNREACH if the resolution has failed or -ENOBUFS if the ARP
+ *   table has no room for the entry.
+ *
+ * Assumptions
+ *   The network is locked to assure exclusive access to the ARP table.
+ *
+ ****************************************************************************/
+
+int arp_request(FAR struct net_driver_s *dev, in_addr_t ipaddr,
+                FAR clock_t *delay);
+
+/****************************************************************************
+ * Name: arp_request_sent
+ *
+ * Description:
+ *   Restart the request interval of an unresolved IP address when its
+ *   request, accounted for by arp_request(), is actually sent.
+ *
+ * Input Parameters:
+ *   dev    - Device structure
+ *   ipaddr - Refers to an IP address in network order
+ *
+ * Assumptions
+ *   The network is locked to assure exclusive access to the ARP table.
+ *
+ ****************************************************************************/
+
+void arp_request_sent(FAR struct net_driver_s *dev, in_addr_t ipaddr);
 
 /****************************************************************************
  * Name: arp_delete
@@ -619,6 +669,7 @@ void arp_acd_setup(FAR struct net_driver_s *dev);
  * Description:
  *   Queue an IOB which L2 layer is unfinished to the target arp entry's
  *   deley queue which in progress waiting for an ARP response
+ *   The IOB replaces any IOB queued before for the entry.
  *
  * Input Parameters:
  *   dev     - The device driver structure

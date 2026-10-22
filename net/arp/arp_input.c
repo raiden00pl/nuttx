@@ -176,10 +176,6 @@ static int arp_in(FAR struct net_driver_s *dev)
             /* Yes... Insert the address mapping in the ARP table */
 
             arp_hdr_update(dev, arp->ah_sipaddr, arp->ah_shwaddr);
-
-            /* Then notify any logic waiting for the ARP result */
-
-            arp_notify(net_ip4addr_conv32(arp->ah_sipaddr));
           }
 #ifdef CONFIG_NET_ARP_GRATUITOUS
         else if (net_ipv4addr_cmp(sipaddr, ipaddr) &&

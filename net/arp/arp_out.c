@@ -259,24 +259,25 @@ void arp_out(FAR struct net_driver_s *dev)
     {
       /* No send ARP if the interface forbidden */
 
-      if (IFF_IS_NOARP(dev->d_flags) || ret == -ENETUNREACH)
+      if (IFF_IS_NOARP(dev->d_flags))
         {
           ninfo("ARP not supported on %s, no send!\n", dev->d_ifname);
           dev->d_len = 0;
           return;
         }
 
-      ninfo("ARP request for IP %08lx\n", (unsigned long)ipaddr);
+      /* Send a request only if the rate limit allows it now */
 
-      if (ret == -EINPROGRESS)
+      ret = arp_request(dev, ipaddr, NULL);
+      if (ret < 0)
         {
-          /* The destination address was not in our ARP table, and
-           * the last arp request is in progress, directly drop the packet
-           * to prevent arp flood.
+          /* A request is outstanding or the resolution has failed: drop
+           * the packet, or queue it while the request is outstanding.
            */
 
 #ifdef CONFIG_NET_ARP_SEND_QUEUE
-          if (arp_queue_iob(dev, ipaddr, dev->d_iob) == OK)
+          if (ret == -EINPROGRESS &&
+              arp_queue_iob(dev, ipaddr, dev->d_iob) == OK)
             {
               netdev_iob_clear(dev);
               return;
@@ -287,11 +288,8 @@ void arp_out(FAR struct net_driver_s *dev)
           return;
         }
 
-      /* MAC address marked with all zeros to limit concurrent task
-       * send ARP request for same destination.
-       */
+      ninfo("ARP request for IP %08lx\n", (unsigned long)ipaddr);
 
-      arp_update(dev, ipaddr, NULL, 0);
 #ifdef CONFIG_NET_ARP_SEND_QUEUE
       /* Keep the packet for the resolution, or else overwrite it */
 

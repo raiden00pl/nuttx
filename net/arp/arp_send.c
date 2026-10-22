@@ -33,6 +33,7 @@
 #include <netinet/in.h>
 #include <net/if.h>
 
+#include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -44,6 +45,18 @@
 #include "arp/arp.h"
 
 #ifdef CONFIG_NET_ARP_SEND
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* Bound of the wait in arp_send().  Each request takes at most two
+ * intervals (send wait, then reply wait), arp_request() reports a failure
+ * before.  It only ends the wait if the ARP table entry is lost meanwhile.
+ */
+
+#define ARP_SEND_TIMEOUT \
+  ((2 * CONFIG_ARP_SEND_MAXTRIES + 1) * MSEC2TICK(CONFIG_ARP_SEND_DELAYMSEC))
 
 /****************************************************************************
  * Private Functions
@@ -133,6 +146,7 @@ static uint32_t arp_send_eventhandler(FAR struct net_driver_s *dev,
        */
 
       arp_format(dev, state->snd_ipaddr);
+      arp_request_sent(dev, state->snd_ipaddr);
 
       /* Don't allow any further call backs. */
 
@@ -155,10 +169,10 @@ static uint32_t arp_send_eventhandler(FAR struct net_driver_s *dev,
  *   ARP table.  If so, then it returns success immediately.
  *
  *   If the requested IP address in not in the ARP table, then this function
- *   will send an ARP request, delay, then check if the IP address is now in
- *   the ARP table.  It will repeat this sequence until either (1) the IP
- *   address mapping is now in the ARP table, or (2) a configurable number
- *   of timeouts occur without receiving the ARP replay.
+ *   will send an ARP request, wait CONFIG_ARP_SEND_DELAYMSEC for the reply,
+ *   and repeat until either (1) the IP address mapping is now in the ARP
+ *   table, or (2) CONFIG_ARP_SEND_MAXTRIES requests stay unanswered.
+ *   Requests sent by other callers for the same address count too.
  *
  * Input Parameters:
  *   ipaddr   The IP address to be queried (in network order).
@@ -167,8 +181,11 @@ static uint32_t arp_send_eventhandler(FAR struct net_driver_s *dev,
  *   Zero (OK) is returned on success and the IP address mapping can now be
  *   found in the ARP table.  On error a negated errno value is returned:
  *
- *     -ETIMEDOUT:    The number or retry counts has been exceed.
- *     -EHOSTUNREACH: Could not find a route to the host
+ *     -EHOSTUNREACH: Could not find a route to the host, or the address
+ *                    resolution failed
+ *     -ENETUNREACH:  The interface went down
+ *     -ENOBUFS:      No room in the ARP table
+ *     -ENOMEM:       No callback available
  *
  * Assumptions:
  *   This function is called from the normal tasking context.
@@ -180,7 +197,9 @@ int arp_send(in_addr_t ipaddr)
   FAR struct net_driver_s *dev;
   struct arp_notify_s notify;
   struct arp_send_s state;
-  bool sending = false;
+  clock_t start;
+  clock_t delay;
+  clock_t end;
   int ret;
 
   /* First check if destination is a local broadcast. */
@@ -286,7 +305,6 @@ int arp_send(in_addr_t ipaddr)
 
   nxsem_init(&state.snd_sem, 0, 0); /* Doesn't really fail */
 
-  state.snd_retries = 0;            /* No retries yet */
   state.snd_ipaddr  = ipaddr;       /* IP address to query */
   state.snd_cb      = NULL;         /* No callback allocated yet */
 
@@ -295,52 +313,57 @@ int arp_send(in_addr_t ipaddr)
   strlcpy((FAR char *)state.snd_ifname, (FAR const char *)dev->d_ifname,
           IFNAMSIZ);
 
-  /* Now loop, testing if the address mapping is in the ARP table and re-
-   * sending the ARP request if it is not.
+  /* Now loop, testing if the address mapping is in the ARP table and
+   * sending an ARP request whenever the rate limit in arp_request()
+   * allows it, until the address is resolved or its resolution failed.
    */
 
-  ret = -ETIMEDOUT; /* Assume a timeout failure */
+  start = clock_systime_ticks();
 
-  while (state.snd_retries < CONFIG_ARP_SEND_MAXTRIES)
+  for (; ; )
     {
-      /* Check if the address mapping is present in the ARP table.  This
-       * is only really meaningful on the first time through the loop.
-       *
-       * NOTE: If the ARP table is large than this could be a performance
-       * issue.
-       */
-
       netdev_lock(dev);
       ret = arp_find(ipaddr, NULL, dev);
-      if (ret >= 0 || ret == -ENETUNREACH)
+      if (ret >= 0)
         {
-          /* We have it! Break out with ret value */
+          /* We have it! Break out with success */
 
           netdev_unlock(dev);
           break;
         }
 
-      /* Set up the ARP response wait BEFORE we send the ARP request */
-
-      arp_wait_setup(ipaddr, &notify);
-
-      if (ret == -EINPROGRESS && !sending)
+      if (clock_systime_ticks() - start >= ARP_SEND_TIMEOUT)
         {
-          /* ARP request for the same destination is in progress, directly
-           * wait arp response notify.
-           *
-           * Drop the device lock: this path skips the netdev_unlock()
-           * below, and the receive path needs that same lock to deliver
-           * the reply.  The waiter above is already installed.
-           */
-
           netdev_unlock(dev);
-          goto wait;
+          ret = -EHOSTUNREACH;
+          break;
         }
 
-      /* Allocate resources to receive a callback.  This and the following
-       * initialization is performed with the network lock because we don't
-       * want anything to happen until we are ready.
+      ret = arp_request(dev, ipaddr, &delay);
+      if (ret < 0 && ret != -EINPROGRESS)
+        {
+          /* The resolution failed */
+
+          netdev_unlock(dev);
+          break;
+        }
+
+      if (ret == -EINPROGRESS)
+        {
+          /* A request is outstanding: wait for its reply until the next
+           * request may be sent.  The wait is set up with the lock held,
+           * so the reply cannot be missed.
+           */
+
+          arp_wait_setup(ipaddr, &notify);
+          netdev_unlock(dev);
+          arp_wait(&notify, delay);
+          continue;
+        }
+
+      /* A request is due.  Allocate resources to receive a callback.  This
+       * and the following initialization is performed with the network
+       * lock because we don't want anything to happen until we are ready.
        */
 
       if (state.snd_cb == NULL)
@@ -364,74 +387,48 @@ int arp_send(in_addr_t ipaddr)
       state.snd_cb->event = arp_send_eventhandler;
       state.finish_cb     = NULL;
 
-      /* MAC address marked with all zeros to limit concurrent task
-       * send ARP request for same destination.
-       */
-
-      if (state.snd_retries == 0)
-        {
-          arp_update(dev, ipaddr, NULL, 0);
-          sending = true;
-        }
-
       /* Notify the device driver that new TX data is available. */
 
       netdev_txnotify_dev(dev, ARP_POLL);
-
-      /* Wait for the send to complete or an error to occur.
-       * nxsem_tickwait will also terminate if a signal is received.
-       */
-
       netdev_unlock(dev);
 
-      do
-        {
-          ret = nxsem_tickwait(&state.snd_sem,
-                               MSEC2TICK(CONFIG_ARP_SEND_DELAYMSEC));
-          if (ret == -ETIMEDOUT)
-            {
-              arp_wait_cancel(&notify);
-              goto timeout;
-            }
-        }
-      while (!state.snd_sent);
-
-      /* Check the result of the send operation */
-
-      ret = state.snd_result;
-      if (ret < 0)
-        {
-          /* Break out on a send failure */
-
-          nerr("ERROR: Send failed: %d\n", ret);
-          arp_wait_cancel(&notify);
-          break;
-        }
-
-      /* Now wait for response to the ARP response to be received. */
-
-wait:
-      ret = arp_wait(&notify, CONFIG_ARP_SEND_DELAYMSEC);
-
-      /* arp_wait will return OK if and only if the matching ARP response
-       * is received.  Otherwise, it will return -ETIMEDOUT.
+      /* Wait for the send to complete, at most until the next request is
+       * due.  The reply is waited for in the next iteration.
        */
 
-      if (ret >= OK)
+      end = clock_systime_ticks() + delay;
+      while (!state.snd_sent)
         {
-          /* Break out if arp_wait() fails */
+          delay = end - clock_systime_ticks();
+          if (delay <= 0)
+            {
+              break;
+            }
 
-          break;
+          nxsem_tickwait_uninterruptible(&state.snd_sem, delay);
         }
 
-timeout:
+      if (!state.snd_sent)
+        {
+          netdev_lock(dev);
+          if (!state.snd_sent)
+            {
+              /* Not sent in time: disarm, the next iteration retries */
 
-      /* Increment the retry count */
+              state.snd_cb->flags = 0;
+            }
 
-      state.snd_retries++;
-      nerr("ERROR: arp_wait failed: %d, ipaddr: %u.%u.%u.%u\n", ret,
-           ip4_addr1(ipaddr), ip4_addr2(ipaddr),
-           ip4_addr3(ipaddr), ip4_addr4(ipaddr));
+          netdev_unlock(dev);
+        }
+
+      /* Break out on a send failure */
+
+      if (state.snd_sent && state.snd_result < 0)
+        {
+          ret = state.snd_result;
+          nerr("ERROR: Send failed: %d\n", ret);
+          break;
+        }
     }
 
   nxsem_destroy(&state.snd_sem);
