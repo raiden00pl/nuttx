@@ -408,12 +408,17 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
       destmac = &bcastmac;
     }
 
-  /* Pre-allocate the IOB to hold frame or the first fragment, waiting if
-   * necessary.
+  /* Pre-allocate the IOB to hold frame or the first fragment.  The frames
+   * of a packet are allocated without waiting, all or none: waiting for an
+   * IOB with fragments held can block forever once the IOBs run out.
    */
 
-  iob = net_ioballoc(false);
-  DEBUGASSERT(iob != NULL);
+  iob = iob_tryalloc(false);
+  if (iob == NULL)
+    {
+      nerr("ERROR: No IOB for the frame\n");
+      return -ENOMEM;
+    }
 
   fptr = iob->io_data;
 
@@ -627,12 +632,15 @@ int sixlowpan_queue_frames(FAR struct radio_driver_s *radio,
         {
           uint16_t fragn_hdrlen;
 
-          /* Allocate an IOB to hold the next fragment, waiting if
-           * necessary.
-           */
+          /* Allocate an IOB to hold the next fragment */
 
-          iob = net_ioballoc(false);
-          DEBUGASSERT(iob != NULL);
+          iob = iob_tryalloc(false);
+          if (iob == NULL)
+            {
+              nerr("ERROR: No IOB for the next fragment\n");
+              iob_free_chain(qhead);
+              return -ENOMEM;
+            }
 
           /* Initialize the IOB */
 
