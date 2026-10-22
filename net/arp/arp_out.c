@@ -276,11 +276,14 @@ void arp_out(FAR struct net_driver_s *dev)
            */
 
 #ifdef CONFIG_NET_ARP_SEND_QUEUE
-          arp_queue_iob(dev, ipaddr, dev->d_iob);
-          netdev_iob_clear(dev);
-#else
-          dev->d_len = 0;
+          if (arp_queue_iob(dev, ipaddr, dev->d_iob) == OK)
+            {
+              netdev_iob_clear(dev);
+              return;
+            }
 #endif
+
+          dev->d_len = 0;
           return;
         }
 
@@ -290,8 +293,12 @@ void arp_out(FAR struct net_driver_s *dev)
 
       arp_update(dev, ipaddr, NULL, 0);
 #ifdef CONFIG_NET_ARP_SEND_QUEUE
-      arp_queue_iob(dev, ipaddr, dev->d_iob);
-      netdev_iob_clear(dev);
+      /* Keep the packet for the resolution, or else overwrite it */
+
+      if (arp_queue_iob(dev, ipaddr, dev->d_iob) == OK)
+        {
+          netdev_iob_clear(dev);
+        }
 #endif
 
       /* The destination address was not in our ARP table, so we overwrite
