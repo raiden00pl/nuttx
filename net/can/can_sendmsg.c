@@ -221,6 +221,16 @@ ssize_t can_sendmsg(FAR struct socket *psock, FAR const struct msghdr *msg,
         }
     }
 
+  /* can_dlc of a classic frame is a 4-bit DLC (9..15 carry 8 data bytes),
+   * len of a CAN FD frame is the data length; both at the same offset.
+   */
+
+  if (((FAR const struct canfd_frame *)msg->msg_iov->iov_base)->len >
+      (msg->msg_iov->iov_len == CAN_MTU ? CANFD_MAX_DLC : CANFD_MAX_DLEN))
+    {
+      return -EINVAL;
+    }
+
   /* Perform the send operation */
 
   /* Initialize the state structure. This is done with the network locked
