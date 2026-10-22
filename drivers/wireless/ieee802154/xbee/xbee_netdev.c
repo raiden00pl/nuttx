@@ -504,10 +504,14 @@ static int xbeenet_rxframe(FAR struct xbeenet_driver_s *priv,
           /* And give the packet to 6LoWPAN */
 
           ret = sixlowpan_input(&priv->xd_dev, iob, (FAR void *)ind);
+
+          /* The frame is consumed, also when 6LoWPAN dropped it */
+
+          iob = NULL;
         }
     }
 
-  if (ret < 0)
+  if (ret < 0 && iob != NULL)
 #endif
     {
       netdev_unlock(&priv->xd_dev.r_dev);
@@ -517,8 +521,15 @@ static int xbeenet_rxframe(FAR struct xbeenet_driver_s *priv,
 
   /* Increment statistics */
 
-  NETDEV_RXPACKETS(&priv->xd_dev.r_dev);
-  NETDEV_RXIPV6(&priv->xd_dev.r_dev);
+  if (ret < 0)
+    {
+      NETDEV_RXDROPPED(&priv->xd_dev.r_dev);
+    }
+  else
+    {
+      NETDEV_RXPACKETS(&priv->xd_dev.r_dev);
+      NETDEV_RXIPV6(&priv->xd_dev.r_dev);
+    }
 
   netdev_unlock(&priv->xd_dev.r_dev);
 

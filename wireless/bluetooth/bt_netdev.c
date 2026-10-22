@@ -407,6 +407,10 @@ static void btnet_l2cap_receive(FAR struct bt_conn_s *conn,
           /* And give the packet to 6LoWPAN */
 
           ret = sixlowpan_input(&priv->bd_dev, frame, (FAR void *)&meta);
+
+          /* The frame is consumed, also when 6LoWPAN dropped it */
+
+          frame = NULL;
         }
     }
 #endif
@@ -417,7 +421,10 @@ drop:
 
   if (ret < 0)
     {
-      iob_free(frame);
+      if (frame != NULL)
+        {
+          iob_free(frame);
+        }
 
       /* Increment statistics */
 

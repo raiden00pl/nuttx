@@ -472,10 +472,14 @@ static int macnet_rxframe(FAR struct macnet_driver_s *priv,
           /* And give the packet to 6LoWPAN */
 
           ret = sixlowpan_input(&priv->md_dev, iob, (FAR void *)ind);
+
+          /* The frame is consumed, also when 6LoWPAN dropped it */
+
+          iob = NULL;
         }
     }
 
-  if (ret < 0)
+  if (ret < 0 && iob != NULL)
 #endif
     {
       net_unlock();
@@ -485,8 +489,15 @@ static int macnet_rxframe(FAR struct macnet_driver_s *priv,
 
   /* Increment statistics */
 
-  NETDEV_RXPACKETS(&priv->md_dev.r_dev);
-  NETDEV_RXIPV6(&priv->md_dev.r_dev);
+  if (ret < 0)
+    {
+      NETDEV_RXDROPPED(&priv->md_dev.r_dev);
+    }
+  else
+    {
+      NETDEV_RXPACKETS(&priv->md_dev.r_dev);
+      NETDEV_RXIPV6(&priv->md_dev.r_dev);
+    }
 
   net_unlock();
 

@@ -775,8 +775,8 @@ static int sixlowpan_dispatch(FAR struct radio_driver_s *radio)
  *               must apply to all of the frames in the list.
  *
  * Returned Value:
- *   Zero (OK) is returned if the frame was consumed; Otherwise a negated
- *   errno value is returned.
+ *   Zero (OK) is returned if the frames were processed; Otherwise a negated
+ *   errno value is returned.  The frames are freed in both cases.
  *
  ****************************************************************************/
 
@@ -813,16 +813,9 @@ int sixlowpan_input(FAR struct radio_driver_s *radio,
 
       ret = sixlowpan_frame_process(radio, metadata, iob);
 
-      /* If the frame was a valid 6LoWPAN frame, free the IOB the held the
-       * consumed frame. Otherwise, the frame must stay allocated since the
-       * MAC layer will try and pass it to another receiver to see if that
-       * receiver wants it.
-       */
+      /* The frame is consumed, also when it was dropped */
 
-      if (ret >= 0)
-        {
-          iob_free(iob);
-        }
+      iob_free(iob);
 
       /* Was the frame successfully processed? Is the packet in d_buf fully
        * reassembled?

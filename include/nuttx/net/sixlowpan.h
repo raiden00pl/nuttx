@@ -510,6 +510,7 @@ struct sixlowpan_reassbuf_s
  *
  * Returned Value:
  *   Ok is returned on success; Otherwise a negated errno value is returned.
+ *   The frames are freed in both cases.
  *
  ****************************************************************************/
 
