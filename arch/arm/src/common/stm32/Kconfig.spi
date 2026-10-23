@@ -4,12 +4,10 @@
 
 config STM32_SPI_DMA
 	bool
-	depends on STM32_HAVE_SPI_CORE_DMA
 
 config STM32_SPI_INTERRUPTS
 	bool "Interrupt driver SPI"
 	depends on STM32_SPI
-	depends on STM32_HAVE_SPI_INTERRUPTS
 	---help---
 		Select to enable interrupt driven SPI support. Non-interrupt-driven,
 		poll-waiting is recommended if the interrupt rate would be to high in
@@ -18,7 +16,7 @@ config STM32_SPI_INTERRUPTS
 config STM32_SPI1_DMA
 	bool "SPI1 DMA"
 	depends on STM32_SPI && STM32_SPI1
-	depends on STM32_HAVE_SPI_DMA_FAMILY_WL5 && !STM32_SPI_INTERRUPTS || STM32_HAVE_SPI_DMA_M0 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI1 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
@@ -42,7 +40,7 @@ config STM32_SPI_DMATHRESHOLD
 config STM32_SPI2_DMA
 	bool "SPI2 DMA"
 	depends on STM32_SPI && STM32_SPI2
-	depends on STM32_HAVE_SPI_DMA_FAMILY && !STM32_SPI_INTERRUPTS || STM32_HAVE_SPI_DMA_M0 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI2 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
@@ -57,7 +55,7 @@ config STM32_SPI2_DMA_BUFFER
 config STM32_SPI3_DMA
 	bool "SPI3 DMA"
 	depends on STM32_SPI && STM32_SPI3
-	depends on STM32_HAVE_SPI_DMA_FAMILY && !STM32_SPI_INTERRUPTS || STM32_HAVE_SPI_DMA_M0 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI3 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
@@ -71,7 +69,7 @@ config STM32_SPI3_DMA_BUFFER
 
 config STM32_SPI4_DMA
 	bool "SPI4 DMA"
-	depends on STM32_HAVE_SPI_DMA_FAMILY && STM32_SPI && STM32_SPI4 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && STM32_SPI && STM32_SPI4 && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI4 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
@@ -85,7 +83,7 @@ config STM32_SPI4_DMA_BUFFER
 
 config STM32_SPI5_DMA
 	bool "SPI5 DMA"
-	depends on STM32_HAVE_SPI_DMA_FAMILY && STM32_SPI && STM32_SPI5 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && STM32_SPI && STM32_SPI5 && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI5 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
@@ -99,7 +97,7 @@ config STM32_SPI5_DMA_BUFFER
 
 config STM32_SPI6_DMA
 	bool "SPI6 DMA"
-	depends on STM32_HAVE_SPI_DMA_FAMILY && STM32_SPI && STM32_SPI6 && !STM32_SPI_INTERRUPTS
+	depends on STM32_HAVE_SPI_DMA && STM32_SPI && STM32_SPI6 && !STM32_SPI_INTERRUPTS
 	select STM32_SPI_DMA
 	---help---
 		Use DMA to improve SPI6 transfer performance.  Cannot be used with STM32_SPI_INTERRUPTS.
