@@ -1721,7 +1721,7 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
         {
           /* Flush unwritten data in the sector cache. */
 
-          ret = fat_ffcacheflush(fs, ff);
+          ret = fat_ffcacheflush(fs, ff->ff_shared);
           if (ret < 0)
             {
               return ret;
@@ -1729,7 +1729,7 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
 
           /* Now mark the clean cache buffer as the current sector. */
 
-          ff->ff_cachesector = ff->ff_currentsector;
+          ff->ff_shared->s_cachesector = ff->ff_currentsector;
         }
       else
         {
@@ -1737,7 +1737,7 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
            * old, dirty sector to disk).
            */
 
-          ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
+          ret = fat_ffcacheread(fs, ff->ff_shared, ff->ff_currentsector);
           if (ret < 0)
             {
               return ret;
@@ -1767,8 +1767,9 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
        * sector is marked "dirty" so that it will be written back.
        */
 
-      memset(&ff->ff_buffer[sectndx], 0, zerosize);
-      ff->ff_bflags |= (FFBUFF_DIRTY | FFBUFF_VALID | FFBUFF_MODIFIED);
+      memset(&ff->ff_shared->s_buffer[sectndx], 0, zerosize);
+      ff->ff_shared->s_bflags |= (FFBUFF_DIRTY | FFBUFF_VALID);
+      ff->ff_bflags |= FFBUFF_MODIFIED;
 
       /* Set up for the next sector */
 
@@ -1777,11 +1778,9 @@ int fat_dirextend(FAR struct fat_mountpt_s *fs, FAR struct fat_file_s *ff,
       sectndx    = pos & SEC_NDXMASK(fs);
     }
 
-  /* Write the last sector back.  The other handles of the file read it
-   * from the volume, and must see the zeros.
-   */
+  /* Write the last sector of zeros back to the volume */
 
-  ret = fat_ffcacheflush(fs, ff);
+  ret = fat_ffcacheflush(fs, ff->ff_shared);
   if (ret < 0)
     {
       return ret;
@@ -1901,21 +1900,22 @@ int fat_fscacheread(struct fat_mountpt_s *fs, off_t sector)
  *
  ****************************************************************************/
 
-int fat_ffcacheflush(struct fat_mountpt_s *fs, struct fat_file_s *ff)
+int fat_ffcacheflush(struct fat_mountpt_s *fs,
+                     struct fat_shared_s *shared)
 {
   int ret;
 
-  /* Check if the ff_buffer is dirty.  In this case, we will write back the
-   * contents of ff_buffer.
+  /* Check if the s_buffer is dirty.  In this case, we will write back the
+   * contents of s_buffer.
    */
 
-  if (ff->ff_cachesector &&
-      (ff->ff_bflags & (FFBUFF_DIRTY | FFBUFF_VALID)) ==
+  if (shared->s_cachesector &&
+      (shared->s_bflags & (FFBUFF_DIRTY | FFBUFF_VALID)) ==
        (FFBUFF_DIRTY | FFBUFF_VALID))
     {
       /* Write the dirty sector */
 
-      ret = fat_hwwrite(fs, ff->ff_buffer, ff->ff_cachesector, 1);
+      ret = fat_hwwrite(fs, shared->s_buffer, shared->s_cachesector, 1);
       if (ret < 0)
         {
           return ret;
@@ -1923,7 +1923,7 @@ int fat_ffcacheflush(struct fat_mountpt_s *fs, struct fat_file_s *ff)
 
       /* No longer dirty, but still valid */
 
-      ff->ff_bflags &= ~FFBUFF_DIRTY;
+      shared->s_bflags &= ~FFBUFF_DIRTY;
     }
 
   return OK;
@@ -1938,23 +1938,24 @@ int fat_ffcacheflush(struct fat_mountpt_s *fs, struct fat_file_s *ff)
  *
  ****************************************************************************/
 
-int fat_ffcacheread(struct fat_mountpt_s *fs, struct fat_file_s *ff,
+int fat_ffcacheread(struct fat_mountpt_s *fs, struct fat_shared_s *shared,
                     off_t sector)
 {
   int ret;
 
-  /* ff->ff_cachesector holds the current sector that is buffered in
-   * ff->ff_buffer. If the requested sector is the same as this sector, then
-   * we do nothing. Otherwise, we will have to read the new sector.
+  /* shared->s_cachesector holds the current sector that is buffered in
+   * shared->s_buffer. If the requested sector is the same as this sector,
+   * then we do nothing. Otherwise, we will have to read the new sector.
    */
 
-  if (ff->ff_cachesector != sector || (ff->ff_bflags & FFBUFF_VALID) == 0)
+  if (shared->s_cachesector != sector ||
+      (shared->s_bflags & FFBUFF_VALID) == 0)
     {
       /* We will need to read the new sector.  First, flush the cached
        * sector if it is dirty.
        */
 
-      ret = fat_ffcacheflush(fs, ff);
+      ret = fat_ffcacheflush(fs, shared);
       if (ret < 0)
         {
           return ret;
@@ -1962,7 +1963,7 @@ int fat_ffcacheread(struct fat_mountpt_s *fs, struct fat_file_s *ff,
 
       /* Then read the specified sector into the cache */
 
-      ret = fat_hwread(fs, ff->ff_buffer, sector, 1);
+      ret = fat_hwread(fs, shared->s_buffer, sector, 1);
       if (ret < 0)
         {
           return ret;
@@ -1970,8 +1971,8 @@ int fat_ffcacheread(struct fat_mountpt_s *fs, struct fat_file_s *ff,
 
       /* Update the cached sector number */
 
-      ff->ff_cachesector = sector;
-      ff->ff_bflags |= FFBUFF_VALID;
+      shared->s_cachesector = sector;
+      shared->s_bflags |= FFBUFF_VALID;
     }
 
   return OK;
@@ -1985,17 +1986,18 @@ int fat_ffcacheread(struct fat_mountpt_s *fs, struct fat_file_s *ff,
  *
  ****************************************************************************/
 
-int fat_ffcacheinvalidate(struct fat_mountpt_s *fs, struct fat_file_s *ff)
+int fat_ffcacheinvalidate(struct fat_mountpt_s *fs,
+                          struct fat_shared_s *shared)
 {
   int ret;
 
   /* Is there anything valid in the buffer now? */
 
-  if ((ff->ff_bflags & FFBUFF_VALID) != 0)
+  if ((shared->s_bflags & FFBUFF_VALID) != 0)
     {
       /* We will invalidate the buffered sector */
 
-      ret = fat_ffcacheflush(fs, ff);
+      ret = fat_ffcacheflush(fs, shared);
       if (ret < 0)
         {
           return ret;
@@ -2003,8 +2005,8 @@ int fat_ffcacheinvalidate(struct fat_mountpt_s *fs, struct fat_file_s *ff)
 
       /* Then discard the current cache contents */
 
-      ff->ff_bflags     &= ~FFBUFF_VALID;
-      ff->ff_cachesector = 0;
+      shared->s_bflags     &= ~FFBUFF_VALID;
+      shared->s_cachesector = 0;
     }
 
   return OK;

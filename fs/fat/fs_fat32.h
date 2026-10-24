@@ -330,10 +330,13 @@
 #define FSTYPE_FAT16         1
 #define FSTYPE_FAT32         2
 
-/* File buffer flags (ff_bflags) */
+/* File buffer flags (s_bflags) */
 
 #define FFBUFF_VALID         1
 #define FFBUFF_DIRTY         2
+
+/* Open file flags (ff_bflags) */
+
 #define FFBUFF_MODIFIED      4
 
 /* Mount status flags (ff_bflags) */
@@ -902,7 +905,7 @@ struct fat_mountpt_s
  * the FAT mountpoint instead of the generic VFS layer).
  *
  * Sharing the directory-entry location, start cluster and size through
- * this object solves three problems that per-handle copies cannot:
+ * this object solves four problems that per-handle copies cannot:
  *
  * 1. An unlinked-but-open file keeps its cluster chain alive until the
  *    last reference disappears (POSIX unlink semantics).  The chain is
@@ -914,6 +917,8 @@ struct fat_mountpt_s
  *    alias the unlinked file: the shared object is marked pending and
  *    detached from the directory namespace, so new opens always create
  *    a new object.
+ * 4. All handles share one sector buffer, so data written through one
+ *    handle is read through every other handle.
  */
 
 struct fat_shared_s
@@ -922,10 +927,14 @@ struct fat_shared_s
   uint16_t s_refs;                    /* Open handles referencing this file */
   bool     s_pending;                 /* True after unlink, dir entry is gone */
   uint8_t  s_attr;                    /* Directory entry attributes snapshot */
+  uint8_t  s_bflags;                  /* The file buffer flags */
   uint16_t s_dirindex;                /* Index into s_dirsector to dir entry */
   off_t    s_dirsector;               /* Sector containing the directory entry */
   off_t    s_size;                    /* Size of the file in bytes */
   off_t    s_startcluster;            /* Start cluster of file on media */
+  off_t    s_cachesector;             /* Current sector in the file buffer */
+  FAR uint8_t *s_buffer;              /* File buffer (for partial sector
+                                       * accesses) */
 };
 
 /* This structure represents on open file under the mountpoint.  An instance
@@ -939,14 +948,12 @@ struct fat_file_s
 
   FAR struct fat_shared_s *ff_shared;
   FAR struct fat_file_s *ff_next;  /* Retained in a singly linked list */
-  uint8_t  ff_bflags;              /* The file buffer/mount flags */
+  uint8_t  ff_bflags;              /* The open file/mount flags */
   uint8_t  ff_oflags;              /* Flags provided when file was opened */
   uint8_t  ff_sectorsincluster;    /* Sectors remaining in cluster */
   uint32_t ff_currentcluster;      /* Current cluster being accessed */
   off_t    ff_currentsector;       /* Current sector being operated on */
-  off_t    ff_cachesector;         /* Current sector in the file buffer */
   off_t    ff_pos;                 /* Current position in the file */
-  uint8_t *ff_buffer;              /* File buffer (for partial sector accesses) */
 };
 
 /* This structure holds the sequence of directory entries used by one
@@ -1124,11 +1131,12 @@ extern int    fat_remove(FAR struct fat_mountpt_s *fs,
 extern int    fat_fscacheflush(FAR struct fat_mountpt_s *fs);
 extern int    fat_fscacheread(FAR struct fat_mountpt_s *fs, off_t sector);
 extern int    fat_ffcacheflush(FAR struct fat_mountpt_s *fs,
-                               FAR struct fat_file_s *ff);
+                               FAR struct fat_shared_s *shared);
 extern int    fat_ffcacheread(FAR struct fat_mountpt_s *fs,
-                              FAR struct fat_file_s *ff, off_t sector);
+                              FAR struct fat_shared_s *shared,
+                              off_t sector);
 extern int    fat_ffcacheinvalidate(FAR struct fat_mountpt_s *fs,
-                                    FAR struct fat_file_s *ff);
+                                    FAR struct fat_shared_s *shared);
 
 /* FSINFO sector support */
 

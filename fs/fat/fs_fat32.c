@@ -90,8 +90,6 @@ static int     fat_truncate(FAR struct file *filep, off_t length);
 static FAR struct fat_shared_s *
                fat_shared_find(FAR struct fat_mountpt_s *fs,
                  off_t dirsector, uint16_t dirindex);
-static int     fat_shared_invalidate(FAR struct fat_mountpt_s *fs,
-                 FAR struct fat_shared_s *shared);
 static void    fat_shared_reset_cursors(FAR struct fat_mountpt_s *fs,
                  FAR struct fat_shared_s *shared);
 static int     fat_shared_release(FAR struct fat_mountpt_s *fs,
@@ -276,39 +274,6 @@ fat_shared_find(FAR struct fat_mountpt_s *fs,
 }
 
 /****************************************************************************
- * Name: fat_shared_invalidate
- *
- * Description:
- *   Flush (and invalidate) the private sector caches of every open handle
- *   attached to a shared object.  Used before the underlying cluster chain
- *   is cut down so that dirty data is written back while the chain is
- *   still intact.
- *
- ****************************************************************************/
-
-static int fat_shared_invalidate(FAR struct fat_mountpt_s *fs,
-                                 FAR struct fat_shared_s *shared)
-{
-  FAR struct fat_file_s *ff;
-  int ret = OK;
-  int tmp;
-
-  for (ff = fs->fs_head; ff != NULL; ff = ff->ff_next)
-    {
-      if (ff->ff_shared == shared)
-        {
-          tmp = fat_ffcacheinvalidate(fs, ff);
-          if (tmp < 0 && ret == OK)
-            {
-              ret = tmp;
-            }
-        }
-    }
-
-  return ret;
-}
-
-/****************************************************************************
  * Name: fat_shared_reset_cursors
  *
  * Description:
@@ -388,6 +353,7 @@ static int fat_shared_release(FAR struct fat_mountpt_s *fs,
   startcluster = shared->s_startcluster;
   pending      = shared->s_pending;
 
+  fat_io_free(shared->s_buffer, fs->fs_hwsectorsize);
   fs_heap_free(shared);
 
   if (pending && startcluster >= 2)
@@ -623,7 +589,7 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
                                         dirinfo.dir.fd_index);
           if (truncshared != NULL)
             {
-              ret = fat_shared_invalidate(fs, truncshared);
+              ret = fat_ffcacheinvalidate(fs, truncshared);
               if (ret < 0)
                 {
                   goto errout_with_lock;
@@ -704,15 +670,6 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
       goto errout_with_lock;
     }
 
-  /* Create a file buffer to support partial sector accesses */
-
-  ff->ff_buffer = (FAR uint8_t *)fat_io_alloc(fs->fs_hwsectorsize);
-  if (!ff->ff_buffer)
-    {
-      ret = -ENOMEM;
-      goto errout_with_struct;
-    }
-
   /* Attach to the canonical open-file object for this directory entry,
    * creating it when this is the first open.  All opens of the same file
    * share the directory-entry location, start cluster and size, so every
@@ -727,7 +684,17 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
       if (!shared)
         {
           ret = -ENOMEM;
-          goto errout_with_buffer;
+          goto errout_with_struct;
+        }
+
+      /* Create a file buffer to support partial sector accesses */
+
+      shared->s_buffer = (FAR uint8_t *)fat_io_alloc(fs->fs_hwsectorsize);
+      if (!shared->s_buffer)
+        {
+          fs_heap_free(shared);
+          ret = -ENOMEM;
+          goto errout_with_struct;
         }
 
       shared->s_refs         = 1;
@@ -814,7 +781,6 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
               nxmutex_unlock(&fs->fs_lock);
             }
 
-          fat_io_free(ff->ff_buffer, fs->fs_hwsectorsize);
           fs_heap_free(ff);
           filep->f_priv = NULL;
           return (int)offset;
@@ -826,14 +792,6 @@ static int fat_open(FAR struct file *filep, FAR const char *relpath,
   /* Error exits -- goto's are nasty things, but they sure can make error
    * handling a lot simpler.
    */
-
-errout_with_buffer:
-  if (shared != NULL)
-    {
-      fat_shared_release(fs, shared);
-    }
-
-  fat_io_free(ff->ff_buffer, fs->fs_hwsectorsize);
 
 errout_with_struct:
   fs_heap_free(ff);
@@ -924,19 +882,9 @@ static int fat_close(FAR struct file *filep)
 
       if (--shared->s_refs == 0)
         {
+          fat_io_free(shared->s_buffer, fs->fs_hwsectorsize);
           fs_heap_free(shared);
         }
-    }
-
-  /* Then deallocate the memory structures created when the open method
-   * was called.
-   *
-   * Free the sector buffer that was used to manage partial sector accesses.
-   */
-
-  if (ff->ff_buffer)
-    {
-      fat_io_free(ff->ff_buffer, fs->fs_hwsectorsize);
     }
 
   /* Then free the file structure itself. */
@@ -1132,7 +1080,7 @@ static int fat_get_sectors(FAR struct file *filep, bool read)
           zero_end = clu_size;
         }
 
-      fat_ffcacheinvalidate(fs, ff);
+      fat_ffcacheinvalidate(fs, ff->ff_shared);
 
       ret = fat_zero_cluster(fs, cluster, zero_start, zero_end);
       if (ret)
@@ -1359,7 +1307,7 @@ fat_read_restart:
            * the safest thing to do is just invalidate it
            */
 
-          fat_ffcacheinvalidate(fs, ff);
+          fat_ffcacheinvalidate(fs, ff->ff_shared);
 
           /* Read all of the sectors directly into user memory */
 
@@ -1400,7 +1348,8 @@ fat_read_restart:
            * it is already there then all is well.
            */
 
-          ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
+          ret = fat_ffcacheread(fs, ff->ff_shared,
+                                ff->ff_currentsector);
           if (ret < 0)
             {
               goto errout_with_lock;
@@ -1423,7 +1372,8 @@ fat_read_restart:
               ff->ff_currentsector++;
             }
 
-          memcpy(userbuffer, &ff->ff_buffer[sectorindex], bytesread);
+          memcpy(userbuffer, &ff->ff_shared->s_buffer[sectorindex],
+                 bytesread);
         }
 
       /* Set up for the next sector read */
@@ -1565,7 +1515,7 @@ fat_write_restart:
            * and invalidate the current cache content.
            */
 
-          fat_ffcacheinvalidate(fs, ff);
+          fat_ffcacheinvalidate(fs, ff->ff_shared);
 
           /* Write all of the sectors directly from user memory */
 
@@ -1621,7 +1571,7 @@ fat_write_restart:
             {
               /* Flush unwritten data in the sector cache. */
 
-              ret = fat_ffcacheflush(fs, ff);
+              ret = fat_ffcacheflush(fs, ff->ff_shared);
               if (ret < 0)
                 {
                   goto errout_with_lock;
@@ -1629,7 +1579,7 @@ fat_write_restart:
 
               /* Now mark the clean cache buffer as the current sector. */
 
-              ff->ff_cachesector = ff->ff_currentsector;
+              ff->ff_shared->s_cachesector = ff->ff_currentsector;
             }
           else
             {
@@ -1637,7 +1587,8 @@ fat_write_restart:
                * the old, dirty sector to disk).
                */
 
-              ret = fat_ffcacheread(fs, ff, ff->ff_currentsector);
+              ret = fat_ffcacheread(fs, ff->ff_shared,
+                                    ff->ff_currentsector);
               if (ret < 0)
                 {
                   goto errout_with_lock;
@@ -1670,8 +1621,10 @@ fat_write_restart:
            * cached sector is marked "dirty"
            */
 
-          memcpy(&ff->ff_buffer[sectorindex], userbuffer, writesize);
-          ff->ff_bflags |= (FFBUFF_DIRTY | FFBUFF_VALID | FFBUFF_MODIFIED);
+          memcpy(&ff->ff_shared->s_buffer[sectorindex], userbuffer,
+                 writesize);
+          ff->ff_shared->s_bflags |= (FFBUFF_DIRTY | FFBUFF_VALID);
+          ff->ff_bflags |= FFBUFF_MODIFIED;
         }
 
       /* Set up for the next write */
@@ -1803,7 +1756,7 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
 
   /* Check if there is unwritten data in the file buffer */
 
-  ret = fat_ffcacheflush(fs, ff);
+  ret = fat_ffcacheflush(fs, ff->ff_shared);
   if (ret < 0)
     {
       goto errout_with_lock;
@@ -2352,7 +2305,7 @@ static int fat_sync(FAR struct file *filep)
 
       /* Flush any unwritten data in the file buffer */
 
-      ret = fat_ffcacheflush(fs, ff);
+      ret = fat_ffcacheflush(fs, ff->ff_shared);
       if (ret < 0)
         {
           goto errout_with_lock;
@@ -2377,7 +2330,7 @@ static int fat_sync(FAR struct file *filep)
         }
 
       /* Update the directory entry.  First read the directory
-       * entry into the fs_buffer (preserving the ff_buffer)
+       * entry into the fs_buffer (preserving the s_buffer)
        */
 
       ret = fat_fscacheread(fs, shared->s_dirsector);
@@ -2500,15 +2453,6 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
       goto errout_with_lock;
     }
 
-  /* Create a file buffer to support partial sector accesses */
-
-  newff->ff_buffer = (FAR uint8_t *)fat_io_alloc(fs->fs_hwsectorsize);
-  if (!newff->ff_buffer)
-    {
-      ret = -ENOMEM;
-      goto errout_with_struct;
-    }
-
   /* Copy the open file state from the old file structure.  The dup'ed
    * handle refers to the same underlying file, so it attaches to the
    * same canonical shared object (reference counted) instead of copying
@@ -2523,7 +2467,6 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
   newff->ff_sectorsincluster = oldff->ff_sectorsincluster; /* Sectors remaining in cluster */
   newff->ff_currentcluster   = oldff->ff_currentcluster;   /* Current cluster */
   newff->ff_currentsector    = oldff->ff_currentsector;    /* Current sector */
-  newff->ff_cachesector      = 0;                          /* Sector in file buffer */
   newff->ff_pos              = oldff->ff_pos;              /* Traversal position */
 
   oldff->ff_shared->s_refs++;
@@ -2543,13 +2486,6 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   nxmutex_unlock(&fs->fs_lock);
   return OK;
-
-  /* Error exits -- goto's are nasty things, but they sure can make error
-   * handling a lot simpler.
-   */
-
-errout_with_struct:
-  fs_heap_free(newff);
 
 errout_with_lock:
   nxmutex_unlock(&fs->fs_lock);
@@ -2756,7 +2692,7 @@ static int fat_fstat(FAR const struct file *filep, FAR struct stat *buf)
       FAR struct fat_shared_s *shared = ff->ff_shared;
 
       /* Read the directory entry into the fs_buffer
-       * (preserving the ff_buffer).  The entry is located using the
+       * (preserving the s_buffer).  The entry is located using the
        * shared directory-entry location.
        */
 
@@ -2863,7 +2799,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
 
       if (shared->s_pending)
         {
-          ret = fat_shared_invalidate(fs, shared);
+          ret = fat_ffcacheinvalidate(fs, shared);
           if (ret < 0)
             {
               goto errout_with_lock;
@@ -2899,7 +2835,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
            * then read the directory entry into the fs_buffer.
            */
 
-          ret = fat_shared_invalidate(fs, shared);
+          ret = fat_ffcacheinvalidate(fs, shared);
           if (ret < 0)
             {
               goto errout_with_lock;
@@ -2967,7 +2903,7 @@ static int fat_truncate(FAR struct file *filep, off_t length)
        * the file position.
        */
 
-      ret = fat_shared_invalidate(fs, ff->ff_shared);
+      ret = fat_ffcacheinvalidate(fs, ff->ff_shared);
       if (ret < 0)
         {
           goto errout_with_lock;
@@ -2997,8 +2933,8 @@ static int fat_truncate(FAR struct file *filep, off_t length)
            * cached zeros before releasing their clusters.
            */
 
-          ff->ff_bflags     &= ~(FFBUFF_DIRTY | FFBUFF_VALID);
-          ff->ff_cachesector = 0;
+          ff->ff_shared->s_bflags     &= ~(FFBUFF_DIRTY | FFBUFF_VALID);
+          ff->ff_shared->s_cachesector = 0;
 
           if (oldsize == 0)
             {
