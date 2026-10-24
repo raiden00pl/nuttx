@@ -1080,7 +1080,11 @@ static int fat_get_sectors(FAR struct file *filep, bool read)
           zero_end = clu_size;
         }
 
-      fat_ffcacheinvalidate(fs, ff->ff_shared);
+      ret = fat_ffcacheinvalidate(fs, ff->ff_shared);
+      if (ret < 0)
+        {
+          return ret;
+        }
 
       ret = fat_zero_cluster(fs, cluster, zero_start, zero_end);
       if (ret)
@@ -1307,7 +1311,11 @@ fat_read_restart:
            * the safest thing to do is just invalidate it
            */
 
-          fat_ffcacheinvalidate(fs, ff->ff_shared);
+          ret = fat_ffcacheinvalidate(fs, ff->ff_shared);
+          if (ret < 0)
+            {
+              goto errout_with_lock;
+            }
 
           /* Read all of the sectors directly into user memory */
 
@@ -1515,7 +1523,11 @@ fat_write_restart:
            * and invalidate the current cache content.
            */
 
-          fat_ffcacheinvalidate(fs, ff->ff_shared);
+          ret = fat_ffcacheinvalidate(fs, ff->ff_shared);
+          if (ret < 0)
+            {
+              goto errout_with_lock;
+            }
 
           /* Write all of the sectors directly from user memory */
 
