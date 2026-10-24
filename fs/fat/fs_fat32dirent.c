@@ -2859,6 +2859,10 @@ int fat_allocatedirentry(FAR struct fat_mountpt_s *fs,
         {
           return cluster;
         }
+      else if (cluster < 2)
+        {
+          return -ENOSPC;
+        }
 
       /* Flush out any cached data in fs_buffer.. we are going to use
        * it to initialize the new directory cluster.
