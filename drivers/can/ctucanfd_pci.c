@@ -1161,7 +1161,7 @@ static int ctucanfd_sock_transmit(FAR struct netdev_lowerhalf_s *dev,
       ctucanfd_putreg(priv, offset + CTUCANFD_TXBUF_TSL, 0);
       ctucanfd_putreg(priv, offset + CTUCANFD_TXBUF_TSU, 0);
 
-      for (i = 0; i < frame->can_dlc; i++)
+      for (i = 0; i < MIN(frame->can_dlc, CAN_MAX_DLEN); i++)
         {
           ctucanfd_putreg(priv, offset + CTUCANFD_TXBUF_DATA + i,
                           frame->data[i]);
@@ -1408,7 +1408,7 @@ static FAR netpkt_t *ctucanfd_sock_recv(FAR struct netdev_lowerhalf_s *dev)
 
       /* Get data */
 
-      for (i = 0; i < rxframe->fmt.dlc; i++)
+      for (i = 0; i < MIN(frame->can_dlc, CAN_MAX_DLEN); i++)
         {
           frame->data[i] = rxframe->data[i];
         }

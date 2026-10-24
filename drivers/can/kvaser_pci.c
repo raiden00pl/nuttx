@@ -1284,7 +1284,7 @@ static FAR netpkt_t *kvaser_sock_recv(FAR struct netdev_lowerhalf_s *dev)
 
   /* Get data */
 
-  for (i = 0; i < can_dlc2bytes(frame->can_dlc); i++)
+  for (i = 0; i < MIN(frame->can_dlc, CAN_MAX_DLEN); i++)
     {
       frame->data[i] = kvaser_getreg_sja(priv, dreg + i);
     }
