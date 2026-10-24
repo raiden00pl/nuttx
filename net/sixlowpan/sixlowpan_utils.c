@@ -55,7 +55,9 @@
 #include <errno.h>
 #include <nuttx/debug.h>
 
+#include <nuttx/mm/iob.h>
 #include <nuttx/net/ip.h>
+#include <nuttx/net/netdev.h>
 #include <nuttx/net/radiodev.h>
 #include <nuttx/net/sixlowpan.h>
 #include <nuttx/wireless/pktradio.h>
@@ -101,6 +103,16 @@
 #    error Unsupported value for CONFIG_PKTRADIO_ADDRLEN
 #  endif
 #endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* An outgoing packet that spans an IOB chain, the network lock serializes
+ * its use
+ */
+
+static uint8_t g_flatpkt[CONFIG_NET_6LOWPAN_PKTSIZE];
 
 /****************************************************************************
  * Private Functions
@@ -816,6 +828,46 @@ int sixlowpan_extract_destaddr(FAR struct radio_driver_s *radio,
 #endif
 
   return -EINVAL; /* Shouldn't get here */
+}
+
+/****************************************************************************
+ * Name: sixlowpan_flatpkt
+ *
+ * Description:
+ *   Return the outgoing IPv6 packet of d_len bytes as one contiguous
+ *   buffer.  A packet in the IOB chain of the device that spans more than
+ *   one IOB is copied to a static buffer.
+ *
+ * Input Parameters:
+ *   dev  - The network device holding the packet
+ *   ipv6 - The IPv6 header at the beginning of the packet
+ *
+ * Returned Value:
+ *   The contiguous packet, NULL if it does not fit the 6LoWPAN packet
+ *   size.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+FAR struct ipv6_hdr_s *sixlowpan_flatpkt(FAR struct net_driver_s *dev,
+                                         FAR struct ipv6_hdr_s *ipv6)
+{
+  if (dev->d_iob == NULL || dev->d_iob->io_flink == NULL ||
+      (FAR uint8_t *)ipv6 != IOB_DATA(dev->d_iob))
+    {
+      return ipv6;
+    }
+
+  if (dev->d_len > sizeof(g_flatpkt))
+    {
+      nwarn("WARNING: Packet too large: %u\n", dev->d_len);
+      return NULL;
+    }
+
+  iob_copyout(g_flatpkt, dev->d_iob, dev->d_len, 0);
+  return (FAR struct ipv6_hdr_s *)g_flatpkt;
 }
 
 #endif /* CONFIG_NET_6LOWPAN */

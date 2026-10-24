@@ -828,6 +828,14 @@ void sixlowpan_tcp_send(FAR struct net_driver_s *dev,
 {
   DEBUGASSERT(dev != NULL && dev->d_len > 0 && fwddev != NULL);
 
+  /* The packet may span the IOB chain of the device */
+
+  ipv6 = sixlowpan_flatpkt(dev, ipv6);
+  if (ipv6 == NULL)
+    {
+      goto drop;
+    }
+
   /* Double check */
 
   ninfo("d_len %u\n", dev->d_len);

@@ -408,11 +408,21 @@ void sixlowpan_udp_send(FAR struct net_driver_s *dev,
                         FAR struct net_driver_s *fwddev,
                         FAR struct ipv6_hdr_s *ipv6)
 {
-  FAR struct ipv6udp_hdr_s *ipv6udp = (FAR struct ipv6udp_hdr_s *)ipv6;
+  FAR struct ipv6udp_hdr_s *ipv6udp;
 
   /* Double check */
 
   DEBUGASSERT(dev != NULL && dev->d_len > 0 && fwddev != NULL);
+
+  /* The packet may span the IOB chain of the device */
+
+  ipv6 = sixlowpan_flatpkt(dev, ipv6);
+  if (ipv6 == NULL)
+    {
+      goto drop;
+    }
+
+  ipv6udp = (FAR struct ipv6udp_hdr_s *)ipv6;
 
   ninfo("d_len %u\n", dev->d_len);
 

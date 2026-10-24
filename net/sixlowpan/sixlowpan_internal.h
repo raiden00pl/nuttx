@@ -804,5 +804,29 @@ FAR struct sixlowpan_reassbuf_s *
 
 void sixlowpan_reass_free(FAR struct sixlowpan_reassbuf_s *reass);
 
+/****************************************************************************
+ * Name: sixlowpan_flatpkt
+ *
+ * Description:
+ *   Return the outgoing IPv6 packet of d_len bytes as one contiguous
+ *   buffer.  A packet in the IOB chain of the device that spans more than
+ *   one IOB is copied to a static buffer.
+ *
+ * Input Parameters:
+ *   dev  - The network device holding the packet
+ *   ipv6 - The IPv6 header at the beginning of the packet
+ *
+ * Returned Value:
+ *   The contiguous packet, NULL if it does not fit the 6LoWPAN packet
+ *   size.
+ *
+ * Assumptions:
+ *   The network is locked.
+ *
+ ****************************************************************************/
+
+FAR struct ipv6_hdr_s *sixlowpan_flatpkt(FAR struct net_driver_s *dev,
+                                         FAR struct ipv6_hdr_s *ipv6);
+
 #endif /* CONFIG_NET_6LOWPAN */
 #endif /* __NET_SIXLOWPAN_SIXLOWPAN_INTERNAL_H */
