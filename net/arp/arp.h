@@ -288,6 +288,30 @@ int arp_send(in_addr_t ipaddr);
 #endif
 
 /****************************************************************************
+ * Name: arp_route_check
+ *
+ * Description:
+ *   Check that a device and, for an address outside of the local network,
+ *   a router reach the IPv4 address, as arp_send() does before it sends the
+ *   ARP request.  The address is not resolved.
+ *
+ * Input Parameters:
+ *   ipaddr   The IP address to be checked.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned if the address is reachable.  -ENETUNREACH is
+ *   returned if no device or router reaches the address.
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_ARP_SEND
+int arp_route_check(in_addr_t ipaddr);
+#endif
+
+/****************************************************************************
  * Name: arp_send_async
  *
  * Description:

@@ -1467,9 +1467,19 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
   if (conn->domain == PF_INET)
 #endif
     {
-      /* Make sure that the IP address mapping is in the ARP table */
+      /* Make sure that the IP address mapping is in the ARP table.  A
+       * nonblocking connect() only checks that the address is reachable
+       * and does not wait for the resolution.
+       */
 
-      ret = arp_send(conn->u.ipv4.raddr);
+      if (_SS_ISNONBLOCK(conn->sconn.s_flags))
+        {
+          ret = arp_route_check(conn->u.ipv4.raddr);
+        }
+      else
+        {
+          ret = arp_send(conn->u.ipv4.raddr);
+        }
     }
 #endif /* CONFIG_NET_ARP_SEND */
 
@@ -1478,9 +1488,19 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
   if (conn->domain == PF_INET6)
 #endif
     {
-      /* Make sure that the IP address mapping is in the Neighbor Table */
+      /* Make sure that the IP address mapping is in the Neighbor Table.  A
+       * nonblocking connect() only checks that the address is reachable
+       * and does not wait for the resolution.
+       */
 
-      ret = icmpv6_neighbor(NULL, conn->u.ipv6.raddr);
+      if (_SS_ISNONBLOCK(conn->sconn.s_flags))
+        {
+          ret = icmpv6_route_check(NULL, conn->u.ipv6.raddr);
+        }
+      else
+        {
+          ret = icmpv6_neighbor(NULL, conn->u.ipv6.raddr);
+        }
     }
 #endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
 

@@ -251,6 +251,33 @@ int icmpv6_neighbor(FAR struct net_driver_s *dev,
 #endif
 
 /****************************************************************************
+ * Name: icmpv6_route_check
+ *
+ * Description:
+ *   Check that a device and, for an address outside of the local network,
+ *   a router reach the IPv6 address, as icmpv6_neighbor() does before it
+ *   sends the Neighbor Solicitation.  The address is not resolved.
+ *
+ * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
+ *   ipaddr   The IPv6 address to be checked.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned if the address is reachable.  -ENETUNREACH is
+ *   returned if no device or router reaches the address.
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_ICMPv6_NEIGHBOR
+int icmpv6_route_check(FAR struct net_driver_s *dev,
+                       const net_ipv6addr_t ipaddr);
+#endif
+
+/****************************************************************************
  * Name: icmpv6_poll
  *
  * Description:

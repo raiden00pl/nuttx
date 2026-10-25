@@ -143,41 +143,15 @@ static uint32_t arp_send_eventhandler(FAR struct net_driver_s *dev,
 }
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: arp_send
+ * Name: arp_resolve
  *
  * Description:
- *   The arp_send() call may be to send an ARP request to resolve an IP
- *   address.  This function first checks if the IP address is already in
- *   ARP table.  If so, then it returns success immediately.
- *
- *   If the requested IP address in not in the ARP table, then this function
- *   will send an ARP request, delay, then check if the IP address is now in
- *   the ARP table.  It will repeat this sequence until either (1) the IP
- *   address mapping is now in the ARP table, or (2) a configurable number
- *   of timeouts occur without receiving the ARP replay.
- *
- * Input Parameters:
- *   ipaddr   The IP address to be queried (in network order).
- *
- * Returned Value:
- *   Zero (OK) is returned on success and the IP address mapping can now be
- *   found in the ARP table.  On error a negated errno value is returned:
- *
- *     -ENETUNREACH:  No device or router reaches the address, or the
- *                    device went down
- *     -EHOSTUNREACH: The address resolution failed
- *     -ENOMEM:       No callback available
- *
- * Assumptions:
- *   This function is called from the normal tasking context.
+ *   Find the device and the router that reach the IP address and, if wait
+ *   is true, resolve the address as described for arp_send().
  *
  ****************************************************************************/
 
-int arp_send(in_addr_t ipaddr)
+static int arp_resolve(in_addr_t ipaddr, bool wait)
 {
   FAR struct net_driver_s *dev;
   struct arp_notify_s notify;
@@ -278,6 +252,13 @@ int arp_send(in_addr_t ipaddr)
   if (IFF_IS_NOARP(dev->d_flags))
     {
       ninfo("ARP not supported on %s, no send!\n", dev->d_ifname);
+      return OK;
+    }
+
+  /* The address is reachable, return without resolving it */
+
+  if (!wait)
+    {
       return OK;
     }
 
@@ -455,6 +436,71 @@ timeout:
   nxsem_destroy(&state.snd_sem);
   arp_callback_free(dev, state.snd_cb);
   return ret;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: arp_send
+ *
+ * Description:
+ *   The arp_send() call may be to send an ARP request to resolve an IP
+ *   address.  This function first checks if the IP address is already in
+ *   ARP table.  If so, then it returns success immediately.
+ *
+ *   If the requested IP address in not in the ARP table, then this function
+ *   will send an ARP request, delay, then check if the IP address is now in
+ *   the ARP table.  It will repeat this sequence until either (1) the IP
+ *   address mapping is now in the ARP table, or (2) a configurable number
+ *   of timeouts occur without receiving the ARP replay.
+ *
+ * Input Parameters:
+ *   ipaddr   The IP address to be queried (in network order).
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success and the IP address mapping can now be
+ *   found in the ARP table.  On error a negated errno value is returned:
+ *
+ *     -ENETUNREACH:  No device or router reaches the address, or the
+ *                    device went down
+ *     -EHOSTUNREACH: The address resolution failed
+ *     -ENOMEM:       No callback available
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+int arp_send(in_addr_t ipaddr)
+{
+  return arp_resolve(ipaddr, true);
+}
+
+/****************************************************************************
+ * Name: arp_route_check
+ *
+ * Description:
+ *   Check that a device and, for an address outside of the local network,
+ *   a router reach the IP address, as arp_send() does before it sends the
+ *   ARP request.  The address is not resolved.
+ *
+ * Input Parameters:
+ *   ipaddr   The IP address to be checked (in network order).
+ *
+ * Returned Value:
+ *   Zero (OK) is returned if the address is reachable.  -ENETUNREACH is
+ *   returned if no device or router reaches the address.
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+int arp_route_check(in_addr_t ipaddr)
+{
+  return arp_resolve(ipaddr, false);
 }
 
 /****************************************************************************

@@ -144,46 +144,16 @@ static uint32_t icmpv6_neighbor_eventhandler(FAR struct net_driver_s *dev,
 }
 
 /****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: icmpv6_neighbor
+ * Name: icmpv6_resolve
  *
  * Description:
- *   The icmpv6_solicit() call may be to send an ICMPv6 Neighbor
- *   Solicitation to resolve an IPv6 address.  This function first checks if
- *   the IPv6 address is already in the Neighbor Table.  If so, then it
- *   returns success immediately.
- *
- *   If the requested IPv6 address in not in the Neighbor Table, then this
- *   function will send the Neighbor Solicitation, delay, then check if the
- *   IP address is now in the Neighbor able.  It will repeat this sequence
- *   until either (1) the IPv6 address mapping is now in the Neighbor table,
- *   or (2) a configurable number of timeouts occur without receiving the
- *   ICMPv6 Neighbor Advertisement.
- *
- * Input Parameters:
- *   dev      The suggested device driver structure to do the solicitation,
- *            can be NULL for auto decision, must set for link-local ipaddr.
- *   ipaddr   The IPv6 address to be queried.
- *
- * Returned Value:
- *   Zero (OK) is returned on success and the IP address mapping can now be
- *   found in the Neighbor Table.  On error a negated errno value is
- *   returned:
- *
- *     -ENETUNREACH:  No device or router reaches the address,
- *     -EHOSTUNREACH: The address resolution failed
- *     -ENOMEM:       No callback available
- *
- * Assumptions:
- *   This function is called from the normal tasking context.
+ *   Find the device and the router that reach the IPv6 address and, if
+ *   wait is true, resolve the address as described for icmpv6_neighbor().
  *
  ****************************************************************************/
 
-int icmpv6_neighbor(FAR struct net_driver_s *dev,
-                    const net_ipv6addr_t ipaddr)
+static int icmpv6_resolve(FAR struct net_driver_s *dev,
+                          const net_ipv6addr_t ipaddr, bool wait)
 {
   struct icmpv6_notify_s notify;
   struct icmpv6_neighbor_s state;
@@ -272,6 +242,13 @@ int icmpv6_neighbor(FAR struct net_driver_s *dev,
     {
       ninfo("ARP not supported on %s, no send!\n", dev->d_ifname);
       return -ENETUNREACH;
+    }
+
+  /* The address is reachable, return without resolving it */
+
+  if (!wait)
+    {
+      return OK;
     }
 
   /* Allocate resources to receive a callback.  This and the following
@@ -385,6 +362,79 @@ errout_with_lock:
 
 errout:
   return ret;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: icmpv6_neighbor
+ *
+ * Description:
+ *   The icmpv6_solicit() call may be to send an ICMPv6 Neighbor
+ *   Solicitation to resolve an IPv6 address.  This function first checks if
+ *   the IPv6 address is already in the Neighbor Table.  If so, then it
+ *   returns success immediately.
+ *
+ *   If the requested IPv6 address in not in the Neighbor Table, then this
+ *   function will send the Neighbor Solicitation, delay, then check if the
+ *   IP address is now in the Neighbor able.  It will repeat this sequence
+ *   until either (1) the IPv6 address mapping is now in the Neighbor table,
+ *   or (2) a configurable number of timeouts occur without receiving the
+ *   ICMPv6 Neighbor Advertisement.
+ *
+ * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
+ *   ipaddr   The IPv6 address to be queried.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success and the IP address mapping can now be
+ *   found in the Neighbor Table.  On error a negated errno value is
+ *   returned:
+ *
+ *     -ENETUNREACH:  No device or router reaches the address,
+ *     -EHOSTUNREACH: The address resolution failed
+ *     -ENOMEM:       No callback available
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+int icmpv6_neighbor(FAR struct net_driver_s *dev,
+                    const net_ipv6addr_t ipaddr)
+{
+  return icmpv6_resolve(dev, ipaddr, true);
+}
+
+/****************************************************************************
+ * Name: icmpv6_route_check
+ *
+ * Description:
+ *   Check that a device and, for an address outside of the local network,
+ *   a router reach the IPv6 address, as icmpv6_neighbor() does before it
+ *   sends the Neighbor Solicitation.  The address is not resolved.
+ *
+ * Input Parameters:
+ *   dev      The suggested device driver structure to do the solicitation,
+ *            can be NULL for auto decision, must set for link-local ipaddr.
+ *   ipaddr   The IPv6 address to be checked.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned if the address is reachable.  -ENETUNREACH is
+ *   returned if no device or router reaches the address.
+ *
+ * Assumptions:
+ *   This function is called from the normal tasking context.
+ *
+ ****************************************************************************/
+
+int icmpv6_route_check(FAR struct net_driver_s *dev,
+                       const net_ipv6addr_t ipaddr)
+{
+  return icmpv6_resolve(dev, ipaddr, false);
 }
 
 #endif /* CONFIG_NET_ICMPv6_NEIGHBOR */
