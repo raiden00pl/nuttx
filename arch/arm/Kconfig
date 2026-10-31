@@ -353,6 +353,7 @@ config ARCH_CHIP_NRF52
 config ARCH_CHIP_NRF53
 	bool "Nordic nRF53"
 	select ARCH_CORTEXM33
+	select ARCH_HAVE_TICKLESS
 	select ARCH_DMA_NO_FLASH_TRANSFER
 	depends on EXPERIMENTAL
 	---help---
