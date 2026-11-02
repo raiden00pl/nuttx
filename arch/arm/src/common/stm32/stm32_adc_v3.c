@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/stm32_adc.c
+ * arch/arm/src/common/stm32/stm32_adc_v3.c
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * SPDX-FileCopyrightText: 2017, 2019 Gregory Nutt. All rights reserved.
@@ -64,12 +64,14 @@
 #include <nuttx/analog/adc.h>
 #include <nuttx/analog/ioctl.h>
 
-#include "chip.h"
-#include "stm32_rcc.h"
+#include "stm32.h"
 #include "stm32_tim.h"
-#include "stm32_dma.h"
 #include "stm32_adc.h"
 #include "stm32_dbgmcu.h"
+
+#ifdef ADC_HAVE_DMA
+#  include "stm32_dma.h"
+#endif
 
 /* ADC "upper half" support must be enabled */
 
@@ -660,6 +662,7 @@ static void tim_modifyreg32(struct stm32_dev_s *priv, int offset,
                             uint32_t clrbits, uint32_t setbits)
 {
   uint32_t addr = priv->tbase + offset;
+
   putreg32((getreg32(addr) & ~clrbits) | setbits, addr);
 }
 
@@ -1802,7 +1805,7 @@ static bool adc_internal(struct stm32_dev_s * priv, uint32_t *adc_ccr)
                     break;
 
                   case 19:
-                     *adc_ccr |= ADC_CCR_VREFEN;
+                    *adc_ccr |= ADC_CCR_VREFEN;
                     break;
                 }
             }

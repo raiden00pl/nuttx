@@ -112,6 +112,13 @@ config STM32_HAVE_IP_ADC_M3M4_V2_BASIC
 config STM32_HAVE_IP_ADC_M0_V1
 	bool
 
+config STM32_HAVE_IP_ADC_V3
+	bool
+	select STM32_HAVE_ADC1
+	---help---
+		ADC with channel preselection (PCSEL), data management (DMNGT)
+		and up to 20 channels (STM32H7).
+
 config STM32_HAVE_ADC1
 	bool
 

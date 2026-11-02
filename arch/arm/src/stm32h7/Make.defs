@@ -61,10 +61,6 @@ ifeq ($(CONFIG_ARMV7M_DTCM),y)
 CHIP_CSRCS += stm32_dtcm.c
 endif
 
-ifeq ($(CONFIG_STM32_ADC),y)
-CHIP_CSRCS += stm32_adc.c
-endif
-
 ifeq ($(CONFIG_STM32_DAC),y)
 CHIP_CSRCS += stm32_dac.c
 endif

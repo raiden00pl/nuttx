@@ -62,10 +62,6 @@ if(CONFIG_ARMV7M_DTCM)
   list(APPEND SRCS stm32_dtcm.c)
 endif()
 
-if(CONFIG_STM32_ADC)
-  list(APPEND SRCS stm32_adc.c)
-endif()
-
 if(CONFIG_STM32_FDCAN_CHARDRIVER)
   list(APPEND SRCS stm32_fdcan.c)
 endif()
