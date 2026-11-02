@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/hardware/stm32h7x3xx_sdmmc.h
+ * arch/arm/src/common/stm32/hardware/stm32_sdmmc_idma.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7X3XX_SDMMC_H
-#define __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7X3XX_SDMMC_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SDMMC_IDMA_H
+#define __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SDMMC_IDMA_H
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -245,4 +245,4 @@
 #define STM32_SDMMC_FIFOCNT_SHIFT             (0)
 #define STM32_SDMMC_FIFOCNT_MASK              (0x0ffffff << STM32_SDMMC_FIFOCNT_SHIFT)
 
-#endif /* __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7X3XX_SDMMC_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SDMMC_IDMA_H */
