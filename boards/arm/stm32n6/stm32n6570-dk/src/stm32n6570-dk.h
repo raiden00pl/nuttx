@@ -211,5 +211,30 @@ int stm32_sdio_initialize(void);
 int stm32_usbhost_initialize(void);
 #endif
 
+/****************************************************************************
+ * Name: stm32_psram_initialize
+ *
+ * Description:
+ *   Initialize the XSPI1 PSRAM, map it at 0x90000000 and optionally add it
+ *   to the heap.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32N6570_DK_PSRAM
+int stm32_psram_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_nor_initialize
+ *
+ * Description:
+ *   Initialize the XSPI2 NOR flash and register its data partition.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32N6570_DK_NOR
+int stm32_nor_initialize(void);
+#endif
+
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_STM32N6_STM32N6570_DK_SRC_STM32N6570_DK_H */

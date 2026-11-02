@@ -54,6 +54,9 @@ TIM         Yes      Timer, PWM and tickless through the common drivers.
 USART       Yes      USART1 and USART2.
 USB         Yes      USB1 or USB2 OTG HS host through the common OTG v2
                      driver, full and low speed on the embedded HS PHY.
+XSPI        Yes      XSPI1-2 and the XSPIM through the common XSPI v1
+                     driver: indirect polled transfers (up to 16 data
+                     lines, DTR, DQS) and memory-mapped mode.
 
 DCACHE      No
 DCMIPP      No
@@ -62,7 +65,6 @@ MPU         No
 NPU         No
 SAI         No
 USB device  No
-XSPI        No
 ==========  =======  ===================================================
 
 References

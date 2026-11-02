@@ -51,6 +51,18 @@
 
 #define XSPI_MEMTYPE_RESERVED 5
 
+/* Kernel clock of each controller.  board.h provides the frequency of the
+ * source selected for the XSPI kernel clock; HCLK is the default source.
+ */
+
+#ifndef STM32_XSPI1_FREQUENCY
+#  define STM32_XSPI1_FREQUENCY STM32_HCLK_FREQUENCY
+#endif
+
+#ifndef STM32_XSPI2_FREQUENCY
+#  define STM32_XSPI2_FREQUENCY STM32_HCLK_FREQUENCY
+#endif
+
 /****************************************************************************
  * Private Types
  ****************************************************************************/
@@ -59,27 +71,12 @@ struct stm32_xspidev_s
 {
   struct qspi_dev_s qspi;
   uint32_t base;
+  uint32_t clkfreq;
   mutex_t lock;
   uint8_t intf;
   bool initialized;
   bool memmap;
   bool sample_shift;
-};
-
-struct stm32_xspi_cmd_s
-{
-  uint32_t instruction;
-  uint32_t address;
-  void *buffer;
-  size_t buflen;
-  uint8_t instruction_lines;
-  uint8_t address_lines;
-  uint8_t data_lines;
-  uint8_t instruction_bits;
-  uint8_t address_bits;
-  uint8_t dummy_cycles;
-  bool dtr;
-  bool write;
 };
 
 /****************************************************************************
@@ -98,8 +95,7 @@ static int xspi_memory(struct qspi_dev_s *dev,
 static void *xspi_alloc(struct qspi_dev_s *dev, size_t buflen);
 static void xspi_free(struct qspi_dev_s *dev, void *buffer);
 static int xspi_mmap_cmd(struct stm32_xspidev_s *priv,
-                         const struct qspi_meminfo_s *meminfo,
-                         bool write);
+                         const struct stm32_xspi_xfer_s *xfer);
 
 /****************************************************************************
  * Private Data
@@ -124,6 +120,7 @@ static struct stm32_xspidev_s g_xspi1dev =
     .ops = &g_xspi_ops,
   },
   .base = STM32_XSPI1_R_BASE,
+  .clkfreq = STM32_XSPI1_FREQUENCY,
   .lock = NXMUTEX_INITIALIZER,
   .intf = 1,
 };
@@ -135,6 +132,7 @@ static struct stm32_xspidev_s g_xspi2dev =
     .ops = &g_xspi_ops,
   },
   .base = STM32_XSPI2_R_BASE,
+  .clkfreq = STM32_XSPI2_FREQUENCY,
   .lock = NXMUTEX_INITIALIZER,
   .intf = 2,
 };
@@ -279,7 +277,8 @@ static int xspi_size(uint8_t bits)
  * Name: xspi_lines
  *
  * Description:
- *   Convert a line count (0/1/2/4/8) to the CCR MODE field encoding.
+ *   Convert a line count (0/1/2/4/8/16) to the CCR MODE field encoding.
+ *   Only the data phase supports 16 lines.
  *
  ****************************************************************************/
 
@@ -297,6 +296,8 @@ static int xspi_lines(uint8_t lines)
         return 3;
       case 8:
         return 4;
+      case 16:
+        return 5;
       default:
         return -EINVAL;
     }
@@ -310,16 +311,16 @@ static int xspi_lines(uint8_t lines)
  *
  ****************************************************************************/
 
-static int xspi_ccr(const struct stm32_xspi_cmd_s *cmd, uint32_t *ccr)
+static int xspi_ccr(const struct stm32_xspi_xfer_s *cmd, uint32_t *ccr)
 {
   uint32_t reg = 0;
   int lines;
   int size;
 
   lines = xspi_lines(cmd->instruction_lines);
-  if (lines < 0)
+  if (lines < 0 || cmd->instruction_lines > 8)
     {
-      return lines;
+      return -EINVAL;
     }
 
   if (lines != 0)
@@ -331,16 +332,16 @@ static int xspi_ccr(const struct stm32_xspi_cmd_s *cmd, uint32_t *ccr)
         }
 
       reg |= XSPI_CCR_IMODE(lines) | XSPI_CCR_ISIZE(size);
-      if (cmd->dtr)
+      if (cmd->instruction_dtr)
         {
           reg |= XSPI_CCR_IDTR;
         }
     }
 
   lines = xspi_lines(cmd->address_lines);
-  if (lines < 0)
+  if (lines < 0 || cmd->address_lines > 8)
     {
-      return lines;
+      return -EINVAL;
     }
 
   if (lines != 0)
@@ -352,7 +353,7 @@ static int xspi_ccr(const struct stm32_xspi_cmd_s *cmd, uint32_t *ccr)
         }
 
       reg |= XSPI_CCR_ADMODE(lines) | XSPI_CCR_ADSIZE(size);
-      if (cmd->dtr)
+      if (cmd->address_dtr)
         {
           reg |= XSPI_CCR_ADDTR;
         }
@@ -365,9 +366,14 @@ static int xspi_ccr(const struct stm32_xspi_cmd_s *cmd, uint32_t *ccr)
     }
 
   reg |= XSPI_CCR_DMODE(lines);
-  if (cmd->dtr && lines != 0)
+  if (cmd->data_dtr && lines != 0)
     {
       reg |= XSPI_CCR_DDTR;
+    }
+
+  if (cmd->dqs && lines != 0)
+    {
+      reg |= XSPI_CCR_DQSE;
     }
 
   if (cmd->dummy_cycles > 31)
@@ -518,6 +524,36 @@ static int xspi_hw_initialize(struct stm32_xspidev_s *priv)
 #ifdef GPIO_XSPI1_IO7
       stm32_configgpio(GPIO_XSPI1_IO7);
 #endif
+
+      /* Upper byte strobe and data lines of a 16-bit (hexadeca) memory */
+
+#ifdef GPIO_XSPI1_DQS1
+      stm32_configgpio(GPIO_XSPI1_DQS1);
+#endif
+#ifdef GPIO_XSPI1_IO8
+      stm32_configgpio(GPIO_XSPI1_IO8);
+#endif
+#ifdef GPIO_XSPI1_IO9
+      stm32_configgpio(GPIO_XSPI1_IO9);
+#endif
+#ifdef GPIO_XSPI1_IO10
+      stm32_configgpio(GPIO_XSPI1_IO10);
+#endif
+#ifdef GPIO_XSPI1_IO11
+      stm32_configgpio(GPIO_XSPI1_IO11);
+#endif
+#ifdef GPIO_XSPI1_IO12
+      stm32_configgpio(GPIO_XSPI1_IO12);
+#endif
+#ifdef GPIO_XSPI1_IO13
+      stm32_configgpio(GPIO_XSPI1_IO13);
+#endif
+#ifdef GPIO_XSPI1_IO14
+      stm32_configgpio(GPIO_XSPI1_IO14);
+#endif
+#ifdef GPIO_XSPI1_IO15
+      stm32_configgpio(GPIO_XSPI1_IO15);
+#endif
     }
   else
     {
@@ -593,7 +629,7 @@ static uint32_t xspi_setfrequency(struct qspi_dev_s *dev,
       return 0;
     }
 
-  prescaler = (STM32_HCLK_FREQUENCY + frequency - 1) / frequency;
+  prescaler = (priv->clkfreq + frequency - 1) / frequency;
   if (prescaler < 1)
     {
       prescaler = 1;
@@ -606,7 +642,7 @@ static uint32_t xspi_setfrequency(struct qspi_dev_s *dev,
   modifyreg32(priv->base + STM32_XSPI_DCR2_OFFSET,
               XSPI_DCR2_PRESCALER_MASK,
               XSPI_DCR2_PRESCALER(prescaler - 1));
-  return STM32_HCLK_FREQUENCY / prescaler;
+  return priv->clkfreq / prescaler;
 }
 
 /****************************************************************************
@@ -700,10 +736,40 @@ static int xspi_configure(struct stm32_xspidev_s *priv,
   xspi_putreg(priv, STM32_XSPI_DCR4_OFFSET, config->refresh);
 
   priv->sample_shift = config->sample_shift;
-  cr &= ~(XSPI_CR_FTHRES_MASK | XSPI_CR_FMODE_MASK);
+  /* The memory is on nCS1; chip-select routing to nCS2 is done through the
+   * XSPIM override, never through CSSEL.
+   */
+
+  cr &= ~(XSPI_CR_FTHRES_MASK | XSPI_CR_FMODE_MASK | XSPI_CR_CSSEL);
   cr |= XSPI_CR_FTHRES(config->fthres) | XSPI_CR_EN;
   xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr);
   return OK;
+}
+
+/****************************************************************************
+ * Name: xspi_tcr
+ *
+ * Description:
+ *   Build the TCR register value for a transfer command.
+ *
+ ****************************************************************************/
+
+static uint32_t xspi_tcr(struct stm32_xspidev_s *priv,
+                         const struct stm32_xspi_xfer_s *cmd)
+{
+  uint32_t tcr = XSPI_TCR_DCYC(cmd->dummy_cycles);
+
+  if (priv->sample_shift && !cmd->data_dtr)
+    {
+      tcr |= XSPI_TCR_SSHIFT;
+    }
+
+  if (cmd->dhqc)
+    {
+      tcr |= XSPI_TCR_DHQC;
+    }
+
+  return tcr;
 }
 
 /****************************************************************************
@@ -715,11 +781,10 @@ static int xspi_configure(struct stm32_xspidev_s *priv,
  ****************************************************************************/
 
 static int xspi_transfer(struct stm32_xspidev_s *priv,
-                         const struct stm32_xspi_cmd_s *cmd)
+                         const struct stm32_xspi_xfer_s *cmd)
 {
   uint8_t *buffer;
   uint32_t ccr;
-  uint32_t tcr;
   uint32_t fmode;
   size_t remaining;
   int ret;
@@ -749,14 +814,8 @@ static int xspi_transfer(struct stm32_xspidev_s *priv,
       xspi_putreg(priv, STM32_XSPI_DLR_OFFSET, cmd->buflen - 1);
     }
 
-  tcr = XSPI_TCR_DCYC(cmd->dummy_cycles);
-  if (priv->sample_shift && !cmd->dtr)
-    {
-      tcr |= XSPI_TCR_SSHIFT;
-    }
-
   xspi_putreg(priv, STM32_XSPI_CCR_OFFSET, ccr);
-  xspi_putreg(priv, STM32_XSPI_TCR_OFFSET, tcr);
+  xspi_putreg(priv, STM32_XSPI_TCR_OFFSET, xspi_tcr(priv, cmd));
   fmode = cmd->write ? XSPI_CR_FMODE_WRITE : XSPI_CR_FMODE_READ;
   modifyreg32(priv->base + STM32_XSPI_CR_OFFSET, XSPI_CR_FMODE_MASK,
               fmode);
@@ -839,6 +898,47 @@ static uint8_t xspi_instruction_lines(uint16_t flags, bool memory)
 }
 
 /****************************************************************************
+ * Name: xspi_meminfo_xfer
+ *
+ * Description:
+ *   Convert QSPI memory transfer parameters to an XSPI transfer.
+ *
+ ****************************************************************************/
+
+static int xspi_meminfo_xfer(const struct qspi_meminfo_s *meminfo,
+                             struct stm32_xspi_xfer_s *xfer)
+{
+  if (meminfo == NULL || meminfo->addrlen > 4 || meminfo->dummies > 31)
+    {
+      return -EINVAL;
+    }
+
+  xfer->instruction       = meminfo->cmd;
+  xfer->address           = meminfo->addr;
+  xfer->buffer            = meminfo->buffer;
+  xfer->buflen            = meminfo->buflen;
+  xfer->instruction_lines = xspi_instruction_lines(meminfo->flags, true);
+  xfer->address_lines     = meminfo->addrlen == 0 ? 0 :
+                            QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
+                            QSPIMEM_ISQUADIO(meminfo->flags) ? 4 :
+                            QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
+  xfer->data_lines        = QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
+                            (QSPIMEM_ISQUADIO(meminfo->flags) ||
+                             QSPIMEM_ISQUADDATA(meminfo->flags)) ? 4 :
+                            QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
+  xfer->instruction_bits  = QSPIMEM_ISIOCTAL(meminfo->flags) ? 16 : 8;
+  xfer->address_bits      = meminfo->addrlen * 8;
+  xfer->dummy_cycles      = meminfo->dummies;
+  xfer->instruction_dtr   = QSPIMEM_ISDTR(meminfo->flags);
+  xfer->address_dtr       = xfer->instruction_dtr;
+  xfer->data_dtr          = xfer->instruction_dtr;
+  xfer->dqs               = false;
+  xfer->dhqc              = false;
+  xfer->write             = QSPIMEM_ISWRITE(meminfo->flags);
+  return OK;
+}
+
+/****************************************************************************
  * Name: xspi_command
  *
  * Description:
@@ -850,7 +950,7 @@ static int xspi_command(struct qspi_dev_s *dev,
                         struct qspi_cmdinfo_s *cmdinfo)
 {
   struct stm32_xspidev_s *priv = (struct stm32_xspidev_s *)dev;
-  struct stm32_xspi_cmd_s cmd;
+  struct stm32_xspi_xfer_s cmd;
 
   if (cmdinfo == NULL || cmdinfo->addrlen > 4 ||
       (QSPICMD_ISDATA(cmdinfo->flags) && cmdinfo->buffer == NULL))
@@ -871,7 +971,11 @@ static int xspi_command(struct qspi_dev_s *dev,
   cmd.instruction_bits  = QSPICMD_ISIOCTAL(cmdinfo->flags) ? 16 : 8;
   cmd.address_bits      = cmdinfo->addrlen * 8;
   cmd.dummy_cycles      = 0;
-  cmd.dtr               = QSPICMD_ISDTR(cmdinfo->flags);
+  cmd.instruction_dtr   = QSPICMD_ISDTR(cmdinfo->flags);
+  cmd.address_dtr       = cmd.instruction_dtr;
+  cmd.data_dtr          = cmd.instruction_dtr;
+  cmd.dqs               = false;
+  cmd.dhqc              = false;
   cmd.write             = !QSPICMD_ISREAD(cmdinfo->flags);
   return xspi_transfer(priv, &cmd);
 }
@@ -888,34 +992,16 @@ static int xspi_memory(struct qspi_dev_s *dev,
                        struct qspi_meminfo_s *meminfo)
 {
   struct stm32_xspidev_s *priv = (struct stm32_xspidev_s *)dev;
-  struct stm32_xspi_cmd_s cmd;
+  struct stm32_xspi_xfer_s cmd;
+  int ret;
 
-  if (meminfo == NULL || meminfo->addrlen > 4 ||
-      meminfo->buflen == 0 || meminfo->buffer == NULL ||
-      meminfo->dummies > 31)
+  if (meminfo == NULL || meminfo->buflen == 0 || meminfo->buffer == NULL)
     {
       return -EINVAL;
     }
 
-  cmd.instruction       = meminfo->cmd;
-  cmd.address           = meminfo->addr;
-  cmd.buffer            = meminfo->buffer;
-  cmd.buflen            = meminfo->buflen;
-  cmd.instruction_lines = xspi_instruction_lines(meminfo->flags, true);
-  cmd.address_lines     = meminfo->addrlen == 0 ? 0 :
-                          QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
-                          QSPIMEM_ISQUADIO(meminfo->flags) ? 4 :
-                          QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
-  cmd.data_lines        = QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
-                          (QSPIMEM_ISQUADIO(meminfo->flags) ||
-                           QSPIMEM_ISQUADDATA(meminfo->flags)) ? 4 :
-                          QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
-  cmd.instruction_bits  = QSPIMEM_ISIOCTAL(meminfo->flags) ? 16 : 8;
-  cmd.address_bits      = meminfo->addrlen * 8;
-  cmd.dummy_cycles      = meminfo->dummies;
-  cmd.dtr               = QSPIMEM_ISDTR(meminfo->flags);
-  cmd.write             = QSPIMEM_ISWRITE(meminfo->flags);
-  return xspi_transfer(priv, &cmd);
+  ret = xspi_meminfo_xfer(meminfo, &cmd);
+  return ret < 0 ? ret : xspi_transfer(priv, &cmd);
 }
 
 /****************************************************************************
@@ -955,60 +1041,96 @@ static void xspi_free(struct qspi_dev_s *dev, void *buffer)
  ****************************************************************************/
 
 static int xspi_mmap_cmd(struct stm32_xspidev_s *priv,
-                         const struct qspi_meminfo_s *meminfo,
-                         bool write)
+                         const struct stm32_xspi_xfer_s *xfer)
 {
-  struct stm32_xspi_cmd_s cmd;
-  uint32_t ccr_offset = write ? STM32_XSPI_WCCR_OFFSET :
-                                STM32_XSPI_CCR_OFFSET;
-  uint32_t tcr_offset = write ? STM32_XSPI_WTCR_OFFSET :
-                                STM32_XSPI_TCR_OFFSET;
-  uint32_t ir_offset  = write ? STM32_XSPI_WIR_OFFSET :
-                                STM32_XSPI_IR_OFFSET;
   uint32_t ccr;
-  uint32_t tcr;
   int ret;
 
-  if (meminfo == NULL || meminfo->addrlen == 0 || meminfo->addrlen > 4 ||
-      meminfo->dummies > 31)
+  if (xfer->address_lines == 0)
     {
       return -EINVAL;
     }
 
-  cmd.instruction       = meminfo->cmd;
-  cmd.address           = 0;
-  cmd.buffer            = NULL;
-  cmd.buflen            = 0;
-  cmd.instruction_lines = xspi_instruction_lines(meminfo->flags, true);
-  cmd.address_lines     = QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
-                          QSPIMEM_ISQUADIO(meminfo->flags) ? 4 :
-                          QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
-  cmd.data_lines        = QSPIMEM_ISOCTALIO(meminfo->flags) ? 8 :
-                          (QSPIMEM_ISQUADIO(meminfo->flags) ||
-                           QSPIMEM_ISQUADDATA(meminfo->flags)) ? 4 :
-                          QSPIMEM_ISDUALIO(meminfo->flags) ? 2 : 1;
-  cmd.instruction_bits  = QSPIMEM_ISIOCTAL(meminfo->flags) ? 16 : 8;
-  cmd.address_bits      = meminfo->addrlen * 8;
-  cmd.dummy_cycles      = meminfo->dummies;
-  cmd.dtr               = QSPIMEM_ISDTR(meminfo->flags);
-  cmd.write             = write;
-
-  ret = xspi_ccr(&cmd, &ccr);
+  ret = xspi_ccr(xfer, &ccr);
   if (ret < 0)
     {
       return ret;
     }
 
-  tcr = XSPI_TCR_DCYC(cmd.dummy_cycles);
-  if (priv->sample_shift && !cmd.dtr)
+  if (xfer->write)
     {
-      tcr |= XSPI_TCR_SSHIFT;
+      xspi_putreg(priv, STM32_XSPI_WCCR_OFFSET, ccr);
+      xspi_putreg(priv, STM32_XSPI_WTCR_OFFSET,
+                  XSPI_WTCR_DCYC(xfer->dummy_cycles));
+      xspi_putreg(priv, STM32_XSPI_WIR_OFFSET, xfer->instruction);
+    }
+  else
+    {
+      xspi_putreg(priv, STM32_XSPI_CCR_OFFSET, ccr);
+      xspi_putreg(priv, STM32_XSPI_TCR_OFFSET, xspi_tcr(priv, xfer));
+      xspi_putreg(priv, STM32_XSPI_IR_OFFSET, xfer->instruction);
     }
 
-  xspi_putreg(priv, ccr_offset, ccr);
-  xspi_putreg(priv, tcr_offset, tcr);
-  xspi_putreg(priv, ir_offset, cmd.instruction);
   return OK;
+}
+
+/****************************************************************************
+ * Name: xspi_memorymap
+ *
+ * Description:
+ *   Program the read and optional write commands and enter memory-mapped
+ *   mode.
+ *
+ ****************************************************************************/
+
+static int xspi_memorymap(struct stm32_xspidev_s *priv,
+                          const struct stm32_xspi_xfer_s *readxfer,
+                          const struct stm32_xspi_xfer_s *writexfer)
+{
+  uint32_t cr;
+  int ret;
+
+  ret = nxmutex_lock(&priv->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (priv->memmap)
+    {
+      nxmutex_unlock(&priv->lock);
+      return OK;
+    }
+
+  ret = xspi_wait(priv, XSPI_SR_BUSY, 0);
+  if (ret < 0)
+    {
+      goto errout;
+    }
+
+  cr = xspi_getreg(priv, STM32_XSPI_CR_OFFSET);
+  xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr & ~XSPI_CR_EN);
+
+  ret = xspi_mmap_cmd(priv, readxfer);
+  if (ret == OK && writexfer != NULL)
+    {
+      ret = xspi_mmap_cmd(priv, writexfer);
+    }
+
+  if (ret < 0)
+    {
+      xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr);
+      goto errout;
+    }
+
+  cr &= ~XSPI_CR_FMODE_MASK;
+  cr |= XSPI_CR_EN | XSPI_CR_FMODE_MEMORY;
+  xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr);
+  priv->memmap = true;
+
+errout:
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 /****************************************************************************
@@ -1081,8 +1203,8 @@ int stm32_xspi_enter_memorymapped(
   const struct qspi_meminfo_s *readinfo,
   const struct qspi_meminfo_s *writeinfo)
 {
-  struct stm32_xspidev_s *priv = (struct stm32_xspidev_s *)dev;
-  uint32_t cr;
+  struct stm32_xspi_xfer_s readxfer;
+  struct stm32_xspi_xfer_s writexfer;
   int ret;
 
   if (dev == NULL || dev->ops != &g_xspi_ops)
@@ -1090,49 +1212,85 @@ int stm32_xspi_enter_memorymapped(
       return -EINVAL;
     }
 
-  ret = xspi_lock(dev, true);
+  ret = xspi_meminfo_xfer(readinfo, &readxfer);
   if (ret < 0)
     {
       return ret;
     }
 
-  if (priv->memmap)
+  readxfer.write = false;
+  if (writeinfo != NULL)
     {
-      xspi_lock(dev, false);
-      return OK;
+      ret = xspi_meminfo_xfer(writeinfo, &writexfer);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      writexfer.write = true;
     }
 
-  ret = xspi_wait(priv, XSPI_SR_BUSY, 0);
-  if (ret < 0)
+  return xspi_memorymap((struct stm32_xspidev_s *)dev, &readxfer,
+                        writeinfo != NULL ? &writexfer : NULL);
+}
+
+/****************************************************************************
+ * Name: stm32_xspi_transfer
+ *
+ * Description:
+ *   Execute one indirect-mode transfer described at the XSPI register
+ *   level.  The caller serializes access with QSPI_LOCK when the device is
+ *   shared.
+ *
+ * Input Parameters:
+ *   dev  - QSPI device returned by stm32_xspi_initialize()
+ *   xfer - Transfer description
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int stm32_xspi_transfer(struct qspi_dev_s *dev,
+                        const struct stm32_xspi_xfer_s *xfer)
+{
+  if (dev == NULL || dev->ops != &g_xspi_ops)
     {
-      goto errout;
+      return -EINVAL;
     }
 
-  cr = xspi_getreg(priv, STM32_XSPI_CR_OFFSET);
-  xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr & ~XSPI_CR_EN);
+  return xspi_transfer((struct stm32_xspidev_s *)dev, xfer);
+}
 
-  ret = xspi_mmap_cmd(priv, readinfo, false);
-  if (ret == OK && writeinfo != NULL)
+/****************************************************************************
+ * Name: stm32_xspi_memorymap
+ *
+ * Description:
+ *   Enter memory-mapped mode with read and write commands described at the
+ *   XSPI register level.
+ *
+ * Input Parameters:
+ *   dev       - QSPI device returned by stm32_xspi_initialize()
+ *   readxfer  - Read command; the address, buffer and length are unused
+ *   writexfer - Write command; may be NULL
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int stm32_xspi_memorymap(struct qspi_dev_s *dev,
+                         const struct stm32_xspi_xfer_s *readxfer,
+                         const struct stm32_xspi_xfer_s *writexfer)
+{
+  if (dev == NULL || dev->ops != &g_xspi_ops || readxfer == NULL ||
+      readxfer->write || (writexfer != NULL && !writexfer->write))
     {
-      ret = xspi_mmap_cmd(priv, writeinfo, true);
+      return -EINVAL;
     }
 
-  if (ret < 0)
-    {
-      xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr);
-      goto errout;
-    }
-
-  cr &= ~XSPI_CR_FMODE_MASK;
-  cr |= XSPI_CR_EN | XSPI_CR_FMODE_MEMORY;
-  xspi_putreg(priv, STM32_XSPI_CR_OFFSET, cr);
-  priv->memmap = true;
-  xspi_lock(dev, false);
-  return OK;
-
-errout:
-  xspi_lock(dev, false);
-  return ret;
+  return xspi_memorymap((struct stm32_xspidev_s *)dev, readxfer,
+                        writexfer);
 }
 
 /****************************************************************************

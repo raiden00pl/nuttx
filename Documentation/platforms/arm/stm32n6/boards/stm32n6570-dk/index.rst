@@ -226,6 +226,23 @@ drive is ``/dev/sda``::
   nsh> ls /mnt
   nsh> echo hello > /mnt/test.txt
   nsh> umount /mnt
+=======
+External memories
+=================
+
+XSPI1 (XSPIM port 1, VDDIO2 1.8 V) drives the 32 MiB APS256XXN hexadeca
+PSRAM (PO0 NCS, PO2/PO3 DQS0/1, PO4 CLK, PP0-PP15 IO0-15) at 100 MHz DTR,
+memory-mapped at 0x90000000.  ``CONFIG_STM32N6570_DK_PSRAM`` maps it at
+bring-up and ``CONFIG_STM32N6570_DK_PSRAM_HEAP`` (needs
+``CONFIG_MM_REGIONS=2``) adds it to the heap; ``free`` then shows a second
+32 MiB region.
+
+XSPI2 (XSPIM port 2, VDDIO3 1.8 V) drives the 128 MiB MX66UW1G45G boot NOR
+(PN1 NCS, PN0 DQS, PN6 CLK, PN2-PN5 and PN8-PN11 IO0-7) in octal STR mode at
+``CONFIG_MX66UW1G45G_QSPI_FREQUENCY``.  ``CONFIG_STM32N6570_DK_NOR``
+registers only the flash above ``CONFIG_STM32N6570_DK_NOR_OFFSET`` (16 MiB)
+as ``/dev/nor`` and mounts it with littlefs at ``/data``; the boot image
+below it is never written.
 
 Clocking
 ========
@@ -268,6 +285,22 @@ sdcard
 
 NuttShell with the microSD slot on SDMMC2 and the FAT file system, see
 `microSD`_.
+
+xspi
+----
+
+``nsh`` with the PSRAM in the heap, ``/dev/nor`` mounted at ``/data``,
+``ramtest`` and ``fstest``::
+
+  nsh> free
+  nsh> ramtest -w -s 16777216
+  nsh> fstest -m /data -n 4
+  nsh> echo hello > /data/test.txt
+  nsh> cat /data/test.txt
+
+16 MiB exceed the internal SRAM, so ``ramtest`` tests a PSRAM allocation.
+Without ``CONFIG_STM32N6570_DK_PSRAM_HEAP`` the whole PSRAM can be tested
+with ``ramtest -w -a 0x90000000 -s 33554432``.
 
 netnsh
 ------

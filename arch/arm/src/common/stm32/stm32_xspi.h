@@ -83,6 +83,31 @@ struct stm32_xspi_config_s
   bool sample_shift;
 };
 
+/* One XSPI command described at the register level, for memories that the
+ * generic QSPI interface cannot describe (16 data lines, per-phase DTR,
+ * DQS), such as APMemory PSRAMs.
+ */
+
+struct stm32_xspi_xfer_s
+{
+  uint32_t instruction;      /* Instruction */
+  uint32_t address;          /* Address (indirect mode) */
+  void *buffer;              /* Data buffer (indirect mode) */
+  size_t buflen;             /* Data length in bytes (indirect mode) */
+  uint8_t instruction_lines; /* Instruction lines: 0, 1, 2, 4 or 8 */
+  uint8_t address_lines;     /* Address lines: 0, 1, 2, 4 or 8 */
+  uint8_t data_lines;        /* Data lines: 0, 1, 2, 4, 8 or 16 */
+  uint8_t instruction_bits;  /* Instruction size: 8, 16, 24 or 32 bits */
+  uint8_t address_bits;      /* Address size: 8, 16, 24 or 32 bits */
+  uint8_t dummy_cycles;      /* Dummy cycles: 0-31 */
+  bool instruction_dtr;      /* Instruction in DTR mode */
+  bool address_dtr;          /* Address in DTR mode */
+  bool data_dtr;             /* Data in DTR mode */
+  bool dqs;                  /* Data strobe (read) and data mask (write) */
+  bool dhqc;                 /* Delay output data by a quarter cycle */
+  bool write;                /* Write (true) or read (false) */
+};
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -166,6 +191,47 @@ int stm32_xspi_enter_memorymapped(
  ****************************************************************************/
 
 void stm32_xspi_exit_memorymapped(struct qspi_dev_s *dev);
+
+/****************************************************************************
+ * Name: stm32_xspi_transfer
+ *
+ * Description:
+ *   Execute one indirect-mode transfer described at the XSPI register
+ *   level.  The caller serializes access with QSPI_LOCK when the device is
+ *   shared.
+ *
+ * Input Parameters:
+ *   dev  - QSPI device returned by stm32_xspi_initialize()
+ *   xfer - Transfer description
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int stm32_xspi_transfer(struct qspi_dev_s *dev,
+                        const struct stm32_xspi_xfer_s *xfer);
+
+/****************************************************************************
+ * Name: stm32_xspi_memorymap
+ *
+ * Description:
+ *   Enter memory-mapped mode with read and write commands described at the
+ *   XSPI register level.
+ *
+ * Input Parameters:
+ *   dev       - QSPI device returned by stm32_xspi_initialize()
+ *   readxfer  - Read command; the address, buffer and length are unused
+ *   writexfer - Write command; may be NULL
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int stm32_xspi_memorymap(struct qspi_dev_s *dev,
+                         const struct stm32_xspi_xfer_s *readxfer,
+                         const struct stm32_xspi_xfer_s *writexfer);
 
 #if defined(__cplusplus)
 }

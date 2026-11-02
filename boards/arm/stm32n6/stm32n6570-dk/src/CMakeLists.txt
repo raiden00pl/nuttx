@@ -56,6 +56,14 @@ if(CONFIG_STM32_OTGHS AND CONFIG_USBHOST)
   list(APPEND SRCS stm32_usbhost.c)
 endif()
 
+if(CONFIG_STM32N6570_DK_PSRAM)
+  list(APPEND SRCS stm32_psram.c)
+endif()
+
+if(CONFIG_STM32N6570_DK_NOR)
+  list(APPEND SRCS stm32_mx66uw1g45g.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

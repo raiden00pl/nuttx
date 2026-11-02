@@ -13,4 +13,40 @@ config STM32N6570_DK_CLOCK_HSI
 		CPU 200 MHz, SYSCLK 100 MHz, VOS low.  The default tree runs the CPU
 		at 800 MHz from the 48 MHz HSE crystal with VDDCORE overdrive.
 
+config STM32N6570_DK_PSRAM
+	bool "XSPI1 PSRAM"
+	default n
+	select STM32_XSPI1
+	---help---
+		Initialize the 32 MiB APMemory APS256XXN hexadeca PSRAM on XSPI1 and
+		map it at 0x90000000.
+
+config STM32N6570_DK_PSRAM_HEAP
+	bool "Add the PSRAM to the heap"
+	default y
+	depends on STM32N6570_DK_PSRAM
+	---help---
+		Add the PSRAM to the user heap as an extra region at board bring-up.
+		This needs CONFIG_MM_REGIONS >= 2.  Disable it to keep the PSRAM
+		free for direct use (e.g. ramtest).
+
+config STM32N6570_DK_NOR
+	bool "XSPI2 NOR flash partition"
+	default n
+	depends on MTD_MX66UW1G45G && MTD_PARTITION
+	select STM32_XSPI2
+	---help---
+		Register the part of the MX66UW1G45G octal NOR boot flash above
+		STM32N6570_DK_NOR_OFFSET as /dev/nor and, with littlefs, mount it
+		at /data.
+
+config STM32N6570_DK_NOR_OFFSET
+	hex "NOR partition offset"
+	default 0x1000000
+	depends on STM32N6570_DK_NOR
+	---help---
+		Start of the /dev/nor partition in the NOR flash.  The boot image
+		is at the start of the flash and is never written below this
+		offset.  Must be 64 KiB aligned and at least 1 MiB.
+
 endif

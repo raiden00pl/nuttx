@@ -34,7 +34,8 @@ list(
   stm32_rcc.c
   stm32_start.c
   stm32_pwr.c
-  stm32_rif.c)
+  stm32_rif.c
+  stm32_allocateheap.c)
 
 if(NOT CONFIG_ARCH_IDLE_CUSTOM)
   list(APPEND SRCS stm32_idle.c)
@@ -42,6 +43,10 @@ endif()
 
 if(CONFIG_STM32_USART)
   list(APPEND SRCS stm32_serial.c)
+endif()
+
+if(CONFIG_STM32_XSPI)
+  list(APPEND SRCS stm32n6xx_xspi.c)
 endif()
 
 # Chip-specific RCC
