@@ -340,6 +340,19 @@
 #define BOARD_LTDC_GCR_VSPOL     0 /* VSYNC active low */
 #define BOARD_LTDC_GCR_HSPOL     0 /* HSYNC active low */
 
+/* ADC GPIOs ****************************************************************/
+
+/* ADC1 on the Arduino connector: A1 on PA9 (INP10), A2 on PA10 (INP11).
+ * The ADC12 kernel clock is the 64 MHz HSI divided by 2 (ADCPRE = 1).
+ */
+
+#define GPIO_ADC1_INP10   GPIO_ADC1_INP10_1
+#define GPIO_ADC1_INP11   GPIO_ADC1_INP11_1
+
+#define STM32_RCC_CCIPR1_ADC12SEL RCC_CCIPR1_ADC12SEL_HSI
+#define STM32_RCC_CCIPR1_ADCPRE   (1 << RCC_CCIPR1_ADCPRE_SHIFT)
+#define STM32_ADC12_FREQUENCY     (STM32_HSI_FREQUENCY / 2)
+
 /* TIM GPIOs ****************************************************************/
 
 /* TIM1 CH1 on PE9 (Arduino D3) */

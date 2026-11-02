@@ -35,12 +35,22 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define STM32_ADC1_OFFSET            0x0000
-#define STM32_ADC2_OFFSET            0x0100
+/* CONFIG_STM32_HAVE_IP_ADC_V3_N6 selects the STM32N6 variant: 12-bit
+ * resolution, no internal voltage regulator, no BOOST and no linearity
+ * calibration, the kernel clock prescaler in RCC instead of ADC_CCR,
+ * analog watchdog 1 thresholds at 0xa8/0xac and separate offset
+ * configuration registers.
+ */
+
 #define STM32_ADCCMN_OFFSET          0x0300
 
-#define STM32_ADC1_BASE              (STM32_ADC1_OFFSET+STM32_ADC12_BASE) /* ADC1 Master ADC */
-#define STM32_ADC2_BASE              (STM32_ADC2_OFFSET+STM32_ADC12_BASE) /* ADC2 Slave ADC */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC1_OFFSET          0x0000
+#  define STM32_ADC2_OFFSET          0x0100
+
+#  define STM32_ADC1_BASE            (STM32_ADC1_OFFSET+STM32_ADC12_BASE) /* ADC1 Master ADC */
+#  define STM32_ADC2_BASE            (STM32_ADC2_OFFSET+STM32_ADC12_BASE) /* ADC2 Slave ADC */
+#endif
 
 /* Register Offsets *********************************************************/
 
@@ -56,18 +66,32 @@
 #define STM32_ADC_SMPR1_OFFSET       0x0014  /* ADC sample time register 1 */
 #define STM32_ADC_SMPR2_OFFSET       0x0018  /* ADC sample time register 2 */
 #define STM32_ADC_PCSEL_OFFSET       0x001c  /* ADC Channel preselection register */
-#define STM32_ADC_LTR1_OFFSET        0x0020  /* ADC watchdog lower threshold register 1 */
-#define STM32_ADC_HTR1_OFFSET        0x0024  /* ADC watchdog higher threshold register 1 */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC_LTR1_OFFSET      0x00a8  /* ADC watchdog lower threshold register 1 */
+#  define STM32_ADC_HTR1_OFFSET      0x00ac  /* ADC watchdog higher threshold register 1 */
+#else
+#  define STM32_ADC_LTR1_OFFSET      0x0020  /* ADC watchdog lower threshold register 1 */
+#  define STM32_ADC_HTR1_OFFSET      0x0024  /* ADC watchdog higher threshold register 1 */
+#endif
 #define STM32_ADC_SQR1_OFFSET        0x0030  /* ADC regular sequence register 1 */
 #define STM32_ADC_SQR2_OFFSET        0x0034  /* ADC regular sequence register 2 */
 #define STM32_ADC_SQR3_OFFSET        0x0038  /* ADC regular sequence register 3 */
 #define STM32_ADC_SQR4_OFFSET        0x003c  /* ADC regular sequence register 4 */
 #define STM32_ADC_DR_OFFSET          0x0040  /* ADC regular data register */
 #define STM32_ADC_JSQR_OFFSET        0x004c  /* ADC injected sequence register */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC_OFCFGR1_OFFSET   0x0050  /* ADC offset configuration register 1 */
+#  define STM32_ADC_OFCFGR2_OFFSET   0x0054  /* ADC offset configuration register 2 */
+#  define STM32_ADC_OFCFGR3_OFFSET   0x0058  /* ADC offset configuration register 3 */
+#  define STM32_ADC_OFCFGR4_OFFSET   0x005c  /* ADC offset configuration register 4 */
+#endif
 #define STM32_ADC_OFR1_OFFSET        0x0060  /* ADC offset register 1 */
 #define STM32_ADC_OFR2_OFFSET        0x0064  /* ADC offset register 2 */
 #define STM32_ADC_OFR3_OFFSET        0x0068  /* ADC offset register 3 */
 #define STM32_ADC_OFR4_OFFSET        0x006c  /* ADC offset register 4 */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC_GCOMP_OFFSET     0x0070  /* ADC gain compensation register */
+#endif
 #define STM32_ADC_JDR1_OFFSET        0x0080  /* ADC injected data register 1 */
 #define STM32_ADC_JDR2_OFFSET        0x0084  /* ADC injected data register 2 */
 #define STM32_ADC_JDR3_OFFSET        0x0088  /* ADC injected data register 3 */
@@ -80,7 +104,11 @@
 #define STM32_ADC_HTR3_OFFSET        0x00bc  /* ADC watchdog higher threshold register 3 */
 #define STM32_ADC_DIFSEL_OFFSET      0x00c0  /* ADC differential mode selection register 2 */
 #define STM32_ADC_CALFACT_OFFSET     0x00c4  /* ADC calibration factors register */
-#define STM32_ADC_CALFACT2_OFFSET    0x00c8  /* ADC calibration factors register 2 */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC_OR_OFFSET        0x00d0  /* ADC option register */
+#else
+#  define STM32_ADC_CALFACT2_OFFSET  0x00c8  /* ADC calibration factors register 2 */
+#endif
 
 /* Master and Slave ADC Common Registers */
 
@@ -128,7 +156,9 @@
 #define STM32_ADC1_HTR3              (STM32_ADC1_BASE+STM32_ADC_HTR3_OFFSET)
 #define STM32_ADC1_DIFSEL            (STM32_ADC1_BASE+STM32_ADC_DIFSEL_OFFSET)
 #define STM32_ADC1_CALFACT           (STM32_ADC1_BASE+STM32_ADC_CALFACT_OFFSET)
-#define STM32_ADC1_CALFACT2          (STM32_ADC1_BASE+STM32_ADC_CALFACT2_OFFSET)
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC1_CALFACT2        (STM32_ADC1_BASE+STM32_ADC_CALFACT2_OFFSET)
+#endif
 
 #define STM32_ADC1_CSR               (STM32_ADC1_BASE+STM32_ADC_CSR_OFFSET)
 #define STM32_ADC1_CCR               (STM32_ADC1_BASE+STM32_ADC_CCR_OFFSET)
@@ -167,7 +197,9 @@
 #define STM32_ADC2_HTR3              (STM32_ADC2_BASE+STM32_ADC_HTR3_OFFSET)
 #define STM32_ADC2_DIFSEL            (STM32_ADC2_BASE+STM32_ADC_DIFSEL_OFFSET)
 #define STM32_ADC2_CALFACT           (STM32_ADC2_BASE+STM32_ADC_CALFACT_OFFSET)
-#define STM32_ADC2_CALFACT2          (STM32_ADC2_BASE+STM32_ADC_CALFACT2_OFFSET)
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define STM32_ADC2_CALFACT2        (STM32_ADC2_BASE+STM32_ADC_CALFACT2_OFFSET)
+#endif
 
 /* Common for ADC 1 and 2 */
 
@@ -231,10 +263,14 @@
 #define ADC_INT_AWD1                 (1 << 7)  /* Bit 7:  Analog watchdog 1 flag */
 #define ADC_INT_AWD2                 (1 << 8)  /* Bit 8:  Analog watchdog 2 flag */
 #define ADC_INT_AWD3                 (1 << 9)  /* Bit 9:  Analog watchdog 3 flag */
-#define ADC_INT_JQOVF                (1 << 10) /* Bit 10: Injected context queue overflow */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+                                               /* Bits 10-31: Reserved */
+#  define ADC_INT_MASK               (0x3ff)
+#else
+#  define ADC_INT_JQOVF              (1 << 10) /* Bit 10: Injected context queue overflow */
                                                /* Bits 11-31: Reserved */
-
-#define ADC_INT_MASK                 (0x7ff)
+#  define ADC_INT_MASK               (0x7ff)
+#endif
 
 /* ADC control register */
 
@@ -246,6 +282,7 @@
 #define ADC_CR_JADSTP                (1 << 5)  /* Bit 5: ADC stop of injected conversion command */
                                                /* Bits 6-7: Reserved */
 
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
 /* On rev V silicon, the BOOST setting is 2 bits. On Y silicon it's a
  * single bit.
  */
@@ -268,6 +305,7 @@
 #define ADC_CR_LINCALRDYW5           (1 << 26) /* Bit 26: ADC Linearity calibration ready Word 5 */
 #define ADC_CR_LINCALRDYW6           (1 << 27) /* Bit 27: ADC Linearity calibration ready Word 6 */
 #define ADC_CR_ADVREGEN              (1 << 28) /* Bit 28: ADC voltage regulator enable */
+#endif
 #define ADC_CR_DEEPPWD               (1 << 29) /* Bit 29: Deep-power-down enable */
 #define ADC_CR_ADCALDIF              (1 << 30) /* Bit 30: Differential mode for calibration */
 #define ADC_CR_ADCAL                 (1 << 31) /* Bit 31: ADC calibration */
@@ -281,21 +319,33 @@
 #  define ADC_CFGR_DMNGT_DFSDM       (2 << ADC_CFGR_DMNGT_SHIFT) /* DFSDM mode selected */
 #  define ADC_CFGR_DMNGT_DMA_CIR     (3 << ADC_CFGR_DMNGT_SHIFT) /* DMA Circular Mode selected */
 
-#define ADC_CFGR_RES_SHIFT           (2)       /* Bits 2-4: Data resolution */
-#define ADC_CFGR_RES_MASK            (7 << ADC_CFGR_RES_SHIFT)
-#  define ADC_CFGR_RES_16BIT         (0 << ADC_CFGR_RES_SHIFT) /* 16 Bit */
-#  define ADC_CFGR_RES_14BIT         (1 << ADC_CFGR_RES_SHIFT) /* 14 Bit */
-#  define ADC_CFGR_RES_12BIT         (2 << ADC_CFGR_RES_SHIFT) /* 12 Bit */
-#  define ADC_CFGR_RES_10BIT         (3 << ADC_CFGR_RES_SHIFT) /* 10 Bit */
-#  if defined(ADC_DEVICE_VERSION_V)
-#    define ADC_CFGR_RES_8BIT        (7 << ADC_CFGR_RES_SHIFT) /* 8 rev V Bit */
-#  else
-#    define ADC_CFGR_RES_8BIT        (4 << ADC_CFGR_RES_SHIFT) /* 8 rev Y Bit */
-#  endif
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CFGR_RES_SHIFT         (2)       /* Bits 2-3: Data resolution */
+#  define ADC_CFGR_RES_MASK          (3 << ADC_CFGR_RES_SHIFT)
+#    define ADC_CFGR_RES_12BIT       (0 << ADC_CFGR_RES_SHIFT) /* 12 Bit */
+#    define ADC_CFGR_RES_10BIT       (1 << ADC_CFGR_RES_SHIFT) /* 10 Bit */
+#    define ADC_CFGR_RES_8BIT        (2 << ADC_CFGR_RES_SHIFT) /* 8 Bit */
+#    define ADC_CFGR_RES_6BIT        (3 << ADC_CFGR_RES_SHIFT) /* 6 Bit */
+#else
+#  define ADC_CFGR_RES_SHIFT         (2)       /* Bits 2-4: Data resolution */
+#  define ADC_CFGR_RES_MASK          (7 << ADC_CFGR_RES_SHIFT)
+#    define ADC_CFGR_RES_16BIT       (0 << ADC_CFGR_RES_SHIFT) /* 16 Bit */
+#    define ADC_CFGR_RES_14BIT       (1 << ADC_CFGR_RES_SHIFT) /* 14 Bit */
+#    define ADC_CFGR_RES_12BIT       (2 << ADC_CFGR_RES_SHIFT) /* 12 Bit */
+#    define ADC_CFGR_RES_10BIT       (3 << ADC_CFGR_RES_SHIFT) /* 10 Bit */
+#    if defined(ADC_DEVICE_VERSION_V)
+#      define ADC_CFGR_RES_8BIT      (7 << ADC_CFGR_RES_SHIFT) /* 8 rev V Bit */
+#    else
+#      define ADC_CFGR_RES_8BIT      (4 << ADC_CFGR_RES_SHIFT) /* 8 rev Y Bit */
+#    endif
+#endif
 #define ADC_CFGR_EXTSEL_SHIFT        (5)       /* Bits 5-9: External Event Select for regular group */
 #define ADC_CFGR_EXTSEL_MASK         (31 << ADC_CFGR_EXTSEL_SHIFT)
 #  define ADC_CFGR_EXTSEL(event)     ((event) << ADC_CFGR_EXTSEL_SHIFT) /* Event = 0..31 */
 
+/* STM32H7 trigger mapping.  The STM32N6 mapping is different. */
+
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
 #  define ADC_CFGR_EXTSEL_T1CC1      (0x00 << ADC_CFGR_EXTSEL_SHIFT) /* 00000: Timer 1 CC1 event */
 #  define ADC_CFGR_EXTSEL_T1CC2      (0x01 << ADC_CFGR_EXTSEL_SHIFT) /* 00001: Timer 1 CC2 event */
 #  define ADC_CFGR_EXTSEL_T1CC3      (0x02 << ADC_CFGR_EXTSEL_SHIFT) /* 00010: Timer 1 CC3 event */
@@ -317,6 +367,7 @@
 #  define ADC_CFGR_EXTSEL_LPTIM1_OUT (0x12 << ADC_CFGR_EXTSEL_SHIFT) /* 10010: LP TIM1 OUT CC4 event */
 #  define ADC_CFGR_EXTSEL_LPTIM2_OUT (0x13 << ADC_CFGR_EXTSEL_SHIFT) /* 10011: LP TIM2 OUT CC4 event */
 #  define ADC_CFGR_EXTSEL_LPTIM3_OUT (0x14 << ADC_CFGR_EXTSEL_SHIFT) /* 10100: LP TIM3 OUT CC4 event */
+#endif
 
 #define ADC_CFGR_EXTEN_SHIFT         (10)      /* Bits 10-11: External trigger/polarity selection regular channels */
 #define ADC_CFGR_EXTEN_MASK          (3 << ADC_CFGR_EXTEN_SHIFT)
@@ -334,7 +385,9 @@
 #  define ADC_CFGR_DISCNUM(n)        (((n) - 1) << ADC_CFGR_DISCNUM_SHIFT) /* n = 1..8 channels */
 
 #define ADC_CFGR_JDISCEN             (1 << 20) /* Bit 20: Discontinuous mode on injected channels */
-#define ADC_CFGR_JQM                 (1 << 21) /* Bit 21: JSQR queue mode */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CFGR_JQM               (1 << 21) /* Bit 21: JSQR queue mode */
+#endif
 #define ADC_CFGR_AWD1SGL             (1 << 22) /* Bit 22: Enable watchdog 1 on single/all channels */
 #define ADC_CFGR_AWD1EN              (1 << 23) /* Bit 23: Analog watchdog 1 enable on regular channels */
 #define ADC_CFGR_JAWD1EN             (1 << 24) /* Bit 24: Analog watchdog 1 enable on injected channels */
@@ -342,7 +395,9 @@
 #define ADC_CFGR_AWD1CH_SHIFT        (26)      /* Bits 26-30: Analog watchdog 1 channel select bits */
 #define ADC_CFGR_AWD1CH_MASK         (31 << ADC_CFGR_AWD1CH_SHIFT)
 #  define ADC_CFGR_AWD1CH_DISABLED   (0 << ADC_CFGR_AWD1CH_SHIFT)
-#define ADC_CFGR_JQDIS               (1 << 31) /* Bit 31: Injected Queue disable */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CFGR_JQDIS             (1 << 31) /* Bit 31: Injected Queue disable */
+#endif
 
 /* ADC configuration register 2 */
 
@@ -355,11 +410,18 @@
 
 #define ADC_CFGR2_TROVS              (1 << 9)  /* Bit 9: Triggered Regular Oversampling */
 #define ADC_CFGR2_ROVSM              (1 << 10) /* Bit 10: Regular Oversampling mode */
-#define ADC_CFGR2_RSHIFT1            (1 << 11) /* Bit 11: Right-shift data after Offset 1 correction*/
-#define ADC_CFGR2_RSHIFT2            (1 << 12) /* Bit 12: Right-shift data after Offset 2 correction*/
-#define ADC_CFGR2_RSHIFT3            (1 << 13) /* Bit 13: Right-shift data after Offset 3 correction*/
-#define ADC_CFGR2_RSHIFT4            (1 << 14) /* Bit 14: Right-shift data after Offset 4 correction*/
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+                                               /* Bits 11-12: Reserved */
+#  define ADC_CFGR2_BULB             (1 << 13) /* Bit 13: Bulb sampling mode */
+#  define ADC_CFGR2_SWTRIG           (1 << 14) /* Bit 14: Software trigger bit for sampling time control */
+#  define ADC_CFGR2_SMPTRIG          (1 << 15) /* Bit 15: Sampling time control trigger mode */
+#else
+#  define ADC_CFGR2_RSHIFT1          (1 << 11) /* Bit 11: Right-shift data after Offset 1 correction*/
+#  define ADC_CFGR2_RSHIFT2          (1 << 12) /* Bit 12: Right-shift data after Offset 2 correction*/
+#  define ADC_CFGR2_RSHIFT3          (1 << 13) /* Bit 13: Right-shift data after Offset 3 correction*/
+#  define ADC_CFGR2_RSHIFT4          (1 << 14) /* Bit 14: Right-shift data after Offset 4 correction*/
                                                /* Bit 15: Reserved */
+#endif
 #define ADC_CFGR2_OVSR_SHIFT         (16)      /* Bits 16-25: Oversampling ratio */
 #define ADC_CFGR2_OVSR_MASK          (0x3ff << ADC_CFGR2_OVSR_SHIFT)
 #  define ADC_CFGR2_OVSR(value)      ((value) << ADC_CFGR2_OVSR_SHIFT) /* Value = 0..1024 */
@@ -371,14 +433,23 @@
 
 /* ADC sample time register 1 */
 
-#define ADC_SMPR_1p5                 0         /* 000: 1.5 cycles */
-#define ADC_SMPR_2p5                 1         /* 001: 2.5 cycles */
-#define ADC_SMPR_8p5                 2         /* 010: 8.5 cycles */
-#define ADC_SMPR_16p5                3         /* 011: 16.5 cycles */
-#define ADC_SMPR_32p5                4         /* 100: 32.5 cycles */
-#define ADC_SMPR_64p5                5         /* 101: 64.5 cycles */
-#define ADC_SMPR_387p5               6         /* 110: 387.5 cycles */
-#define ADC_SMPR_810p5               7         /* 111: 810.5 cycles */
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+/* Sample time selection 0-7, from the shortest to the longest.  See the
+ * reference manual for the number of ADC clock cycles.
+ */
+
+#  define ADC_SMPR_SHORTEST          0         /* 000: Shortest sample time */
+#  define ADC_SMPR_LONGEST           7         /* 111: Longest sample time */
+#else
+#  define ADC_SMPR_1p5               0         /* 000: 1.5 cycles */
+#  define ADC_SMPR_2p5               1         /* 001: 2.5 cycles */
+#  define ADC_SMPR_8p5               2         /* 010: 8.5 cycles */
+#  define ADC_SMPR_16p5              3         /* 011: 16.5 cycles */
+#  define ADC_SMPR_32p5              4         /* 100: 32.5 cycles */
+#  define ADC_SMPR_64p5              5         /* 101: 64.5 cycles */
+#  define ADC_SMPR_387p5             6         /* 110: 387.5 cycles */
+#  define ADC_SMPR_810p5             7         /* 111: 810.5 cycles */
+#endif
 
 #define ADC_SMPR1_SMP0_SHIFT         (0)       /* Bits 2-0: Channel 0 Sample time selection */
 #define ADC_SMPR1_SMP0_MASK          (7 << ADC_SMPR1_SMP0_SHIFT)
@@ -450,15 +521,27 @@
 #define ADC_PCSEL_PCSEL18            (1 << 18) /* Bit 18: :Channel 18 (VINP[i]) pre selection */
 #define ADC_PCSEL_PCSEL19            (1 << 19) /* Bit 19: :Channel 19 (VINP[i]) pre selection */
 
+/* Analog watchdog thresholds: bits 0-25 (bits 0-22 on STM32N6) */
+
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_TR_MASK                (0x007fffff)
+#else
+#  define ADC_TR_MASK                (0x03ffffff)
+#endif
+
 /* ADC watchdog threshold register 1 Lower */
 
 #define ADC_LTR1_LT_SHIFT            (0)       /* Bits 0-25: Analog watchdog 1 lower threshold */
-#define ADC_LTR1_LT_MASK             (0x03ffffff << ADC_LTR1_LT_SHIFT)
+#define ADC_LTR1_LT_MASK             (ADC_TR_MASK << ADC_LTR1_LT_SHIFT)
 
 /* ADC watchdog threshold register 1  Higher */
 
 #define ADC_HTR1_HT_SHIFT            (0)       /* Bits 0-25: Analog watchdog 1 higher threshold */
-#define ADC_HTR1_HT_MASK             (0x03ffffff << ADC_HTR1_HT_SHIFT)
+#define ADC_HTR1_HT_MASK             (ADC_TR_MASK << ADC_HTR1_HT_SHIFT)
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_HTR1_AWDFILT_SHIFT     (29)      /* Bits 29-31: Analog watchdog filtering */
+#  define ADC_HTR1_AWDFILT_MASK      (7 << ADC_HTR1_AWDFILT_SHIFT)
+#endif
 
 /* Offset between SQ bits */
 
@@ -583,15 +666,38 @@
 #define ADC_JSQR_JSQ4_MASK           (0x1f << ADC_JSQR_JSQ4_SHIFT)
 #  define ADC_JSQR_JSQ4(ch)          ((ch) << ADC_JSQR_JSQ4_SHIFT) /* Channel number 0..19 */
 
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+/* ADC offset configuration register 1, 2, 3, and 4 */
+
+#  define ADC_OFCFGR_POSOFF          (1 << 24)  /* Bit 24: Positive offset */
+#  define ADC_OFCFGR_USAT            (1 << 25)  /* Bit 25: Unsigned saturation enable */
+#  define ADC_OFCFGR_SSAT            (1 << 26)  /* Bit 26: Signed saturation enable */
+#  define ADC_OFCFGR_OFFSET_CH_SHIFT (27)       /* Bits 27-31: Channel selection for the offset */
+#  define ADC_OFCFGR_OFFSET_CH_MASK  (31 << ADC_OFCFGR_OFFSET_CH_SHIFT)
+#    define ADC_OFCFGR_OFFSET_CH(ch) ((ch) << ADC_OFCFGR_OFFSET_CH_SHIFT)
+
 /* ADC offset register 1, 2, 3, and 4 */
 
-#define ADC_OFR_OFFSETY_SHIFT        (0)        /* Bits 0-25: Data offset y for channel OFFSETY_CH */
-#define ADC_OFR_OFFSETY_MASK         (0x03ffffff << ADC_OFR_OFFSETY_SHIFT)
-#  define ADC_OFR_OFFSETY(offset)    ((offset) << ADC_OFR_OFFSETY_SHIFT)
-#define ADC_OFR_OFFSETY_CH_SHIFT     (26)       /* Bits 26-30: Channel selection for data offset y */
-#define ADC_OFR_OFFSETY_CH_MASK      (31 << ADC_OFR_OFFSETY_CH_SHIFT)
-#  define ADC_OFR_OFFSETY_CH(ch)     ((ch) << ADC_OFR_OFFSETY_CH_SHIFT)
-#define ADC_OFR_SSATE_EN             (1 << 31)  /* Bit 31: Signed saturation Enable */
+#  define ADC_OFR_OFFSET_SHIFT       (0)        /* Bits 0-21: Data offset */
+#  define ADC_OFR_OFFSET_MASK        (0x3fffff << ADC_OFR_OFFSET_SHIFT)
+#    define ADC_OFR_OFFSET(offset)   ((offset) << ADC_OFR_OFFSET_SHIFT)
+
+/* ADC gain compensation register */
+
+#  define ADC_GCOMP_GCOMPCOEFF_SHIFT (0)        /* Bits 0-13: Gain compensation coefficient */
+#  define ADC_GCOMP_GCOMPCOEFF_MASK  (0x3fff << ADC_GCOMP_GCOMPCOEFF_SHIFT)
+#  define ADC_GCOMP_GCOMP            (1 << 31)  /* Bit 31: Gain compensation mode */
+#else
+/* ADC offset register 1, 2, 3, and 4 */
+
+#  define ADC_OFR_OFFSETY_SHIFT      (0)        /* Bits 0-25: Data offset y for channel OFFSETY_CH */
+#  define ADC_OFR_OFFSETY_MASK       (0x03ffffff << ADC_OFR_OFFSETY_SHIFT)
+#    define ADC_OFR_OFFSETY(offset)  ((offset) << ADC_OFR_OFFSETY_SHIFT)
+#  define ADC_OFR_OFFSETY_CH_SHIFT   (26)       /* Bits 26-30: Channel selection for data offset y */
+#  define ADC_OFR_OFFSETY_CH_MASK    (31 << ADC_OFR_OFFSETY_CH_SHIFT)
+#    define ADC_OFR_OFFSETY_CH(ch)   ((ch) << ADC_OFR_OFFSETY_CH_SHIFT)
+#  define ADC_OFR_SSATE_EN           (1 << 31)  /* Bit 31: Signed saturation Enable */
+#endif
 
 /* ADC injected data register 1, 2, 3, and 4 */
 
@@ -616,28 +722,28 @@
 /* ADC watchdog threshold register 2 Lower */
 
 #define ADC_LTR2_LT_SHIFT            (0)       /* Bits 0-25: Analog watchdog 2 lower threshold */
-#define ADC_LTR2_LT_MASK             (0x03ffffff << ADC_LTR2_LT_SHIFT)
+#define ADC_LTR2_LT_MASK             (ADC_TR_MASK << ADC_LTR2_LT_SHIFT)
 
                                                /* Bits 26-31: Reserved */
 
 /* ADC watchdog threshold register 2  Higher */
 
 #define ADC_HTR2_HT_SHIFT            (0)      /* Bits 0-25: Analog watchdog 2 higher threshold */
-#define ADC_HTR2_HT_MASK             (0x03ffffff << ADC_HTR2_LT_SHIFT)
+#define ADC_HTR2_HT_MASK             (ADC_TR_MASK << ADC_HTR2_HT_SHIFT)
 
                                                /* Bits 26-31: Reserved */
 
 /* ADC watchdog threshold register 3 Lower */
 
 #define ADC_LTR3_LT_SHIFT            (0)      /* Bits 0-25: Analog watchdog 3 lower threshold */
-#define ADC_LTR3_LT_MASK             (0x03ffffff << ADC_LTR3_LT_SHIFT)
+#define ADC_LTR3_LT_MASK             (ADC_TR_MASK << ADC_LTR3_LT_SHIFT)
 
                                                /* Bits 26-31: Reserved */
 
 /* ADC watchdog threshold register 2  Higher */
 
 #define ADC_HTR3_HT_SHIFT            (0)      /* Bits 0-25: Analog watchdog 3 higher threshold */
-#define ADC_HTR3_HT_MASK             (0x03ffffff << ADC_HTR3_LT_SHIFT)
+#define ADC_HTR3_HT_MASK             (ADC_TR_MASK << ADC_HTR3_HT_SHIFT)
 
                                                /* Bits 26-31: Reserved */
 
@@ -650,17 +756,31 @@
 
 /* ADC calibration factors */
 
-#define ADC_CALFACT_S_SHIFT          (0)       /* Bits 0-10: Calibration factors in single-ended mode */
-#define ADC_CALFACT_S_MASK           (0x7ff << ADC_CALFACT_S_SHIFT)
-#define ADC_CALFACT_D_SHIFT          (16)      /* Bits 16-26: Calibration Factors indifferential mode */
-#define ADC_CALFACT_D_MASK           (0x7ff << ADC_CALFACT_D_SHIFT)
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CALFACT_S_SHIFT        (0)       /* Bits 0-9: Calibration factors in single-ended mode */
+#  define ADC_CALFACT_S_MASK         (0x3ff << ADC_CALFACT_S_SHIFT)
+#  define ADC_CALFACT_D_SHIFT        (16)      /* Bits 16-25: Calibration Factors indifferential mode */
+#  define ADC_CALFACT_D_MASK         (0x3ff << ADC_CALFACT_D_SHIFT)
+#  define ADC_CALFACT_CALADDOS       (1 << 31) /* Bit 31: Calibration additional offset mode */
+
+/* ADC option register */
+
+#  define ADC_OR_OP0                 (1 << 0)  /* Bit 0: Internal reference voltage buffer */
+#  define ADC_OR_OP1                 (1 << 1)  /* Bit 1: Internal bandgap */
+#  define ADC_OR_OP2                 (1 << 2)  /* Bit 2: Internal path to VDDCORE */
+#else
+#  define ADC_CALFACT_S_SHIFT        (0)       /* Bits 0-10: Calibration factors in single-ended mode */
+#  define ADC_CALFACT_S_MASK         (0x7ff << ADC_CALFACT_S_SHIFT)
+#  define ADC_CALFACT_D_SHIFT        (16)      /* Bits 16-26: Calibration Factors indifferential mode */
+#  define ADC_CALFACT_D_MASK         (0x7ff << ADC_CALFACT_D_SHIFT)
                                                /* Bits 27-31: Reserved */
 
 /* ADC calibration factor register 2 */
 
-#define ADC_CALFACT2_LINCALFACT_SHIFT (0)      /* Bits 0-29: Calibration factors in single-ended mode */
-#define ADC_CALFACT2_LINCALFACT_MASK  (0x3fffffff << ADC_CALFACT2_LINCALFACT_SHIFT)
+#  define ADC_CALFACT2_LINCALFACT_SHIFT (0)    /* Bits 0-29: Calibration factors in single-ended mode */
+#  define ADC_CALFACT2_LINCALFACT_MASK  (0x3fffffff << ADC_CALFACT2_LINCALFACT_SHIFT)
                                                /* Bits 30-31: Reserved */
+#endif
 
 /* Common status register */
 
@@ -674,7 +794,9 @@
 #define ADC_CSR_AWD1_MST             (1 << 7)  /* Bit 7: Analog watchdog 1 flag (master ADC) */
 #define ADC_CSR_AWD2_MST             (1 << 8)  /* Bit 8: Analog watchdog 2 flag (master ADC) */
 #define ADC_CSR_AWD3_MST             (1 << 9)  /* Bit 9: Analog watchdog 3 flag (master ADC) */
-#define ADC_CSR_JQOVF_MST            (1 << 10) /* Bit 10: Injected Context Queue Overflow flag (master ADC) */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CSR_JQOVF_MST          (1 << 10) /* Bit 10: Injected Context Queue Overflow flag (master ADC) */
+#endif
                                                /* Bits 11-15: Reserved */
 #define ADC_CSR_ADRDY_SLV            (1 << 16) /* Bit 16: Slave ADC ready */
 #define ADC_CSR_EOSMP_SLV            (1 << 17) /* Bit 17: End of Sampling phase flag (slave ADC) */
@@ -686,7 +808,9 @@
 #define ADC_CSR_AWD1_SLV             (1 << 23) /* Bit 23: Analog watchdog 1 flag (slave ADC) */
 #define ADC_CSR_AWD2_SLV             (1 << 24) /* Bit 24: Analog watchdog 2 flag (slave ADC) */
 #define ADC_CSR_AWD3_SLV             (1 << 25) /* Bit 25: Analog watchdog 3 flag (slave ADC) */
-#define ADC_CSR_JQOVF_SLV            (1 << 26) /* Bit 26: Injected Context Queue Overflow flag (slave ADC) */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CSR_JQOVF_SLV          (1 << 26) /* Bit 26: Injected Context Queue Overflow flag (slave ADC) */
+#endif
                                                /* Bits 27-31: Reserved */
 
 /* Common control register */
@@ -715,6 +839,9 @@
 #  define ADC_CCR_DAMDF_32_10        (2 << ADC_CCR_DAMDF_MASK) /* Data formatting mode for 32 down to 10-bit resolution */
 #  define ADC_CCR_DAMDF_8            (3 << ADC_CCR_DAMDF_MASK) /* Data formatting mode for 8-bit resolution */
 
+/* STM32N6 has no CKMODE and PRESC: the kernel clock prescaler is in RCC */
+
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
 #define ADC_CCR_CKMODE_SHIFT         (16)      /* Bits 16-17: ADC clock mode */
 #define ADC_CCR_CKMODE_MASK          (3 << ADC_CCR_CKMODE_SHIFT)
 #  define ADC_CCR_CKMODE_ASYCH       (0 << ADC_CCR_CKMODE_SHIFT) /* Asynchronous clock mode */
@@ -736,9 +863,12 @@
 #  define ADC_CCR_PRESC_DIV64        (9 << ADC_CCR_PRESC_SHIFT)  /* Input ADC clock divided by 64 */
 #  define ADC_CCR_PRESC_DIV128       (10 << ADC_CCR_PRESC_SHIFT) /* Input ADC clock divided by 128 */
 #  define ADC_CCR_PRESC_DIV256       (11 << ADC_CCR_PRESC_SHIFT) /* Input ADC clock divided by 256 */
+#endif
 
 #define ADC_CCR_VREFEN               (1 << 22) /* Bit 22: VREFINT enable */
-#define ADC_CCR_VSENSEEN             (1 << 23) /* Bit 23: Temperature sensor voltage enable */
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CCR_VSENSEEN           (1 << 23) /* Bit 23: Temperature sensor voltage enable */
+#endif
 #define ADC_CCR_VBATEN               (1 << 24) /* Bit 24: VBAT enable */
 
 /* Common regular data register for dual mode */

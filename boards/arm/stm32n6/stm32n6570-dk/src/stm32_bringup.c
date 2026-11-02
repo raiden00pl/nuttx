@@ -153,6 +153,16 @@ int stm32_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_ADC) && defined(CONFIG_STM32_ADC1)
+  /* Initialize ADC1 and register it as /dev/adc0 */
+
+  ret = stm32_adc_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_adc_setup() failed: %d\n", ret);
+    }
+#endif
+
   UNUSED(ret);
   return OK;
 }

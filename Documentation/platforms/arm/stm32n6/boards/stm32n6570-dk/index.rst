@@ -170,6 +170,16 @@ The GT911 touch controller on I2C2 (interrupt on PQ4) is reset at bring-up
 with PQ4 held low, which selects address 0x5d, and registered as
 ``/dev/input0``; ``tc`` prints the touch coordinates.
 
+ADC
+===
+
+ADC1 samples the Arduino analog pins A1 (PA9, channel 10) and A2 (PA10,
+channel 11) and is registered as ``/dev/adc0``.  The conversions are
+12-bit and software triggered, with the ADC12 kernel clock at 32 MHz
+(HSI / 2).  The reference is VREF+ (1.8 V on this board), so keep the
+inputs between 0 and 1.8 V.  ``adc -n 4`` reads four groups of samples;
+an input tied to GND reads close to 0 and one tied to 1.8 V close to 4095.
+
 Clocking
 ========
 
@@ -191,7 +201,7 @@ nsh
 ---
 
 NuttShell with the user LEDs, the buttons, GPDMA1, ``/dev/random``,
-PWM, I2C, SPI and the RTC enabled.
+PWM, I2C, SPI, the RTC and the ADC enabled.
 
 fb
 --

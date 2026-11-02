@@ -100,14 +100,54 @@
 #  endif
 #endif
 
+/* The STM32N6 EXTSEL trigger mapping differs from STM32H7 and is not
+ * implemented.
+ */
+
+#if defined(CONFIG_STM32_HAVE_IP_ADC_V3_N6) && defined(ADC_HAVE_TIMER)
+#  error "STM32N6 ADC timer triggers are not supported"
+#endif
+
+/* STM32N6 has no ADC clock prescaler in ADC_CCR: board.h must select the
+ * ADC12 kernel clock and its prescaler (RCC_CCIPR1 ADC12SEL and ADCPRE).
+ */
+
+#if defined(CONFIG_STM32_HAVE_IP_ADC_V3_N6) && \
+    !defined(STM32_RCC_CCIPR1_ADC12SEL)
+#  error "board.h must define STM32_RCC_CCIPR1_ADC12SEL"
+#endif
+
+/* Bound for the STM32N6 ADC ready flag and for one calibration
+ * conversion, which take a few microseconds.
+ */
+
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_TIMEOUT_US 1000
+#endif
+
+/* STM32N6 names the shared ADC1/ADC2 interrupt ADC1_2 */
+
+#if !defined(STM32_IRQ_ADC12) && defined(STM32_IRQ_ADC1_2)
+#  define STM32_IRQ_ADC12 STM32_IRQ_ADC1_2
+#endif
+
 #define ADC_DMA_CONTROL_WORD (DMA_CCR_MSIZE_16BITS | \
                               DMA_CCR_PSIZE_16BITS | \
                               DMA_CCR_MINC | \
                               DMA_CCR_CIRC)
 
-/* DMA channels and interface values */
+/* Default resolution and sample time: the highest resolution and the
+ * longest sample time.
+ */
 
-#define ADC_SMPR_DEFAULT    ADC_SMPR_810p5
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+#  define ADC_CFGR_RES_DEFAULT ADC_CFGR_RES_12BIT
+#  define ADC_SMPR_DEFAULT     ADC_SMPR_LONGEST
+#else
+#  define ADC_CFGR_RES_DEFAULT ADC_CFGR_RES_16BIT
+#  define ADC_SMPR_DEFAULT     ADC_SMPR_810p5
+#endif
+
 #define ADC_SMPR1_DEFAULT   ((ADC_SMPR_DEFAULT << ADC_SMPR1_SMP0_SHIFT) | \
                              (ADC_SMPR_DEFAULT << ADC_SMPR1_SMP1_SHIFT) | \
                              (ADC_SMPR_DEFAULT << ADC_SMPR1_SMP2_SHIFT) | \
@@ -223,8 +263,10 @@ static void     tim_dumpregs(struct stm32_dev_s *priv,
 /* ADC Miscellaneous Helpers */
 
 static void adc_rccreset(struct stm32_dev_s *priv, bool reset);
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
 static void adc_setupclock(struct stm32_dev_s *priv);
-static void adc_enable(struct stm32_dev_s *priv);
+#endif
+static int  adc_enable(struct stm32_dev_s *priv);
 static uint32_t adc_sqrbits(struct stm32_dev_s *priv, int first,
                             int last, int offset);
 static int      adc_set_ch(struct adc_dev_s *dev, uint8_t ch);
@@ -1205,16 +1247,18 @@ static void adc_rccreset(struct stm32_dev_s *priv, bool reset)
 {
   irqstate_t flags;
   uint32_t regval;
-  uint32_t reg = STM32_RCC_AHB4RSTR;
-  uint32_t bit = RCC_AHB4RSTR_ADC3RST;
+  uint32_t reg = STM32_RCC_AHB1RSTR;
+  uint32_t bit = RCC_AHB1RSTR_ADC12RST;
 
   /* Pick the appropriate bit in the AHBx reset register. */
 
-  if (priv->intf != 3)
+#ifdef CONFIG_STM32_ADC3
+  if (priv->intf == 3)
     {
-      reg = STM32_RCC_AHB1RSTR;
-      bit = RCC_AHB1RSTR_ADC12RST;
+      reg = STM32_RCC_AHB4RSTR;
+      bit = RCC_AHB4RSTR_ADC3RST;
     }
+#endif
 
   /* First must disable interrupts because the AHB2RSTR register is used by
    * several different drivers.
@@ -1239,6 +1283,114 @@ static void adc_rccreset(struct stm32_dev_s *priv, bool reset)
 }
 
 /****************************************************************************
+ * Name: adc_waitreg
+ *
+ * Description:
+ *   Wait until the bits in mask of an ADC register equal value.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+static int adc_waitreg(struct stm32_dev_s *priv, int offset, uint32_t mask,
+                       uint32_t value)
+{
+  int timeout;
+
+  for (timeout = ADC_TIMEOUT_US;
+       (adc_getreg(priv, offset) & mask) != value;
+       timeout--)
+    {
+      if (timeout == 0)
+        {
+          return -ETIMEDOUT;
+        }
+
+      up_udelay(1);
+    }
+
+  return OK;
+}
+#endif
+
+/****************************************************************************
+ * Name: adc_calibrate
+ *
+ * Description:
+ *   STM32N6 single-ended offset calibration, as in the ST HAL: with ADCAL
+ *   set, average eight conversions of the internal offset and store the
+ *   result in CALFACT.  If the offset is not positive, retry once with
+ *   the additional calibration offset (CALADDOS) enabled.  ADCAL is not
+ *   cleared by hardware on this ADC.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+static int adc_calibrate(struct stm32_dev_s *priv)
+{
+  uint32_t cfgr;
+  uint32_t sqr1;
+  int32_t avg;
+  int step;
+  int pass;
+  int ret = -EIO;
+
+  /* Single conversions, software trigger, default resolution, DR only.
+   * The sequence may already hold the configured channels: convert only
+   * one per start, or the unread second result overruns and the ADC
+   * stops with ADSTART still set.
+   */
+
+  cfgr = adc_getreg(priv, STM32_ADC_CFGR_OFFSET);
+  adc_putreg(priv, STM32_ADC_CFGR_OFFSET,
+             cfgr & ~(ADC_CFGR_DMNGT_MASK | ADC_CFGR_EXTEN_MASK |
+                      ADC_CFGR_CONT | ADC_CFGR_RES_MASK));
+
+  sqr1 = adc_getreg(priv, STM32_ADC_SQR1_OFFSET);
+  adc_putreg(priv, STM32_ADC_SQR1_OFFSET, sqr1 & ~ADC_SQR1_L_MASK);
+
+  adc_modifyreg(priv, STM32_ADC_CALFACT_OFFSET, ADC_CALFACT_CALADDOS, 0);
+  adc_modifyreg(priv, STM32_ADC_CR_OFFSET, ADC_CR_ADCALDIF, ADC_CR_ADCAL);
+
+  for (pass = 0; pass < 2; pass++)
+    {
+      avg = 0;
+      for (step = 0; step < 8; step++)
+        {
+          adc_modifyreg(priv, STM32_ADC_CR_OFFSET, 0, ADC_CR_ADSTART);
+          ret = adc_waitreg(priv, STM32_ADC_CR_OFFSET, ADC_CR_ADSTART, 0);
+          if (ret < 0)
+            {
+              goto out;
+            }
+
+          avg += (int32_t)adc_getreg(priv, STM32_ADC_DR_OFFSET);
+        }
+
+      avg /= 8;
+      if (avg > 0)
+        {
+          adc_modifyreg(priv, STM32_ADC_CALFACT_OFFSET, ADC_CALFACT_S_MASK,
+                        ((uint32_t)avg << ADC_CALFACT_S_SHIFT) &
+                        ADC_CALFACT_S_MASK);
+          ret = OK;
+          break;
+        }
+
+      ret = -EIO;
+      adc_modifyreg(priv, STM32_ADC_CALFACT_OFFSET, 0,
+                    ADC_CALFACT_CALADDOS);
+    }
+
+out:
+  adc_modifyreg(priv, STM32_ADC_CR_OFFSET, ADC_CR_ADCAL | ADC_CR_ADCALDIF,
+                0);
+  adc_putreg(priv, STM32_ADC_SQR1_OFFSET, sqr1);
+  adc_putreg(priv, STM32_ADC_CFGR_OFFSET, cfgr);
+  return ret;
+}
+#endif
+
+/****************************************************************************
  * Name: adc_enable
  *
  * Description:
@@ -1248,25 +1400,50 @@ static void adc_rccreset(struct stm32_dev_s *priv, bool reset)
  *   priv - A reference to the ADC block status
  *
  * Returned Value:
+ *   OK on success, a negated errno value on failure.
  *
  ****************************************************************************/
 
-static void adc_enable(struct stm32_dev_s *priv)
+static int adc_enable(struct stm32_dev_s *priv)
 {
   uint32_t regval;
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+  int ret;
+#endif
 
   regval = adc_getreg(priv, STM32_ADC_CR_OFFSET);
 
-  /* Exit deep power down mode and enable voltage regulator */
+  /* Exit deep power down mode and enable the voltage regulator.
+   * STM32N6 has no internal voltage regulator.
+   */
 
   regval &= ~ADC_CR_DEEPPWD;
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
   regval |= ADC_CR_ADVREGEN;
+#endif
   adc_putreg(priv, STM32_ADC_CR_OFFSET, regval);
 
-  /* Wait for voltage regulator to power up */
+  /* Wait for the voltage regulator or the analog part to power up */
 
   up_udelay(20);
 
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+  /* Enable the ADC first: the STM32N6 calibration measures the offset
+   * with conversions on an enabled ADC.
+   */
+
+  adc_modifyreg(priv, STM32_ADC_CR_OFFSET, 0, ADC_CR_ADEN);
+  ret = adc_waitreg(priv, STM32_ADC_ISR_OFFSET, ADC_INT_ADRDY,
+                    ADC_INT_ADRDY);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  adc_modifyreg(priv, STM32_ADC_ISR_OFFSET, 0, ADC_INT_ADRDY);
+
+  return adc_calibrate(priv);
+#else
   /* Enable ADC calibration. ADCALDIF == 0 so this is only for
    * single-ended conversions, not for differential ones.
    */
@@ -1294,6 +1471,8 @@ static void adc_enable(struct stm32_dev_s *priv)
   while (!(adc_getreg(priv, STM32_ADC_ISR_OFFSET) & ADC_INT_ADRDY));
 
   adc_modifyreg(priv, STM32_ADC_ISR_OFFSET, 0, ADC_INT_ADRDY);
+  return OK;
+#endif
 }
 
 /****************************************************************************
@@ -1404,7 +1583,7 @@ static int adc_setup(struct adc_dev_s *dev)
   /* Set the resolution of the conversion. */
 
   clrbits = ADC_CFGR_RES_MASK | ADC_CFGR_DMNGT_MASK;
-  setbits = ADC_CFGR_RES_16BIT;
+  setbits = ADC_CFGR_RES_DEFAULT;
 
 #ifdef ADC_HAVE_DMA
   if (priv->hasdma)
@@ -1453,17 +1632,26 @@ static int adc_setup(struct adc_dev_s *dev)
 
   adc_set_ch(dev, 0);
 
-  /* ADC CCR configuration */
+  /* ADC CCR configuration.  On STM32N6 the kernel clock and its prescaler
+   * are configured in RCC (board.h).
+   */
 
+#ifdef CONFIG_STM32_HAVE_IP_ADC_V3_N6
+  clrbits = ADC_CCR_VREFEN | ADC_CCR_VBATEN;
+  setbits = 0;
+#else
   clrbits = ADC_CCR_PRESC_MASK | ADC_CCR_VREFEN |
             ADC_CCR_VSENSEEN | ADC_CCR_VBATEN;
   setbits = ADC_CCR_CKMODE_ASYCH;
+#endif
 
   adc_internal(priv, &setbits);
 
   adc_modifyregm(priv, STM32_ADC_CCR_OFFSET, clrbits, setbits);
 
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
   adc_setupclock(priv);
+#endif
 
 #ifdef ADC_HAVE_DMA
 
@@ -1505,9 +1693,32 @@ static int adc_setup(struct adc_dev_s *dev)
 
   adc_modifyreg(priv, STM32_ADC_PCSEL_OFFSET, clrbits, setbits);
 
+  /* Claim the shared ADC block so that the other ADC does not reset it,
+   * then enable and calibrate the ADC outside of the critical section.
+   */
+
+  priv->initialized = true;
+  leave_critical_section(flags);
+
   /* Set ADEN to wake up the ADC from Power Down. */
 
-  adc_enable(priv);
+  ret = adc_enable(priv);
+  if (ret < 0)
+    {
+      aerr("ERROR: ADC%d enable failed: %d\n", priv->intf, ret);
+#ifdef ADC_HAVE_DMA
+      if (priv->dma != NULL)
+        {
+          stm32_dmastop(priv->dma);
+        }
+#endif
+
+      priv->initialized = false;
+      irq_detach(priv->irq);
+      return ret;
+    }
+
+  flags = enter_critical_section();
 
 #ifdef ADC_HAVE_TIMER
   if (priv->tbase != 0)
@@ -1542,8 +1753,6 @@ static int adc_setup(struct adc_dev_s *dev)
 
   ainfo("Enable the ADC interrupt: irq=%d\n", priv->irq);
   up_enable_irq(priv->irq);
-
-  priv->initialized = true;
 
   return ret;
 }
@@ -1621,6 +1830,7 @@ static void adc_rxint(struct adc_dev_s *dev, bool enable)
  * Name: adc_setupclock
  ****************************************************************************/
 
+#ifndef CONFIG_STM32_HAVE_IP_ADC_V3_N6
 static void adc_setupclock(struct stm32_dev_s *priv)
 {
   uint32_t max_clock = 36000000;
@@ -1757,6 +1967,7 @@ static void adc_setupclock(struct stm32_dev_s *priv)
 
   adc_modifyregm(priv, STM32_ADC_CR_OFFSET, ADC_CR_BOOST_MASK, setbits);
 }
+#endif
 
 /****************************************************************************
  * Name: adc_sqrbits
@@ -1784,8 +1995,9 @@ static uint32_t adc_sqrbits(struct stm32_dev_s *priv, int first,
 
 static bool adc_internal(struct stm32_dev_s * priv, uint32_t *adc_ccr)
 {
-  int i;
   bool internal = false;
+#ifdef CONFIG_STM32_ADC3
+  int i;
 
   if (priv->intf == 3)
     {
@@ -1811,6 +2023,10 @@ static bool adc_internal(struct stm32_dev_s * priv, uint32_t *adc_ccr)
             }
         }
     }
+#else
+  UNUSED(priv);
+  UNUSED(adc_ccr);
+#endif
 
   return internal;
 }
