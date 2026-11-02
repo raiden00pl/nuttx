@@ -28,6 +28,9 @@ Peripheral  Support  Notes
 ADC         Yes      ADC1 and ADC2 through the common ADC v3 driver,
                      interrupt-driven conversions only (no DMA or timer
                      trigger).
+Cache       Yes      L1 I- and D-cache (``CONFIG_ARMV8M_ICACHE``,
+                     ``CONFIG_ARMV8M_DCACHE``).  The USB host driver does
+                     not maintain the D-cache yet.
 DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
                      interface: raw Bayer to RGB565 with a static ISP
                      (black level, white balance, demosaicing, colour
@@ -66,8 +69,6 @@ XSPI        Yes      XSPI1-2 and the XSPIM through the common XSPI v1
                      driver: indirect polled transfers (up to 16 data
                      lines, DTR, DQS) and memory-mapped mode.
 
-DCACHE      No
-ICACHE      No
 MPU         No
 NPU         No
 USB device  No
