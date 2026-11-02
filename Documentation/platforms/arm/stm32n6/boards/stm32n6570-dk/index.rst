@@ -208,6 +208,26 @@ CLK125 output clocks the MAC.  The MAC address is derived from the unique
 device ID.  The interface is ``eth0``; check it with ``ifconfig`` and
 ``ping``, and read the PHY registers with ``mdio``.
 
+USB host
+========
+
+The host runs at full speed on the embedded PHY (24 MHz reference, HSE / 2)
+of the port selected with ``CONFIG_STM32N6_OTGHS_USB1``/``USB2``:
+
+* USB2 (default in ``usbhost``): the Type-A connector, VBUS switched by PB9.
+* USB1: the Type-C connector (CN18).  VBUS comes from the TCPP03: PA4
+  enables it and the host driver closes its provider switch over I2C2
+  (0x34).  The CC lines are not driven.
+
+VBUS of a flash drive can exceed what the ST-LINK USB port supplies: power
+the board from CN18 when using the Type-A port.  A FAT formatted flash
+drive is ``/dev/sda``::
+
+  nsh> mount -t vfat /dev/sda /mnt
+  nsh> ls /mnt
+  nsh> echo hello > /mnt/test.txt
+  nsh> umount /mnt
+
 Clocking
 ========
 
@@ -256,3 +276,9 @@ netnsh
 The ``nsh`` configuration with Ethernet: IPv4, TCP, UDP, ICMP, a DHCP
 client started by NSH, ``ping``, ``telnetd`` and ``mdio``.  The link is
 auto-negotiated up to 1000 Mbps when ``eth0`` comes up.
+
+usbhost
+-------
+
+The ``nsh`` configuration with the USB host on the USB2 Type-A
+connector, the mass storage class and the FAT file system, see `USB host`_.

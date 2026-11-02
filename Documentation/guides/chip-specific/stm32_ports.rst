@@ -790,6 +790,7 @@ SPI/I2S       v5            arch/arm/src/common/stm32/stm32_spi_v5.c
 TIM           v3            arch/arm/src/common/stm32/stm32_tim.c
 USART/LPUART  v4            arch/arm/src/stm32n6/stm32_serial.c
 USB           device        not supported
+USB host      OTG v2        arch/arm/src/common/stm32/stm32_otghost_v2.c
 WWDG          v3            arch/arm/src/common/stm32/stm32_wwdg.c
 XSPI          to be done    not supported
 ============  ============  ==================================================
