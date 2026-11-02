@@ -49,6 +49,7 @@
 #include <nuttx/wqueue.h>
 #include <nuttx/signal.h>
 #include <nuttx/net/mii.h>
+#include <nuttx/net/gmii.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/crc64.h>
@@ -165,6 +166,20 @@
 #elif defined(CONFIG_ETH0_PHY_YT8512)
 #  define STM32_PHYID1       MII_PHYID1_YT8512
 #  define STM32_PHYID2       MII_PHYID2_YT8512
+#elif defined(CONFIG_ETH0_PHY_RTL8211F)
+#  define STM32_PHYID1       GMII_PHYID1_RTL8211F
+#  define STM32_PHYID2       GMII_PHYID2_RTL8211F_CG
+#  define STM32_PHYID2_ALT   GMII_PHYID2_RTL8211F
+#endif
+
+/* Compare the PHYID2 model number, ignoring the revision */
+
+#ifdef STM32_PHYID2_ALT
+#  define STM32_PHYID2_MATCH(v) \
+     (((v) & 0xfff0) == (STM32_PHYID2 & 0xfff0) || \
+      ((v) & 0xfff0) == (STM32_PHYID2_ALT & 0xfff0))
+#else
+#  define STM32_PHYID2_MATCH(v) (((v) & 0xfff0) == (STM32_PHYID2 & 0xfff0))
 #endif
 
 /* The IRQ of the MAC is ETH1 on parts that number their MACs */
@@ -192,12 +207,18 @@
 #  error "CONFIG_STM32_PHYADDR must be defined in the NuttX configuration"
 #endif
 
-#if !defined(CONFIG_STM32_MII) && !defined(CONFIG_STM32_RMII)
-#  warning "Neither CONFIG_STM32_MII nor CONFIG_STM32_RMII defined"
+#if !defined(CONFIG_STM32_MII) && !defined(CONFIG_STM32_RMII) && \
+    !defined(CONFIG_STM32_RGMII)
+#  warning "None of CONFIG_STM32_MII, CONFIG_STM32_RMII or CONFIG_STM32_RGMII defined"
 #endif
 
-#if defined(CONFIG_STM32_MII) && defined(CONFIG_STM32_RMII)
-#  error "Both CONFIG_STM32_MII and CONFIG_STM32_RMII defined"
+#if (defined(CONFIG_STM32_MII) + defined(CONFIG_STM32_RMII) + \
+     defined(CONFIG_STM32_RGMII)) > 1
+#  error "Only one of CONFIG_STM32_MII, CONFIG_STM32_RMII and CONFIG_STM32_RGMII can be defined"
+#endif
+
+#if defined(CONFIG_STM32_RGMII) && !defined(STM32_ETH_PHYIF_RGMII)
+#  error "This chip has no RGMII interface"
 #endif
 
 #ifdef CONFIG_STM32_MII
@@ -224,6 +245,9 @@
 #  ifndef CONFIG_STM32_PHYSR
 #    error "CONFIG_STM32_PHYSR must be defined in the NuttX configuration"
 #  endif
+#  if defined(CONFIG_STM32_PHYSR_ALTCONFIG) && defined(CONFIG_STM32_RGMII)
+#    error "CONFIG_STM32_PHYSR_ALTCONFIG does not support 1000 Mbps"
+#  endif
 #  ifdef CONFIG_STM32_PHYSR_ALTCONFIG
 #    ifndef CONFIG_STM32_PHYSR_ALTMODE
 #      error "CONFIG_STM32_PHYSR_ALTMODE must be defined in the NuttX configuration"
@@ -246,6 +270,9 @@
 #    endif
 #    ifndef CONFIG_STM32_PHYSR_100MBPS
 #      error "CONFIG_STM32_PHYSR_100MBPS must be defined in the NuttX configuration"
+#    endif
+#    if defined(CONFIG_STM32_RGMII) && !defined(CONFIG_STM32_PHYSR_1000MBPS)
+#      error "CONFIG_STM32_PHYSR_1000MBPS must be defined in the NuttX configuration"
 #    endif
 #    ifndef CONFIG_STM32_PHYSR_MODE
 #      error "CONFIG_STM32_PHYSR_MODE must be defined in the NuttX configuration"
@@ -432,9 +459,12 @@
 #define PHY_LINK_TIMEOUT_MS (5000)
 #define PHY_RETRY_TIMEOUT   (PHY_LINK_TIMEOUT_MS / PHY_POLL_MS)
 
-/* MAC reset ready delays in loop counts */
+/* MAC software reset timeout in microseconds.  The reset completes only
+ * once all clock domains, including the PHY receive clock, are running;
+ * this can take several milliseconds.
+ */
 
-#define MAC_READY_USTIMEOUT (200)
+#define MAC_READY_USTIMEOUT (10000)
 
 /* Register values **********************************************************/
 
@@ -453,6 +483,7 @@
  * ETH_MACCR_LM     Bit 12: Loopback mode
  * ETH_MACCR_DM     Bit 13: Duplex mode
  * ETH_MACCR_FES    Bit 14: Fast Ethernet speed
+ * ETH_MACCR_PS     Bit 15: Port select (RGMII only)
  * ETH_MACCR_JE     Bit 16: Jumbo packet enable
  * ETH_MACCR_JD     Bit 17: Jabber disable
  * ETH_MACCR_WD     Bit 19: Watchdog disable
@@ -466,13 +497,20 @@
  * ETH_MACCR_ARPEN  Bit 31: ARP Offload Enable
  */
 
+#ifdef CONFIG_STM32_RGMII
+#  define MACCR_PS_BIT ETH_MACCR_PS
+#else
+#  define MACCR_PS_BIT 0
+#endif
+
 #define MACCR_CLEAR_BITS                                                \
   (ETH_MACCR_RE | ETH_MACCR_TE | ETH_MACCR_PRELEN_MASK | ETH_MACCR_DC | \
    ETH_MACCR_BL_MASK | ETH_MACCR_DR | ETH_MACCR_DCRS | ETH_MACCR_DO |   \
    ETH_MACCR_LM | ETH_MACCR_DM | ETH_MACCR_FES | ETH_MACCR_JE |         \
    ETH_MACCR_JD | ETH_MACCR_WD | ETH_MACCR_ACS | ETH_MACCR_CST |        \
    ETH_MACCR_S2KP | ETH_MACCR_GPSLCE | ETH_MACCR_IPG_MASK |             \
-   ETH_MACCR_IPC | ETH_MACCR_SARC_MASK | ETH_MACCR_ARPEN)
+   ETH_MACCR_IPC | ETH_MACCR_SARC_MASK | ETH_MACCR_ARPEN |              \
+   MACCR_PS_BIT)
 
 /* The following bits are set or left zero unconditionally in all modes.
  *
@@ -496,6 +534,7 @@
  *
  * ETH_MACCR_DM       Duplex mode                    Depends on priv->fduplex
  * ETH_MACCR_FES      Fast Ethernet speed            Depends on priv->mbps100
+ * ETH_MACCR_PS       Port select                    Depends on priv->gbit
  */
 
 #ifdef CONFIG_STM32_ETH_HWCHECKSUM
@@ -672,10 +711,16 @@
 #define DMACCR_CLEAR_MASK                                               \
   ( ETH_DMACCR_MSS_MASK | ETH_DMACCR_PBLX8 | ETH_DMACCR_DSL_MASK)
 
-/* Set the descriptor skip length in 32-bit words */
+/* Set the descriptor skip length, counted in words of the DMA data bus
+ * (32 bits unless the family says otherwise).
+ */
+
+#ifndef STM32_ETH_DMA_BUSWIDTH
+#  define STM32_ETH_DMA_BUSWIDTH 4
+#endif
 
 #define DMACCR_SET_MASK                                 \
-  (ETH_DMACCR_DSL((DESC_PADSIZE - DESC_SIZE)/4))
+  (ETH_DMACCR_DSL((DESC_PADSIZE - DESC_SIZE) / STM32_ETH_DMA_BUSWIDTH))
 
 #define DMASBMR_CLEAR_MASK                              \
   (STM32_ETH_DMASBMR_FB | STM32_ETH_DMASBMR_AAL |       \
@@ -758,6 +803,7 @@ struct stm32_ethmac_s
 {
   uint8_t              ifup    : 1; /* true:ifup false:ifdown */
   uint8_t              mbps100 : 1; /* 100MBps operation (vs 10 MBps) */
+  uint8_t              gbit    : 1; /* 1000MBps operation (RGMII only) */
   uint8_t              fduplex : 1; /* Full (vs. half) duplex */
   uint8_t              intf;        /* Ethernet interface number */
   struct wdog_s        txtimeout;   /* TX timeout timer */
@@ -926,6 +972,9 @@ static int  stm32_phyintenable(struct stm32_ethmac_s *priv);
 #ifdef CONFIG_ETH0_PHY_DM9161
 static inline int stm32_dm9161(struct stm32_ethmac_s *priv);
 #endif
+#if defined(CONFIG_ETH0_PHY_RTL8211F) && defined(CONFIG_STM32_RGMII)
+static int  stm32_rtl8211f(struct stm32_ethmac_s *priv);
+#endif
 static int  stm32_phyinit(struct stm32_ethmac_s *priv);
 #ifdef CONFIG_STM32_ETHMAC_REGDEBUG
 static void  stm32_phyregdump(struct stm32_ethmac_s *priv);
@@ -936,6 +985,9 @@ static void  stm32_phyregdump(struct stm32_ethmac_s *priv);
 
 #ifdef CONFIG_STM32_MII
 static inline void stm32_selectmii(void);
+#endif
+#ifdef CONFIG_STM32_RGMII
+static inline void stm32_selectrgmii(void);
 #endif
 #ifdef CONFIG_STM32_RMII
 static inline void stm32_selectrmii(void);
@@ -2135,6 +2187,15 @@ static int stm32_recvframe(struct stm32_ethmac_s *priv)
                        */
 
                       buffer = stm32_allocbuffer(priv);
+
+                      /* The free list link dirties the first cache line of
+                       * the buffer.  Discard it, so that it cannot be
+                       * written back over the next DMA frame.
+                       */
+
+                      up_invalidate_dcache((uintptr_t)buffer,
+                                           (uintptr_t)buffer +
+                                           ALIGNED_BUFSIZE);
 
                       /* Take the buffer from the RX descriptor of the first
                        * free segment, put it into the network device
@@ -3652,6 +3713,88 @@ static inline int stm32_dm9161(struct stm32_ethmac_s *priv)
 #endif
 
 /****************************************************************************
+ * Function: stm32_rtl8211f
+ *
+ * Description:
+ *   Set the RGMII clock delays of the Realtek RTL8211F.  The PHY can delay
+ *   the transmit and the receive clock by 2 ns, so that the MAC and the
+ *   board do not need to.  The power-on setting comes from strap pins;
+ *   this overrides it with the configuration.
+ *
+ * Parameters:
+ *   priv - A reference to the private driver state structure
+ *
+ * Returned Value:
+ *   OK on success; Negated errno on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ETH0_PHY_RTL8211F) && defined(CONFIG_STM32_RGMII)
+static int stm32_rtl8211f(struct stm32_ethmac_s *priv)
+{
+  uint16_t page;
+  uint16_t phyval;
+  int ret;
+
+  ret = mdio_read(priv->mdio, CONFIG_STM32_PHYADDR,
+                  GMII_RTL8211F_PAGSR, &page);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* The delays are in the MII control registers of page 0xd08 */
+
+  ret = mdio_write(priv->mdio, CONFIG_STM32_PHYADDR,
+                   GMII_RTL8211F_PAGSR, 0xd08);
+  if (ret >= 0)
+    {
+      ret = mdio_read(priv->mdio, CONFIG_STM32_PHYADDR,
+                      GMII_RTL8211F_MIICR1_D08, &phyval);
+    }
+
+  if (ret >= 0)
+    {
+#ifdef CONFIG_STM32_ETH_RTL8211F_TXDELAY
+      phyval |= GMII_RTL8211F_MIICR1_TX_DELAY;
+#else
+      phyval &= ~GMII_RTL8211F_MIICR1_TX_DELAY;
+#endif
+      ret = mdio_write(priv->mdio, CONFIG_STM32_PHYADDR,
+                       GMII_RTL8211F_MIICR1_D08, phyval);
+    }
+
+  if (ret >= 0)
+    {
+      ret = mdio_read(priv->mdio, CONFIG_STM32_PHYADDR,
+                      GMII_RTL8211F_MIICR2_D08, &phyval);
+    }
+
+  if (ret >= 0)
+    {
+#ifdef CONFIG_STM32_ETH_RTL8211F_RXDELAY
+      phyval |= GMII_RTL8211F_MIICR2_RX_DELAY;
+#else
+      phyval &= ~GMII_RTL8211F_MIICR2_RX_DELAY;
+#endif
+      ret = mdio_write(priv->mdio, CONFIG_STM32_PHYADDR,
+                       GMII_RTL8211F_MIICR2_D08, phyval);
+    }
+
+  /* Go back to the page that was selected, even after a failure */
+
+  mdio_write(priv->mdio, CONFIG_STM32_PHYADDR, GMII_RTL8211F_PAGSR, page);
+
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to set the RTL8211F RGMII delays: %d\n", ret);
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
  * Function: stm32_phyregdump
  *
  * Description:
@@ -3717,6 +3860,7 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
   /* Assume 10MBps and half duplex */
 
   priv->mbps100 = 0;
+  priv->gbit    = 0;
   priv->fduplex = 0;
 
   /* Setup up PHY clocking by setting the CR field in the MACMDIOAR reg */
@@ -3789,7 +3933,7 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
       return ret;
     }
 
-  if ((phyval & 0xfff0) != (STM32_PHYID2 & 0xfff0))
+  if (!STM32_PHYID2_MATCH(phyval))
     {
       nerr("ERROR: Incorrect PHYID2: %u expected: %u\n",
             phyval, STM32_PHYID2);
@@ -3807,6 +3951,14 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
 
 #ifdef CONFIG_ETH0_PHY_DM9161
   ret = stm32_dm9161(priv);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#if defined(CONFIG_ETH0_PHY_RTL8211F) && defined(CONFIG_STM32_RGMII)
+  ret = stm32_rtl8211f(priv);
   if (ret < 0)
     {
       return ret;
@@ -3857,6 +4009,26 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
     }
 #endif
 
+#ifdef CONFIG_STM32_RGMII
+  /* Advertise 1000BASE-T full duplex, unless only 10BASE-T is wanted.
+   * The MAC does not support 1000 Mbps half duplex.
+   */
+
+#  ifdef CONFIG_STM32_AUTONEG_10FD_ONLY
+  phyval = 0;
+#  else
+  phyval = GMII_1000BTCR_1000BASETFULL;
+#  endif
+
+  ret = mdio_write(priv->mdio, CONFIG_STM32_PHYADDR, GMII_1000BTCR,
+                   phyval);
+  if (ret < 0)
+    {
+      nerr("ERROR: Failed to write the PHY 1000BASE-T control: %d\n", ret);
+      return ret;
+    }
+#endif
+
   /* Enable and restart auto-negotiation */
 
   ret = mdio_write(priv->mdio,
@@ -3895,8 +4067,22 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
 
   /* Read the result of the auto-negotiation from the PHY-specific register */
 
+#ifdef CONFIG_ETH0_PHY_RTL8211F
+  /* The RTL8211F has its PHY-specific status register in page 0xa43 */
+
+  ret = mdio_write(priv->mdio, CONFIG_STM32_PHYADDR,
+                   GMII_RTL8211F_PAGSR, 0xa43);
+  if (ret >= 0)
+    {
+      ret = mdio_read(priv->mdio,
+        CONFIG_STM32_PHYADDR, CONFIG_STM32_PHYSR, &phyval);
+    }
+
+  mdio_write(priv->mdio, CONFIG_STM32_PHYADDR, GMII_RTL8211F_PAGSR, 0);
+#else
   ret = mdio_read(priv->mdio,
     CONFIG_STM32_PHYADDR, CONFIG_STM32_PHYSR, &phyval);
+#endif
   if (ret < 0)
     {
       nerr("ERROR: Failed to read PHY status register\n");
@@ -3959,6 +4145,13 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
     {
       priv->mbps100 = 1;
     }
+#ifdef CONFIG_STM32_RGMII
+  else if ((phyval & CONFIG_STM32_PHYSR_SPEED) ==
+           CONFIG_STM32_PHYSR_1000MBPS)
+    {
+      priv->gbit = 1;
+    }
+#endif
 #endif
 
 #else /* Auto-negotiation not selected */
@@ -4002,7 +4195,7 @@ static int stm32_phyinit(struct stm32_ethmac_s *priv)
 
   syslog(LOG_INFO, "stm32_eth: link %s-duplex %d Mbps\n",
          priv->fduplex ? "full" : "half",
-         priv->mbps100 ? 100 : 10);
+         priv->gbit ? 1000 : priv->mbps100 ? 100 : 10);
 
   return OK;
 }
@@ -4062,6 +4255,32 @@ static inline void stm32_selectrmii(void)
 #endif
 
 /****************************************************************************
+ * Name: stm32_selectrgmii
+ *
+ * Description:
+ *   Selects the RGMII interface.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_RGMII
+static inline void stm32_selectrgmii(void)
+{
+  uint32_t regval;
+
+  regval  = getreg32(STM32_ETH_PHYIF_REG);
+  regval &= ~STM32_ETH_PHYIF_MASK;
+  regval |= STM32_ETH_PHYIF_RGMII;
+  putreg32(regval, STM32_ETH_PHYIF_REG);
+}
+#endif
+
+/****************************************************************************
  * Function: stm32_ethgpioconfig
  *
  * Description:
@@ -4081,9 +4300,10 @@ static inline void stm32_ethgpioconfig(struct stm32_ethmac_s *priv)
 {
   /* Configure GPIO pins to support Ethernet */
 
-#if defined(CONFIG_STM32_MII) || defined(CONFIG_STM32_RMII)
+#if defined(CONFIG_STM32_MII) || defined(CONFIG_STM32_RMII) || \
+    defined(CONFIG_STM32_RGMII)
 
-  /* MDC and MDIO are common to both modes */
+  /* MDC and MDIO are common to all modes */
 # ifndef CONFIG_STM32_NO_PHY
 #   ifdef CONFIG_STM32_ETH_MDIO_GPIO
   stm32_configgpio(GPIO_ETH_MDC_GPIO);
@@ -4209,6 +4429,37 @@ static inline void stm32_ethgpioconfig(struct stm32_ethmac_s *priv)
   stm32_configgpio(GPIO_ETH_RMII_TXD0);
   stm32_configgpio(GPIO_ETH_RMII_TXD1);
   stm32_configgpio(GPIO_ETH_RMII_TX_EN);
+
+  /* Set up the RGMII interface. */
+
+#  elif defined(CONFIG_STM32_RGMII)
+
+  /* Select the RGMII interface */
+
+  stm32_selectrgmii();
+
+  /* RGMII interface pins (12):
+   *
+   * RGMII_GTX_CLK, RGMII_TXD[3:0], RGMII_TX_CTL, RGMII_RX_CLK,
+   * RGMII_RXD[3:0], RGMII_RX_CTL, and the 125 MHz reference clock from the
+   * PHY if the board uses one.
+   */
+
+  stm32_configgpio(GPIO_ETH_RGMII_GTX_CLK);
+  stm32_configgpio(GPIO_ETH_RGMII_TXD0);
+  stm32_configgpio(GPIO_ETH_RGMII_TXD1);
+  stm32_configgpio(GPIO_ETH_RGMII_TXD2);
+  stm32_configgpio(GPIO_ETH_RGMII_TXD3);
+  stm32_configgpio(GPIO_ETH_RGMII_TX_CTL);
+  stm32_configgpio(GPIO_ETH_RGMII_RX_CLK);
+  stm32_configgpio(GPIO_ETH_RGMII_RXD0);
+  stm32_configgpio(GPIO_ETH_RGMII_RXD1);
+  stm32_configgpio(GPIO_ETH_RGMII_RXD2);
+  stm32_configgpio(GPIO_ETH_RGMII_RXD3);
+  stm32_configgpio(GPIO_ETH_RGMII_RX_CTL);
+#    ifdef GPIO_ETH_RGMII_CLK125
+  stm32_configgpio(GPIO_ETH_RGMII_CLK125);
+#    endif
 #  endif
 #endif
 
@@ -4733,6 +4984,11 @@ static void stm32_ethreset(struct stm32_ethmac_s *priv)
       up_udelay(1);
     }
 
+  if ((stm32_getreg(STM32_ETH_DMAMR) & ETH_DMAMR_SWR) != 0)
+    {
+      nerr("ERROR: MAC software reset timed out\n");
+    }
+
   /* According to the spec, these need to be done before creating
    * the descriptor lists, so initialize these already here
    */
@@ -4750,6 +5006,45 @@ static void stm32_ethreset(struct stm32_ethmac_s *priv)
   regval &= ~DMASBMR_CLEAR_MASK;
   regval |= DMASBMR_SET_MASK;
   stm32_putreg(regval, STM32_ETH_DMASBMR);
+}
+
+/****************************************************************************
+ * Function: stm32_eth_setqsize
+ *
+ * Description:
+ *  Program the size of MTL queue 0 on MACs with several queues.
+ *
+ ****************************************************************************/
+
+static void stm32_eth_setqsize(void)
+{
+  uint32_t hwf1 = stm32_getreg(STM32_ETH_MACHWF1R);
+  uint32_t hwf2 = stm32_getreg(STM32_ETH_MACHWF2R);
+  uint32_t regval;
+  uint32_t nq;
+  uint32_t size;
+
+  nq = ((hwf2 & ETH_MACHWF2R_TXQCNT_MASK) >> ETH_MACHWF2R_TXQCNT_SHIFT) + 1;
+  if (nq > 1)
+    {
+      size = (128 << ((hwf1 & ETH_MACHWF1R_TXFIFOSIZE_MASK) >>
+                      ETH_MACHWF1R_TXFIFOSIZE_SHIFT)) / nq;
+      regval  = stm32_getreg(STM32_ETH_MTLTXQOMR);
+      regval &= ~ETH_MTLTXQOMR_TQS_MASK;
+      regval |= (size / 256 - 1) << ETH_MTLTXQOMR_TQS_SHIFT;
+      stm32_putreg(regval, STM32_ETH_MTLTXQOMR);
+    }
+
+  nq = ((hwf2 & ETH_MACHWF2R_RXQCNT_MASK) >> ETH_MACHWF2R_RXQCNT_SHIFT) + 1;
+  if (nq > 1)
+    {
+      size = (128 << ((hwf1 & ETH_MACHWF1R_RXFIFOSIZE_MASK) >>
+                      ETH_MACHWF1R_RXFIFOSIZE_SHIFT)) / nq;
+      regval  = stm32_getreg(STM32_ETH_MTLRXQOMR);
+      regval &= ~ETH_MTLRXQOMR_RQS_MASK;
+      regval |= (size / 256 - 1) << ETH_MTLRXQOMR_RQS_SHIFT;
+      stm32_putreg(regval, STM32_ETH_MTLRXQOMR);
+    }
 }
 
 /****************************************************************************
@@ -4824,6 +5119,14 @@ static int stm32_macconfig(struct stm32_ethmac_s *priv)
       stm32_putreg(regval, STM32_ETH_MACRXQC0R);
     }
 
+  /* A MAC with several queues shares its FIFOs between them and the
+   * queue sizes are programmable, with 256 byte queues after reset.  In
+   * store-and-forward mode a queue must hold a whole frame, so give queue
+   * 0 its share of each FIFO (the fields are read-only with one queue).
+   */
+
+  stm32_eth_setqsize();
+
   /* MAC Configuration */
 
   /* Set up the MACCR register */
@@ -4845,6 +5148,15 @@ static int stm32_macconfig(struct stm32_ethmac_s *priv)
 
       regval |= ETH_MACCR_FES;
     }
+
+#ifdef CONFIG_STM32_RGMII
+  if (!priv->gbit)
+    {
+      /* Set the PS bit to select the 10/100 Mbps port */
+
+      regval |= ETH_MACCR_PS;
+    }
+#endif
 
   stm32_putreg(regval, STM32_ETH_MACCR);
 

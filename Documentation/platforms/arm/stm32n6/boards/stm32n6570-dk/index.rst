@@ -195,6 +195,18 @@ With a FAT formatted card::
   nsh> dd if=/dev/zero of=/mnt/big.bin bs=4096 count=256
   nsh> umount /mnt
 
+Ethernet
+========
+
+The RJ45 port is driven by a Realtek RTL8211F gigabit PHY at MDIO address 1,
+connected to ETH1 over RGMII: PD1 MDC, PD12 MDIO, PF0 GTX_CLK, PF2 CLK125,
+PF7 RX_CLK, PF10 RX_CTL, PF14/PF15/PF8/PF9 RXD0-3, PF11 TX_CTL and
+PF12/PF13/PG3/PG4 TXD0-3.  The PHY adds the RGMII clock delays
+(``CONFIG_STM32_ETH_RTL8211F_TXDELAY`` and ``_RXDELAY``) and its 125 MHz
+CLK125 output clocks the MAC.  The MAC address is derived from the unique
+device ID.  The interface is ``eth0``; check it with ``ifconfig`` and
+``ping``, and read the PHY registers with ``mdio``.
+
 Clocking
 ========
 
@@ -236,3 +248,10 @@ sdcard
 
 NuttShell with the microSD slot on SDMMC2 and the FAT file system, see
 `microSD`_.
+
+netnsh
+------
+
+The ``nsh`` configuration with Ethernet: IPv4, TCP, UDP, ICMP, a DHCP
+client started by NSH, ``ping``, ``telnetd`` and ``mdio``.  The link is
+auto-negotiated up to 1000 Mbps when ``eth0`` comes up.

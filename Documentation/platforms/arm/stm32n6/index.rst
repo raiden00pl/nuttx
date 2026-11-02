@@ -36,6 +36,8 @@ LTDC        Yes      Common LTDC driver (v2 register layout), RGB565,
                      RGB888 and ARGB8888 layers.  The layer bus masters
                      are made Secure and privileged through the RIF.
 EXTI        Yes      GPIO interrupts through the common driver.
+ETH         Yes      ETH1 through the common Ethernet v2 driver, MII, RMII
+                     or RGMII up to 1000 Mbps.
 DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
@@ -53,7 +55,6 @@ USART       Yes      USART1 and USART2.
 
 DCACHE      No
 DCMIPP      No
-ETH         No
 ICACHE      No
 MPU         No
 NPU         No
