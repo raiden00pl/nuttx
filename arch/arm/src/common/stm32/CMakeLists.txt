@@ -123,6 +123,18 @@ if(CONFIG_MDIO_BUS AND CONFIG_STM32_HAVE_IP_ETHMAC_V2)
   endif()
 endif()
 
+if(CONFIG_STM32_HAVE_IP_OTG_V2)
+  if(CONFIG_USBDEV)
+    list(APPEND SRCS stm32_otgdev_v2.c)
+  endif()
+  if(CONFIG_USBHOST)
+    list(APPEND SRCS stm32_otghost_v2.c)
+    if(CONFIG_USBHOST_TRACE OR CONFIG_DEBUG_USB)
+      list(APPEND SRCS stm32_usbhost_v2.c)
+    endif()
+  endif()
+endif()
+
 if(CONFIG_STM32_COMMON_M33)
   list(APPEND SRCS stm32_allocateheap_m33_v1.c stm32_irq_m33_v1.c
        stm32_start_m33_v1.c)
