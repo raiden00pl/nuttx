@@ -239,6 +239,29 @@
 
 /* Alternate function pin selections ****************************************/
 
+/* I2C GPIOs ****************************************************************/
+
+/* I2C1: camera connector (PH9 SCL, PC1 SDA)
+ * I2C2: WM8904 codec, GT911 touch, Arduino D14/D15 (PD14 SCL, PD4 SDA)
+ * I2C4: STMod+ connector (PE13 SCL, PE14 SDA)
+ *
+ * All I2C kernel clocks run from the 64 MHz HSI.
+ */
+
+#define GPIO_I2C1_SCL     GPIO_I2C1_SCL_1
+#define GPIO_I2C1_SDA     GPIO_I2C1_SDA_1
+#define GPIO_I2C2_SCL     GPIO_I2C2_SCL_1
+#define GPIO_I2C2_SDA     GPIO_I2C2_SDA_1
+#define GPIO_I2C4_SCL     GPIO_I2C4_SCL_1
+#define GPIO_I2C4_SDA     GPIO_I2C4_SDA_1
+
+#define STM32_RCC_CCIPR4_I2C1SEL RCC_CCIPR4_I2C1SEL_HSI
+#define STM32_RCC_CCIPR4_I2C2SEL RCC_CCIPR4_I2C2SEL_HSI
+#define STM32_RCC_CCIPR4_I2C4SEL RCC_CCIPR4_I2C4SEL_HSI
+#define STM32_I2C1_FREQUENCY     STM32_HSI_FREQUENCY
+#define STM32_I2C2_FREQUENCY     STM32_HSI_FREQUENCY
+#define STM32_I2C4_FREQUENCY     STM32_HSI_FREQUENCY
+
 /* TIM GPIOs ****************************************************************/
 
 /* TIM1 CH1 on PE9 (Arduino D6), TIM15 CH1 on PC12 (Arduino D10). */

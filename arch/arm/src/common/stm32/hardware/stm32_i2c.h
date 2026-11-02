@@ -29,12 +29,15 @@
 
 #if (defined(CONFIG_STM32_HAVE_IP_I2C_M0_V1) + \
      defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V1) + \
-     defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V2)) > 1
+     defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V2) + \
+     defined(CONFIG_STM32_HAVE_IP_I2C_V2)) > 1
 #  error Only one STM32 I2C IP version must be selected
 #endif
 
 #if defined(CONFIG_STM32_HAVE_IP_I2C_M0_V1)
 #  include "hardware/stm32_i2c_v2_m0.h"
+#elif defined(CONFIG_STM32_HAVE_IP_I2C_V2)
+#  include "stm32_i2c_v2.h"
 #elif defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V1) || defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V2)
 
 #if defined(CONFIG_STM32_HAVE_IP_I2C_M3M4_V1)

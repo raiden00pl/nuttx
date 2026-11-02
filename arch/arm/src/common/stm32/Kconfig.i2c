@@ -2,13 +2,11 @@
 # STM32 I2C configuration options.
 #
 
-# TODO: generalize H5 specific options !
-
 config STM32_I2C_SLAVE
 	bool
 	default n
 
-menu "I2C Configuration H5-specific"
+menu "I2C Clock Selection (STM32H5)"
 	depends on STM32_HAVE_I2C_H5
 
 menu "Clock Selection"
@@ -90,6 +88,11 @@ config STM32_I2C4_CLK_PLL3R
 endchoice # I2C4 Input Clock Selection
 
 endmenu # Clock Selection
+
+endmenu # I2C Clock Selection (STM32H5)
+
+menu "I2C v2 Configuration"
+	depends on STM32_HAVE_IP_I2C_V2
 
 menu "Rise/Fall Override"
 
@@ -227,7 +230,7 @@ endmenu # Analog Filters
 
 endmenu # Filtering
 
-endmenu # "I2C Configuration"
+endmenu # I2C v2 Configuration
 
 if !STM32_HAVE_I2C_H5
 

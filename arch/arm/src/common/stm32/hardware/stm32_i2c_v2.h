@@ -110,6 +110,7 @@
 #define I2C_CR1_RXDMAEN           (1 << 15)                  /* Bit 15: DMA reception requests enable */
 #define I2C_CR1_SBC               (1 << 16)                  /* Bit 16: Slave byte control */
 #define I2C_CR1_NOSTRETCH         (1 << 17)                  /* Bit 17: Clock stretching disable */
+#define I2C_CR1_FMP               (1 << 24)                  /* Bit 24: Fast-mode Plus enable */
 #define I2C_CR1_WUPEN             (1 << 18)                  /* Bit 18: Wakeup from STOP enable */
 #define I2C_CR1_GCEN              (1 << 19)                  /* Bit 19: General call enable */
 #define I2C_CR1_SMBHEN            (1 << 20)                  /* Bit 20: SMBus Host address enable */
