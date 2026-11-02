@@ -82,6 +82,7 @@
  */
 
 #define CLKRDY_TIMEOUT  (100 * CONFIG_BOARD_LOOPSPERMSEC)
+#define LSERDY_RETRIES  30
 
 /* Defaults for optional board.h settings */
 
@@ -755,6 +756,61 @@ static void rcc_enableccip(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: stm32_rcc_enablelse
+ *
+ * Description:
+ *   Enable the 32.768 kHz LSE oscillator.  The LSE lives in the backup
+ *   domain, so write access is enabled for the duration of the call.
+ *
+ ****************************************************************************/
+
+void stm32_rcc_enablelse(void)
+{
+  bool writable;
+  int retry;
+
+  if ((getreg32(STM32_RCC_SR) & RCC_SR_LSERDY) != 0)
+    {
+      return;
+    }
+
+  writable = stm32_pwr_enablebkp(true);
+
+#ifdef CONFIG_STM32_RTC_LSECLOCK_START_DRV_CAPABILITY
+  modifyreg32(STM32_RCC_LSECFGR, RCC_LSECFGR_LSEDRV_MASK,
+              CONFIG_STM32_RTC_LSECLOCK_START_DRV_CAPABILITY <<
+              RCC_LSECFGR_LSEDRV_SHIFT);
+#endif
+
+  /* The crystal may need up to a few seconds to start */
+
+  putreg32(RCC_CR_LSEON, STM32_RCC_CSR);
+  for (retry = 0; retry < LSERDY_RETRIES; retry++)
+    {
+      if (rcc_waitflag(STM32_RCC_SR, RCC_SR_LSERDY, true))
+        {
+          break;
+        }
+    }
+
+  stm32_pwr_enablebkp(writable);
+}
+
+/****************************************************************************
+ * Name: stm32_rcc_enablelsi
+ *
+ * Description:
+ *   Enable the 32 kHz LSI oscillator.
+ *
+ ****************************************************************************/
+
+void stm32_rcc_enablelsi(void)
+{
+  putreg32(RCC_CR_LSION, STM32_RCC_CSR);
+  rcc_waitflag(STM32_RCC_SR, RCC_SR_LSIRDY, true);
+}
 
 /****************************************************************************
  * Name: stm32_rcc_enableperipherals

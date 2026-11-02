@@ -76,6 +76,13 @@ if(CONFIG_STM32_HAVE_IP_EXTI_M33M55_V1)
   list(APPEND SRCS stm32_exti_gpio_m33m55_v1.c)
 endif()
 
+if(CONFIG_STM32_RTC AND CONFIG_STM32_HAVE_IP_RTCC_V3)
+  list(APPEND SRCS stm32_rtcc_v3.c)
+  if(CONFIG_RTC_DRIVER)
+    list(APPEND SRCS stm32_rtc_m3m4_v1_lowerhalf.c)
+  endif()
+endif()
+
 if(CONFIG_STM32_RNG AND CONFIG_STM32_HAVE_IP_RNG_M3M4_V1)
   list(APPEND SRCS stm32_rng.c)
 endif()

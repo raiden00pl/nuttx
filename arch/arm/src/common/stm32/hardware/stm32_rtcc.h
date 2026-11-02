@@ -30,7 +30,8 @@
 #if (defined(CONFIG_STM32_HAVE_IP_RTCC_M0_V1) + \
      defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_V1) + \
      defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_L1) + \
-     defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_F4)) > 1
+     defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_F4) + \
+     defined(CONFIG_STM32_HAVE_IP_RTCC_V3)) > 1
 #  error Only one STM32 RTCC IP version must be selected
 #endif
 
@@ -40,6 +41,8 @@
       defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_L1) || \
       defined(CONFIG_STM32_HAVE_IP_RTCC_M3M4_F4)
 #  include "hardware/stm32_rtcc_v1.h"
+#elif defined(CONFIG_STM32_HAVE_IP_RTCC_V3)
+#  include "hardware/stm32_rtcc_v3.h"
 #else
 #  error "Unsupported STM32 RTCC"
 #endif

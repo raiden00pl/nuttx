@@ -136,6 +136,15 @@ PG2 MOSI (D11) and PA3 as chip select (D10).  It is registered as
 ``/dev/spi5`` and can be exercised with the ``spi`` tool; shorting D11
 to D12 loops the transmitted bytes back.
 
+RTC
+===
+
+The RTC runs from the 32.768 kHz LSE crystal and is registered as
+``/dev/rtc0`` with two alarms.  Set the time with ``date -s`` and test the
+alarms with the ``alarm`` example, e.g. ``alarm 5`` or ``alarm -a 1 5``.
+The time survives a reset; without a backup battery it is lost on power
+off.
+
 Clocking
 ========
 
@@ -156,4 +165,5 @@ Configurations
 nsh
 ---
 
-NuttShell with the user LEDs, the USER1 button and GPDMA1 enabled.
+NuttShell with the user LEDs, the USER1 button, GPDMA1, ``/dev/random``,
+PWM, I2C, SPI and the RTC enabled.
