@@ -52,10 +52,7 @@
 #include "arm_internal.h"
 #include "stm32.h"
 #include "stm32_sdmmc.h"
-
-#if defined(CONFIG_ARCH_CHIP_STM32H7)
-#  include "stm32_dtcm.h"
-#endif
+#include "stm32_sdmmc_chip.h"
 
 #if defined(CONFIG_STM32_SDMMC1) || defined(CONFIG_STM32_SDMMC2)
 
@@ -87,8 +84,8 @@
  *
  * HW Issues when using IDMA
  *
- *    The DMA buffer must be located in a zone accessible via IDMA.
- * On STM32H7, SDMMC1 IDMA cannot access SRAM123 or SRAM4 (ST AN5200).
+ *    The DMA buffer must be located in a zone accessible via IDMA.  The
+ * family stm32_sdmmc_chip.h gives these zones.
  * Buffer validity is checked when CONFIG_ARCH_HAVE_SDIO_PREFLIGHT is set.
  *
  * The STM32H7 MDMA path for SDMMC1 is not supported at this time.
@@ -139,20 +136,8 @@
 
 #if !defined(CONFIG_STM32_SDMMC_IDMA)
 #  warning "Large Non-DMA transfer may result in RX overrun failures"
-#elif defined(CONFIG_ARCH_CHIP_STM32H7)
-#  define AXISRAM_START  STM32_AXISRAM_BASE
-#  define AXISRAM_END    (AXISRAM_START + STM32_SRAM_SIZE)
-#  if defined(CONFIG_ARCH_CHIP_STM32H7_CORTEXM7) && \
-      !defined(CONFIG_STM32_STM32H72XXX_OR_STM32H73XXX) && \
-      (defined(CONFIG_STM32_STM32H7X0XX) || \
-       defined(CONFIG_STM32_STM32H7X3XX) || \
-       defined(CONFIG_STM32_STM32H7X5XX))
-#    define HAVE_SDMMC2_D2D3_IDMA 1
-#    define SRAM123_START STM32_SRAM123_BASE
-#    define SRAM123_END   (SRAM123_START + STM32_SRAM123_SIZE)
-#    define SRAM4_START   STM32_SRAM4_BASE
-#    define SRAM4_END     (SRAM4_START + STM32_SRAM4_SIZE)
-#  endif
+#elif !defined(STM32_SDMMC_IDMA_RAM_START) || !defined(STM32_SDMMC_IDMA_RAM_END)
+#  error "stm32_sdmmc_chip.h must define the IDMA accessible memory"
 #endif
 
 #if !defined(CONFIG_SCHED_WORKQUEUE) || !defined(CONFIG_SCHED_HPWORK)
@@ -226,24 +211,12 @@
 
 /* Friendly Clock source & CLKCR bit re-definitions *************************/
 
-/* The SDMMC kernel clock frequency is normally provided by board.h as
- * STM32_SDMMC_CLK.  STM32H7 boards may instead select the kernel clock
- * with STM32_RCC_D1CCIPR_SDMMCSEL; pll1_q_ck is the default after reset.
+/* The SDMMC kernel clock frequency comes from board.h or the family
+ * stm32_sdmmc_chip.h.
  */
 
 #if !defined(STM32_SDMMC_CLK)
-#  if defined(CONFIG_ARCH_CHIP_STM32H7)
-#    if !defined(STM32_RCC_D1CCIPR_SDMMCSEL)
-#      define STM32_RCC_D1CCIPR_SDMMCSEL  RCC_D1CCIPR_SDMMC_PLL1
-#    endif
-#    if STM32_RCC_D1CCIPR_SDMMCSEL  == RCC_D1CCIPR_SDMMC_PLL1
-#      define STM32_SDMMC_CLK  STM32_PLL1Q_FREQUENCY
-#    else
-#      define STM32_SDMMC_CLK  STM32_PLL2R_FREQUENCY
-#    endif
-#  else
-#    error "board.h must provide STM32_SDMMC_CLK"
-#  endif
+#  error "board.h must provide STM32_SDMMC_CLK"
 #endif
 
 #define STM32_CLKCR_RISINGEDGE    (0)
@@ -3376,22 +3349,22 @@ static bool stm32_idma_accessible(struct stm32_dev_s *priv,
 
   /* All SDMMC instances can reach AXI SRAM. */
 
-  if (start >= AXISRAM_START && end <= AXISRAM_END)
+  if (start >= STM32_SDMMC_IDMA_RAM_START &&
+      end <= STM32_SDMMC_IDMA_RAM_END)
     {
       return true;
     }
 
-  /* On the STM32H74x/H75x family, SDMMC2 can also reach the D2 SRAM1/2/3
-   * and D3 SRAM4 regions.  Other families remain conservatively limited to
-   * AXI SRAM until their bus matrix has an explicit allow-list.  Cortex-M4
-   * uses a private 0x100... alias for SRAM123, which must not be exposed to
-   * an IDMA bus master.
+  /* SDMMC2 may also reach the SRAM123 and SRAM4 regions given by
+   * stm32_sdmmc_chip.h.  Other memory must bounce or be rejected.
    */
 
-#if defined(CONFIG_STM32_SDMMC2) && defined(HAVE_SDMMC2_D2D3_IDMA)
+#if defined(CONFIG_STM32_SDMMC2) && defined(STM32_SDMMC2_IDMA_SRAM123_START)
   if (priv->base == STM32_SDMMC2_BASE &&
-      ((start >= SRAM123_START && end <= SRAM123_END) ||
-       (start >= SRAM4_START && end <= SRAM4_END)))
+      ((start >= STM32_SDMMC2_IDMA_SRAM123_START &&
+        end <= STM32_SDMMC2_IDMA_SRAM123_END) ||
+       (start >= STM32_SDMMC2_IDMA_SRAM4_START &&
+        end <= STM32_SDMMC2_IDMA_SRAM4_END)))
     {
       return true;
     }

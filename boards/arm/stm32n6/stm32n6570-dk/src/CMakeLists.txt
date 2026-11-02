@@ -48,6 +48,10 @@ if(CONFIG_STM32_LTDC)
   list(APPEND SRCS stm32_lcd.c)
 endif()
 
+if(CONFIG_STM32_SDMMC2)
+  list(APPEND SRCS stm32_sdmmc.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

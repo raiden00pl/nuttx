@@ -180,6 +180,22 @@ channel 11) and is registered as ``/dev/adc0``.  The conversions are
 inputs between 0 and 1.8 V.  ``adc -n 4`` reads four groups of samples;
 an input tied to GND reads close to 0 and one tied to 1.8 V close to 4095.
 
+microSD
+=======
+
+The microSD slot is on SDMMC2 (4-bit, IDMA): PC2 CK, PC3 CMD, PC4-PC5 D0-D1,
+PC0 D2, PE4 D3 (AF11), card detect PN12 (low with a card) and card power
+enable PQ7 (high).  The kernel clock is IC4 = 200 MHz, giving 400 kHz for
+identification and 25 MHz for transfers.  The card is ``/dev/mmcsd0``;
+insertion and removal are reported through the card detect interrupt.
+With a FAT formatted card::
+
+  nsh> mount -t vfat /dev/mmcsd0 /mnt
+  nsh> echo hello > /mnt/test.txt
+  nsh> cat /mnt/test.txt
+  nsh> dd if=/dev/zero of=/mnt/big.bin bs=4096 count=256
+  nsh> umount /mnt
+
 Clocking
 ========
 
@@ -215,3 +231,9 @@ lvgl
 ``fb`` plus the touch controller, LVGL and its widgets demo.  Start it
 with ``lvgldemo &``.  The image is close to the 511 KiB limit of the boot
 ROM, so LVGL logging and extra fonts are left out.
+
+sdcard
+------
+
+NuttShell with the microSD slot on SDMMC2 and the FAT file system, see
+`microSD`_.
