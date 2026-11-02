@@ -69,6 +69,16 @@ int stm32_bringup(void)
 {
   int ret;
 
+#ifdef CONFIG_STM32N6570_DK_PSRAM
+  /* Map the PSRAM first so that later allocations can use it */
+
+  ret = stm32_psram_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_psram_initialize() failed: %d\n", ret);
+    }
+#endif
+
   /* Initialize the board features common to all STM32 boards: procfs and
    * the enabled I2C buses.
    */
@@ -117,6 +127,16 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: rtc_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_STM32N6570_DK_NOR
+  /* Register the NOR flash data partition and mount it */
+
+  ret = stm32_nor_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_nor_initialize() failed: %d\n", ret);
     }
 #endif
 

@@ -333,6 +333,14 @@ static inline void rcc_enableahb5(void)
   regval |= RCC_AHB5ENR_SDMMC2EN;
 #endif
 
+#ifdef CONFIG_STM32_XSPI1
+  regval |= RCC_AHB5ENR_XSPI1EN | RCC_AHB5ENR_XSPIMEN;
+#endif
+
+#ifdef CONFIG_STM32_XSPI2
+  regval |= RCC_AHB5ENR_XSPI2EN | RCC_AHB5ENR_XSPIMEN;
+#endif
+
 #ifdef CONFIG_STM32_ETHMAC
   /* ETH1 bus, MAC, TX and RX clocks */
 

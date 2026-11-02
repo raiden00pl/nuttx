@@ -1112,6 +1112,21 @@ config STM32_QSPI
 	---help---
 		The STM32L4 QSPI block is intended to support one serial NOR flash device
 
+config STM32_XSPI
+	bool
+
+config STM32_XSPI1
+	bool "XSPI1"
+	depends on STM32_HAVE_XSPI1
+	select STM32_XSPI
+	default n
+
+config STM32_XSPI2
+	bool "XSPI2"
+	depends on STM32_HAVE_XSPI2
+	select STM32_XSPI
+	default n
+
 # ETH peripherals
 
 config STM32_ETHMAC

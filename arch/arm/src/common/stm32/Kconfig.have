@@ -697,6 +697,12 @@ config STM32_HAVE_QSPI
 config STM32_HAVE_XSPI
 	bool
 
+config STM32_HAVE_XSPI1
+	bool
+
+config STM32_HAVE_XSPI2
+	bool
+
 config STM32_HAVE_IP_XSPI_V1
 	bool
 	---help---

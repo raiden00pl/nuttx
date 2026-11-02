@@ -59,6 +59,14 @@ ifeq ($(CONFIG_STM32_OTGHS)$(CONFIG_USBHOST),yy)
 CSRCS += stm32_usbhost.c
 endif
 
+ifeq ($(CONFIG_STM32N6570_DK_PSRAM),y)
+CSRCS += stm32_psram.c
+endif
+
+ifeq ($(CONFIG_STM32N6570_DK_NOR),y)
+CSRCS += stm32_mx66uw1g45g.c
+endif
+
 DEPPATH += --dep-path board
 VPATH += :board
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board
