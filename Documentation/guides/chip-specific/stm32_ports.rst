@@ -640,7 +640,7 @@ STM32H7
 ============  ============  ============================================
 Peripheral    Core version  Driver                                 
 ============  ============  ============================================
-ADC           to be done    arch/arm/src/stm32h7/stm32_adc.c       
+ADC           v3            arch/arm/src/common/stm32/stm32_adc_v3.c
 BDMA          to be done    arch/arm/src/stm32h7/stm32_dma.c       
 CAN/FDCAN     FDCAN         arch/arm/src/stm32h7/stm32_fdcan_sock.c
 DAC           to be done    not supported                          

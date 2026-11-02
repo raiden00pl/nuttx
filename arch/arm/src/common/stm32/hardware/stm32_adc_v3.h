@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/hardware/stm32_adc.h
+ * arch/arm/src/common/stm32/hardware/stm32_adc_v3.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32_ADC_H
-#define __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32_ADC_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_ADC_V3_H
+#define __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_ADC_V3_H
 
 /****************************************************************************
  * Included Files
@@ -753,4 +753,4 @@
 #define ADC_CDR2_RDATA_ALT_SHIFT     (0)       /* Bits 0-31: Regular data of the master/slave alternated ADCs */
 #define ADC_CDR2_RDATA_ALT_MASK      (0xffffffff << ADC_CDR_RDATA_ALT_SHIFT)
 
-#endif /* __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32_ADC_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_ADC_V3_H */

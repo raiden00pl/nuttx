@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/stm32_adc.h
+ * arch/arm/src/common/stm32/stm32_adc_v3.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32H7_STM32_ADC_H
-#define __ARCH_ARM_SRC_STM32H7_STM32_ADC_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_STM32_ADC_V3_H
+#define __ARCH_ARM_SRC_COMMON_STM32_STM32_ADC_V3_H
 
 /****************************************************************************
  * Included Files
@@ -806,4 +806,4 @@ struct adc_dev_s *stm32_adc_initialize(int intf, const uint8_t *chanlist,
 #endif /* __ASSEMBLY__ */
 
 #endif /* CONFIG_STM32_ADC1 || CONFIG_STM32_ADC2 || CONFIG_STM32_ADC3 */
-#endif /* __ARCH_ARM_SRC_STM32H7_STM32_ADC_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_ADC_V3_H */
