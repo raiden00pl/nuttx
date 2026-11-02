@@ -271,6 +271,67 @@ static struct stm32_serial_s g_usart1priv =
 };
 #endif
 
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
+static char g_usart2rxbuffer[CONFIG_USART2_RXBUFSIZE];
+static char g_usart2txbuffer[CONFIG_USART2_TXBUFSIZE];
+#endif
+
+/* This describes the state of the STM32N6 USART2 port. */
+
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
+static struct stm32_serial_s g_usart2priv =
+{
+  .dev =
+    {
+#  if CONSOLE_UART == 2
+      .isconsole = true,
+#  endif
+      .recv      =
+      {
+        .size    = CONFIG_USART2_RXBUFSIZE,
+        .buffer  = g_usart2rxbuffer,
+      },
+      .xmit      =
+      {
+        .size    = CONFIG_USART2_TXBUFSIZE,
+        .buffer  = g_usart2txbuffer,
+      },
+      .ops       = &g_uart_ops,
+      .priv      = &g_usart2priv,
+    },
+
+  .irq           = STM32_IRQ_USART2,
+  .parity        = CONFIG_USART2_PARITY,
+  .bits          = CONFIG_USART2_BITS,
+  .stopbits2     = CONFIG_USART2_2STOP,
+  .baud          = CONFIG_USART2_BAUD,
+  .apbclock      = STM32_USART2_FREQUENCY,
+  .usartbase     = STM32_USART2_BASE,
+  .tx_gpio       = GPIO_USART2_TX,
+  .rx_gpio       = GPIO_USART2_RX,
+#  if defined(CONFIG_SERIAL_OFLOWCONTROL) && defined(CONFIG_USART2_OFLOWCONTROL)
+  .oflow         = true,
+  .cts_gpio      = GPIO_USART2_CTS,
+#  endif
+#  if defined(CONFIG_SERIAL_IFLOWCONTROL) && defined(CONFIG_USART2_IFLOWCONTROL)
+  .iflow         = true,
+  .rts_gpio      = GPIO_USART2_RTS,
+#  endif
+
+  .lock               = SP_UNLOCKED,
+  .unconfigure        = 0
+#if defined(CONFIG_USART2_UNCONFIG_RX_ON_CLOSE)
+                      |
+                      USART_UNCONFIGURE_RX
+#endif
+#if defined(CONFIG_USART2_UNCONFIG_TX_ON_CLOSE)
+                      |
+                      USART_UNCONFIGURE_TX
+#endif
+      ,
+};
+#endif
+
 /* This table lets us iterate over the configured USARTs */
 
 static struct stm32_serial_s * const
@@ -278,6 +339,9 @@ static struct stm32_serial_s * const
 {
 #ifdef CONFIG_STM32_USART1_SERIALDRIVER
   [0] = &g_usart1priv,
+#endif
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
+  [1] = &g_usart2priv,
 #endif
 };
 
@@ -706,6 +770,13 @@ static void stm32serial_setapbclock(struct uart_dev_s *dev, bool on)
         rcc_en = RCC_APB2ENR_USART1EN;
         regaddr_set = STM32_RCC_APB2ENSR;
         regaddr_clr = STM32_RCC_APB2ENCR;
+        break;
+#endif
+#ifdef CONFIG_STM32_USART2_SERIALDRIVER
+      case STM32_USART2_BASE:
+        rcc_en = RCC_APB1LENR_USART2EN;
+        regaddr_set = STM32_RCC_APB1LENSR;
+        regaddr_clr = STM32_RCC_APB1LENCR;
         break;
 #endif
     }

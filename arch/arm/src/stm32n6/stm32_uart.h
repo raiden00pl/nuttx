@@ -45,9 +45,14 @@
 #  undef CONFIG_STM32_USART1_1WIREDRIVER
 #endif
 
+#if !defined(CONFIG_STM32_USART2)
+#  undef CONFIG_STM32_USART2_SERIALDRIVER
+#  undef CONFIG_STM32_USART2_1WIREDRIVER
+#endif
+
 /* Is there a USART enabled? */
 
-#if defined(CONFIG_STM32_USART1)
+#if defined(CONFIG_STM32_USART1) || defined(CONFIG_STM32_USART2)
 #  define HAVE_UART 1
 #endif
 
