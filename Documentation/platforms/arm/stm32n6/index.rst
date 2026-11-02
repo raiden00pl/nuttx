@@ -35,6 +35,8 @@ PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
 RNG         Yes      Through the common driver.
+SPI         Yes      SPI1-6 through the common SPI v5 driver, master
+                     mode, optional GPDMA.
 TIM         Yes      Timer, PWM and tickless through the common drivers.
 USART       Yes      USART1 only.
 
@@ -49,7 +51,6 @@ NPU         No
 RTC         No
 SAI         No
 SDMMC       No
-SPI         No
 USB         No
 XSPI        No
 ==========  =======  ===================================================

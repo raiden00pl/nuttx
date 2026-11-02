@@ -262,6 +262,20 @@
 #define STM32_I2C2_FREQUENCY     STM32_HSI_FREQUENCY
 #define STM32_I2C4_FREQUENCY     STM32_HSI_FREQUENCY
 
+/* SPI GPIOs ****************************************************************/
+
+/* SPI5 on the Arduino connector: PE15 SCK (D13), PH8 MISO (D12), PG2 MOSI
+ * (D11); PA3 (D10) is driven as a GPIO chip select by the board code.
+ * The kernel clock is PCLK2 (200 MHz).
+ */
+
+#define GPIO_SPI5_SCK     GPIO_SPI5_SCK_1
+#define GPIO_SPI5_MISO    GPIO_SPI5_MISO_1
+#define GPIO_SPI5_MOSI    GPIO_SPI5_MOSI_1
+
+#define STM32_RCC_CCIPR9_SPI5SEL RCC_CCIPR9_SPI5SEL_PCLK2
+#define STM32_SPI5_FREQUENCY     STM32_PCLK2_FREQUENCY
+
 /* TIM GPIOs ****************************************************************/
 
 /* TIM1 CH1 on PE9 (Arduino D6), TIM15 CH1 on PC12 (Arduino D10). */

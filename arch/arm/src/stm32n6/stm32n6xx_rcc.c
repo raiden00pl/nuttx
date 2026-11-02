@@ -352,6 +352,14 @@ static inline void rcc_enableapb1(void)
   regval |= RCC_APB1LENR_WWDGEN;
 #endif
 
+#ifdef CONFIG_STM32_SPI2
+  regval |= RCC_APB1LENR_SPI2EN;
+#endif
+
+#ifdef CONFIG_STM32_SPI3
+  regval |= RCC_APB1LENR_SPI3EN;
+#endif
+
   if (regval != 0)
     {
       putreg32(regval, STM32_RCC_APB1LENSR);
@@ -374,9 +382,43 @@ static inline void rcc_enableapb2(void)
   regval |= RCC_APB2ENR_USART1EN;
 #endif
 
+#ifdef CONFIG_STM32_SPI1
+  regval |= RCC_APB2ENR_SPI1EN;
+#endif
+
+#ifdef CONFIG_STM32_SPI4
+  regval |= RCC_APB2ENR_SPI4EN;
+#endif
+
+#ifdef CONFIG_STM32_SPI5
+  regval |= RCC_APB2ENR_SPI5EN;
+#endif
+
   if (regval != 0)
     {
       putreg32(regval, STM32_RCC_APB2ENSR);
+    }
+}
+
+/****************************************************************************
+ * Name: rcc_enableapb4
+ *
+ * Description:
+ *   Enable selected APB4 peripherals.
+ *
+ ****************************************************************************/
+
+static inline void rcc_enableapb4(void)
+{
+  uint32_t regval = 0;
+
+#ifdef CONFIG_STM32_SPI6
+  regval |= RCC_APB4LENR_SPI6EN;
+#endif
+
+  if (regval != 0)
+    {
+      putreg32(regval, STM32_RCC_APB4LENSR);
     }
 }
 
@@ -748,6 +790,7 @@ void stm32_rcc_enableperipherals(void)
   rcc_enableahb5();
   rcc_enableapb1();
   rcc_enableapb2();
+  rcc_enableapb4();
   rcc_enableccip();
 }
 
