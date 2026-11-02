@@ -194,6 +194,18 @@ int stm32_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
+  /* Register the IMX335 camera; the application creates /dev/video with
+   * capture_initialize().
+   */
+
+  ret = stm32_camera_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_camera_initialize() failed: %d\n", ret);
+    }
+#endif
+
 #if defined(CONFIG_ADC) && defined(CONFIG_STM32_ADC1)
   /* Initialize ADC1 and register it as /dev/adc0 */
 

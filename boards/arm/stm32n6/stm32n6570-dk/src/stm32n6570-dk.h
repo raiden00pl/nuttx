@@ -109,6 +109,16 @@
 #define GPIO_USB2_PWR_EN (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_2MHZ | \
                           GPIO_OUTPUT_CLEAR | GPIO_PORTB | GPIO_PIN9)
 
+/* Camera connector (MB1854 IMX335 module): NRST on PC8 (active low) and
+ * module enable on PD2 (active high).  The sensor is on I2C1.
+ */
+
+#define GPIO_CAM_NRST  (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_2MHZ | \
+                        GPIO_OUTPUT_CLEAR | GPIO_PORTC | GPIO_PIN8)
+#define GPIO_CAM_EN    (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_2MHZ | \
+                        GPIO_OUTPUT_CLEAR | GPIO_PORTD | GPIO_PIN2)
+#define CAMERA_I2C_BUS 1
+
 #define SDIO_SLOTNO    0
 #define SDIO_MINOR     0
 
@@ -234,6 +244,19 @@ int stm32_psram_initialize(void);
 
 #ifdef CONFIG_STM32N6570_DK_NOR
 int stm32_nor_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_camera_initialize
+ *
+ * Description:
+ *   Power up the camera module and register the IMX335 sensor and the
+ *   DCMIPP capture interface with the V4L2 capture driver.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
+int stm32_camera_initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

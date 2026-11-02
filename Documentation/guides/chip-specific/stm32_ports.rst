@@ -772,7 +772,9 @@ Peripheral    Core version  Driver
 ============  ============  ==================================================
 ADC           v3            arch/arm/src/common/stm32/stm32_adc_v3.c
 CAN/FDCAN     to be done    not supported
+CSI           n6            arch/arm/src/stm32n6/stm32_csi.c
 DAC           to be done    not supported
+DCMIPP        n6            arch/arm/src/stm32n6/stm32_dcmipp.c
 ETH           v2            arch/arm/src/common/stm32/stm32_eth_v2.c
 EXTI          M33M55 v1     arch/arm/src/common/stm32/stm32_exti_gpio_m33m55_v1.c
 GPIO          M33M55 v1     arch/arm/src/common/stm32/stm32_gpio_m33m55_v1.c

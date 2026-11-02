@@ -28,6 +28,11 @@ Peripheral  Support  Notes
 ADC         Yes      ADC1 and ADC2 through the common ADC v3 driver,
                      interrupt-driven conversions only (no DMA or timer
                      trigger).
+DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
+                     interface: raw Bayer to RGB565 with a static ISP
+                     (black level, white balance, demosaicing, colour
+                     matrix, gamma) and scaling.  No pipe0/pipe2,
+                     parallel input or automatic exposure.
 GPIO        Yes
 I2C         Yes      I2C1-4 through the common I2C v2 driver.
 IWDG        Yes      Through the common driver.
@@ -59,7 +64,6 @@ XSPI        Yes      XSPI1-2 and the XSPIM through the common XSPI v1
                      lines, DTR, DQS) and memory-mapped mode.
 
 DCACHE      No
-DCMIPP      No
 ICACHE      No
 MPU         No
 NPU         No
