@@ -779,6 +779,7 @@ GPDMA         v1            arch/arm/src/common/stm32/stm32_dma_gpdma.c
 I2C           v2            arch/arm/src/common/stm32/stm32_i2c_v2.c
 IWDG          v3            arch/arm/src/common/stm32/stm32_iwdg.c
 LPTIM         v2            arch/arm/src/common/stm32/stm32_lptim.c
+LTDC          v2            arch/arm/src/common/stm32/stm32_ltdc_m3m4_v1.c
 PWM           v1v2v3        arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.c
 PWR           n6            arch/arm/src/stm32n6/stm32_pwr.c
 RCC           n6            arch/arm/src/stm32n6/stm32n6xx_rcc.c

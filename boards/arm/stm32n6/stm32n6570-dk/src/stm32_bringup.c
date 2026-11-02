@@ -35,10 +35,15 @@
 #include <nuttx/input/buttons.h>
 #include <nuttx/timers/pwm.h>
 #include <nuttx/timers/rtc.h>
+#include <nuttx/video/fb.h>
 
 #include "stm32_rtc.h"
 #include "stm32n6570-dk.h"
 #include "board_common.h"
+
+#ifdef CONFIG_INPUT_GT9XX
+#  include "stm32_gt9xx.h"
+#endif
 
 #include <arch/board/board.h>
 
@@ -122,6 +127,29 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_VIDEO_FB
+  /* Initialize and register the LCD framebuffer driver as /dev/fb0 */
+
+  ret = fb_register(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_INPUT_GT9XX
+  /* Register the GT911 touch controller as /dev/input0.  The LCD set-up
+   * above has released its reset.
+   */
+
+  ret = board_gt9xx_initialize(0, TOUCH_I2C_BUS, TOUCH_I2C_ADDR,
+                               GPIO_TOUCH_INT);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_gt9xx_initialize() failed: %d\n", ret);
     }
 #endif
 

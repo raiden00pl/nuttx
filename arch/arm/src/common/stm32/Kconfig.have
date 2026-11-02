@@ -524,6 +524,9 @@ config STM32_HAVE_LTDC
 config STM32_HAVE_IP_LTDC_M3M4_V1
 	bool
 
+config STM32_HAVE_IP_LTDC_V2
+	bool
+
 config STM32_HAVE_DSIHOST
 	bool
 

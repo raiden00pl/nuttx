@@ -98,6 +98,10 @@ ifeq ($(CONFIG_STM32_RNG)$(CONFIG_STM32_HAVE_IP_RNG_M3M4_V1),yy)
 CHIP_CSRCS += stm32_rng.c
 endif
 
+ifeq ($(CONFIG_STM32_LTDC)$(CONFIG_STM32_HAVE_IP_LTDC_V2),yy)
+CHIP_CSRCS += stm32_ltdc_m3m4_v1.c
+endif
+
 ifeq ($(CONFIG_STM32_PWM)$(CONFIG_STM32_HAVE_COMMON_PWM),yy)
 CHIP_CSRCS += stm32_pwm_m3m4_v1v2v3.c
 endif

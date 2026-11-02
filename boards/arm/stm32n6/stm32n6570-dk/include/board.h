@@ -104,6 +104,11 @@
 #define STM32_IC11_SRC          RCC_ICCFGR_SEL_PLL1
 #define STM32_IC11_DIV          6
 
+/* IC16 = PLL4 / 48 = 25 MHz -> LTDC pixel clock */
+
+#define STM32_IC16_SRC          RCC_ICCFGR_SEL_PLL4
+#define STM32_IC16_DIV          48
+
 #define STM32_CPUCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC1_DIV)
 #define STM32_SYSCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC2_DIV)
 #define STM32_RCC_CFGR2_HPRE    RCC_CFGR2_HPRE_SYSCLKd2
@@ -139,6 +144,11 @@
 #define STM32_IC6_DIV           12
 #define STM32_IC11_SRC          RCC_ICCFGR_SEL_PLL1
 #define STM32_IC11_DIV          8
+
+/* IC16 = PLL1 / 32 = 25 MHz -> LTDC pixel clock */
+
+#define STM32_IC16_SRC          RCC_ICCFGR_SEL_PLL1
+#define STM32_IC16_DIV          32
 
 #define STM32_CPUCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC1_DIV)
 #define STM32_SYSCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC2_DIV)
@@ -186,6 +196,10 @@
 
 #define STM32_RCC_CCIPR13_USART2SEL RCC_CCIPR13_USART2SEL_HSI
 #define STM32_USART2_FREQUENCY      STM32_HSI_FREQUENCY
+
+/* LTDC kernel clock: IC16 (25 MHz pixel clock) */
+
+#define STM32_RCC_CCIPR4_LTDCSEL RCC_CCIPR4_LTDCSEL_IC16
 
 /* I/O voltage domains ******************************************************/
 
@@ -280,6 +294,62 @@
 
 #define STM32_RCC_CCIPR9_SPI5SEL RCC_CCIPR9_SPI5SEL_PCLK2
 #define STM32_SPI5_FREQUENCY     STM32_PCLK2_FREQUENCY
+
+/* LTDC *********************************************************************/
+
+/* 5" 800x480 Rocktech RK050HR18 RGB888 panel on the LTDC.  Timings from
+ * the panel datasheet as used by the ST BSP: HSYNC/VSYNC 4, back and front
+ * porches 8, syncs and DE active low, pixel clock not inverted (as in the
+ * Zephyr board).  The 25 MHz pixel clock comes from IC16 (see above).
+ */
+
+#define GPIO_LTDC_R0     GPIO_LTDC_R0_1
+#define GPIO_LTDC_R1     GPIO_LTDC_R1_1
+#define GPIO_LTDC_R2     GPIO_LTDC_R2_1
+#define GPIO_LTDC_R3     GPIO_LTDC_R3_1
+#define GPIO_LTDC_R4     GPIO_LTDC_R4_1
+#define GPIO_LTDC_R5     GPIO_LTDC_R5_1
+#define GPIO_LTDC_R6     GPIO_LTDC_R6_1
+#define GPIO_LTDC_R7     GPIO_LTDC_R7_1
+
+#define GPIO_LTDC_G0     GPIO_LTDC_G0_1
+#define GPIO_LTDC_G1     GPIO_LTDC_G1_1
+#define GPIO_LTDC_G2     GPIO_LTDC_G2_1
+#define GPIO_LTDC_G3     GPIO_LTDC_G3_1
+#define GPIO_LTDC_G4     GPIO_LTDC_G4_1
+#define GPIO_LTDC_G5     GPIO_LTDC_G5_1
+#define GPIO_LTDC_G6     GPIO_LTDC_G6_1
+#define GPIO_LTDC_G7     GPIO_LTDC_G7_1
+
+#define GPIO_LTDC_B0     GPIO_LTDC_B0_1
+#define GPIO_LTDC_B1     GPIO_LTDC_B1_1
+#define GPIO_LTDC_B2     GPIO_LTDC_B2_1
+#define GPIO_LTDC_B3     GPIO_LTDC_B3_1
+#define GPIO_LTDC_B4     GPIO_LTDC_B4_1
+#define GPIO_LTDC_B5     GPIO_LTDC_B5_1
+#define GPIO_LTDC_B6     GPIO_LTDC_B6_1
+#define GPIO_LTDC_B7     GPIO_LTDC_B7_1
+
+#define GPIO_LTDC_CLK    GPIO_LTDC_CLK_1
+#define GPIO_LTDC_DE     GPIO_LTDC_DE_1
+#define GPIO_LTDC_HSYNC  GPIO_LTDC_HSYNC_1
+#define GPIO_LTDC_VSYNC  GPIO_LTDC_VSYNC_1
+
+#define BOARD_LTDC_WIDTH         800
+#define BOARD_LTDC_HEIGHT        480
+
+#define BOARD_LTDC_OUTPUT_BPP    24
+#define BOARD_LTDC_HSYNC         4
+#define BOARD_LTDC_HBP           8
+#define BOARD_LTDC_HFP           8
+#define BOARD_LTDC_VSYNC         4
+#define BOARD_LTDC_VBP           8
+#define BOARD_LTDC_VFP           8
+
+#define BOARD_LTDC_GCR_PCPOL     0 /* Input pixel clock */
+#define BOARD_LTDC_GCR_DEPOL     0 /* DE active low */
+#define BOARD_LTDC_GCR_VSPOL     0 /* VSYNC active low */
+#define BOARD_LTDC_GCR_HSPOL     0 /* HSYNC active low */
 
 /* TIM GPIOs ****************************************************************/
 

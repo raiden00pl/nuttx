@@ -29,6 +29,9 @@ GPIO        Yes
 I2C         Yes      I2C1-4 through the common I2C v2 driver.
 IWDG        Yes      Through the common driver.
 LPTIM       Yes      Through the common driver.
+LTDC        Yes      Common LTDC driver (v2 register layout), RGB565,
+                     RGB888 and ARGB8888 layers.  The layer bus masters
+                     are made Secure and privileged through the RIF.
 EXTI        Yes      GPIO interrupts through the common driver.
 DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
@@ -47,7 +50,6 @@ DCACHE      No
 DCMIPP      No
 ETH         No
 ICACHE      No
-LTDC        No
 MPU         No
 NPU         No
 SAI         No

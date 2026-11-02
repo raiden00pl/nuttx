@@ -29,7 +29,8 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32_HAVE_IP_LTDC_M3M4_V1)
+#if defined(CONFIG_STM32_HAVE_IP_LTDC_M3M4_V1) || \
+    defined(CONFIG_STM32_HAVE_IP_LTDC_V2)
 
 #include <stdbool.h>
 
@@ -102,5 +103,5 @@ struct fb_vtable_s *stm32_ltdcgetvplane(int vplane);
 void stm32_backlight(bool blon);
 #endif
 
-#endif /* CONFIG_STM32_HAVE_IP_LTDC_M3M4_V1 */
+#endif
 #endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_LTDC_H */

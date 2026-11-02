@@ -127,6 +127,22 @@
 
 #define STM32_LTDC_LIPCR_LIPOS      LTDC_LIPCR_LIPOS(STM32_LTDC_TWCR_TOTALW)
 
+/* Interrupts.  The STM32N6 LTDC has two global interrupt lines (LTDC_LO
+ * and LTDC_UP) that share the status registers; both are attached.
+ */
+
+#if defined(STM32_IRQ_LTDCINT)
+#  define STM32_LTDC_IRQ            STM32_IRQ_LTDCINT
+#elif defined(STM32_IRQ_LTDC_LO) && defined(STM32_IRQ_LTDC_UP)
+#  define STM32_LTDC_IRQ            STM32_IRQ_LTDC_LO
+#  define STM32_LTDC_IRQ2           STM32_IRQ_LTDC_UP
+#else
+#  error "LTDC interrupt not defined"
+#endif
+
+#define LTDC_ISR_ALL                (LTDC_ISR_LIF | LTDC_ISR_FUIF | \
+                                     LTDC_IER_TERRIF | LTDC_ISR_RRIF)
+
 /* Configuration ************************************************************/
 
 #ifndef CONFIG_STM32_LTDC_DEFBACKLIGHT
@@ -817,7 +833,7 @@ static sem_t g_semirq = SEM_INITIALIZER(0);
 
 static struct stm32_interrupt_s g_interrupt =
 {
-  .irq     = STM32_IRQ_LTDCINT,
+  .irq     = STM32_LTDC_IRQ,
   .error   = OK,
   .sem     = &g_semirq
 };
@@ -855,7 +871,7 @@ static struct stm32_ltdcdev_s g_vtable =
       .blend           = stm32_blend
 #  endif
 #endif /* CONFIG_FB_OVERLAY */
-  },
+    },
 #ifdef CONFIG_STM32_LTDC_L2
   .pinfo =
     {
@@ -1273,20 +1289,16 @@ static void stm32_ltdc_periphconfig(void)
 
   stm32_ltdc_gpioconfig();
 
-  /* Configure APB2 LTDC clock external */
+  /* The LTDC bus and kernel clocks are configured by the RCC code */
 
+#ifdef STM32_RCC_PLLSAICFGR
   reginfo("configured RCC_APB2ENR=%08" PRIx32 "\n",
           getreg32(STM32_RCC_APB2ENR));
-
-  /* Configure the SAI PLL external to provide the LCD_CLK */
-
   reginfo("configured RCC_PLLSAI=%08" PRIx32 "\n",
           getreg32(STM32_RCC_PLLSAICFGR));
-
-  /* Configure dedicated clock external */
-
   reginfo("configured RCC_DCKCFGR=%08" PRIx32 "\n",
           getreg32(STM32_RCC_DCKCFGR));
+#endif
 
   /* Configure LTDC_SSCR */
 
@@ -1472,6 +1484,11 @@ static int stm32_ltdcirq(int irq, void *context, void *arg)
 
   reginfo("irq = %d, regval = %08" PRIx32 "\n", irq, regval);
 
+  if ((regval & LTDC_ISR_ALL) == 0)
+    {
+      return OK;
+    }
+
   if (regval & LTDC_ISR_RRIF)
     {
       /* Register reload interrupt */
@@ -1615,10 +1632,16 @@ static void stm32_ltdc_irqconfig(void)
   /* Attach LTDC interrupt vector */
 
   irq_attach(g_interrupt.irq, stm32_ltdcirq, NULL);
+#ifdef STM32_LTDC_IRQ2
+  irq_attach(STM32_LTDC_IRQ2, stm32_ltdcirq, NULL);
+#endif
 
   /* Enable the IRQ at the NVIC */
 
   up_enable_irq(g_interrupt.irq);
+#ifdef STM32_LTDC_IRQ2
+  up_enable_irq(STM32_LTDC_IRQ2);
+#endif
 
   /* Enable interrupts expect line interrupt */
 
@@ -1708,6 +1731,7 @@ static void stm32_ltdc_enable(bool enable)
 static void stm32_ltdc_lpixelformat(struct stm32_ltdc_s *layer)
 {
   uint8_t overlay = layer->layerno;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   /* Configure PFCR register */
@@ -1781,7 +1805,8 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
 
   cfblr = LTDC_LXCFBLR_CFBP(stm32_stride_layer_t[layerno]) |
           LTDC_LXCFBLR_CFBLL(stm32_width_layer_t[layerno] *
-          STM32_LTDC_LX_BYPP(stm32_bpp_layer_t[layerno]) + 3);
+          STM32_LTDC_LX_BYPP(stm32_bpp_layer_t[layerno]) +
+          LTDC_LXCFBLR_CFBLL_EXTRA);
 
   reginfo("set LTDC_L%dCFBLR=%08" PRIx32 "\n", layerno + 1, cfblr);
   putreg32(cfblr, stm32_cfblr_layer_t[layerno]);
@@ -1814,6 +1839,7 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
 static void stm32_ltdc_lenable(struct stm32_ltdc_s *layer, bool enable)
 {
   uint32_t   regval;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   regval = getreg32(stm32_cr_layer_t[layer->layerno]);
@@ -1913,6 +1939,7 @@ static void stm32_ltdc_lchromakey(struct stm32_ltdc_s *layer,
                                   uint32_t chroma)
 {
   uint32_t rgb;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   reginfo("%08" PRIx32 "\n", getreg32(stm32_cr_layer_t[layer->layerno]));
@@ -1923,6 +1950,7 @@ static void stm32_ltdc_lchromakey(struct stm32_ltdc_s *layer,
   uint8_t r = g_vtable.cmap.red[chroma];
   uint8_t g = g_vtable.cmap.green[chroma];
   uint8_t b = g_vtable.cmap.blue[chroma];
+
   rgb = ((r << 16) | (g << 8) | b);
 #else
   rgb = ARGB8888(chroma);
@@ -1954,6 +1982,7 @@ static void stm32_ltdc_lchromakeyenable(struct stm32_ltdc_s *layer,
                                         bool enable)
 {
   uint32_t   regval;
+
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
 
   regval = getreg32(stm32_cr_layer_t[layer->layerno]);
@@ -2494,6 +2523,7 @@ static int stm32_putcmap(struct fb_vtable_s *vtable,
       for (n = 0; n < LTDC_NLAYERS; n++)
         {
           struct stm32_ltdc_s *layer = &priv->layer[n];
+
           stm32_ltdc_lputclut(layer, priv_cmap);
         }
 
@@ -2551,6 +2581,7 @@ static int stm32_getoverlayinfo(struct fb_vtable_s *vtable,
   if (overlayno < LTDC_NOVERLAYS)
     {
       struct stm32_ltdc_s *layer = &priv->layer[overlayno];
+
       memcpy(oinfo, &layer->oinfo, sizeof(struct fb_overlayinfo_s));
       return OK;
     }
@@ -2949,15 +2980,21 @@ static int stm32_blend(struct fb_vtable_s *vtable,
  * Name: stm32_ltdcreset
  *
  * Description:
- *   Reset LTDC via APB2RSTR
+ *   Reset the LTDC through the RCC
  *
  ****************************************************************************/
 
 void stm32_ltdcreset(void)
 {
+#if defined(RCC_APB2RSTR_LTDCRST)
   uint32_t regval = getreg32(STM32_RCC_APB2RSTR);
+
   putreg32(regval | RCC_APB2RSTR_LTDCRST, STM32_RCC_APB2RSTR);
   putreg32(regval & ~RCC_APB2RSTR_LTDCRST, STM32_RCC_APB2RSTR);
+#elif defined(RCC_APB5RSTR_LTDCRST)
+  putreg32(RCC_APB5RSTR_LTDCRST, STM32_RCC_APB5RSTSR);
+  putreg32(RCC_APB5RSTR_LTDCRST, STM32_RCC_APB5RSTCR);
+#endif
 }
 
 /****************************************************************************
@@ -3108,6 +3145,10 @@ void stm32_ltdcuninitialize(void)
 
   up_disable_irq(g_interrupt.irq);
   irq_detach(g_interrupt.irq);
+#ifdef STM32_LTDC_IRQ2
+  up_disable_irq(STM32_LTDC_IRQ2);
+  irq_detach(STM32_LTDC_IRQ2);
+#endif
 
   /* Disable the LCD controller */
 
