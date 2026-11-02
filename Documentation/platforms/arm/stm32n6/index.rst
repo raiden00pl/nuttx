@@ -43,6 +43,9 @@ RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
 RNG         Yes      Through the common driver.
 RTC         Yes      Calendar, sub-seconds, Alarm A/B and wakeup timer
                      through the common RTC v3 driver.
+SDMMC       Yes      SDMMC1-2 through the common IDMA SDMMC driver.  The
+                     IDMA masters get Secure, privileged CID 1 RIF
+                     attributes at start-up.
 SPI         Yes      SPI1-6 through the common SPI v5 driver, master
                      mode, optional GPDMA.
 TIM         Yes      Timer, PWM and tickless through the common drivers.
@@ -55,7 +58,6 @@ ICACHE      No
 MPU         No
 NPU         No
 SAI         No
-SDMMC       No
 USB         No
 XSPI        No
 ==========  =======  ===================================================

@@ -785,6 +785,7 @@ PWR           n6            arch/arm/src/stm32n6/stm32_pwr.c
 RCC           n6            arch/arm/src/stm32n6/stm32n6xx_rcc.c
 RNG           v1            arch/arm/src/common/stm32/stm32_rng.c
 RTC           RTCC v3       arch/arm/src/common/stm32/stm32_rtcc_v3.c
+SDMMC         IDMA          arch/arm/src/common/stm32/stm32_sdmmc_idma.c
 SPI/I2S       v5            arch/arm/src/common/stm32/stm32_spi_v5.c
 TIM           v3            arch/arm/src/common/stm32/stm32_tim.c
 USART/LPUART  v4            arch/arm/src/stm32n6/stm32_serial.c

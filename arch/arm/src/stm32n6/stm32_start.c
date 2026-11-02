@@ -260,6 +260,14 @@ void __start_c(void)
   stm32_pwr_enablevddio(PWR_SVMCR3_ASV);
 #endif
 
+  /* VDDIO5 (SDMMC2 pads) is validated in PWR SVMCR2 when the board
+   * provides BOARD_PWR_VDDIO5 (PWR_SVMCR2_* bits).
+   */
+
+#ifdef BOARD_PWR_VDDIO5
+  modifyreg32(STM32_PWR_SVMCR2, 0, BOARD_PWR_VDDIO5);
+#endif
+
   /* Apply the ES0620 I/O-compensation mitigation (write 0x287) to the
    * domains we use.  Only VDDIO2 and VDDIO3 are touched: the other
    * VDDIOxCCCR registers cannot be accessed without their VDDIOxSV bit
@@ -269,6 +277,9 @@ void __start_c(void)
 
   putreg32(SYSCFG_CCCR_ES0620_MANUAL, STM32_SYSCFG_VDDIO2CCCR);
   putreg32(SYSCFG_CCCR_ES0620_MANUAL, STM32_SYSCFG_VDDIO3CCCR);
+#ifdef BOARD_PWR_VDDIO5
+  putreg32(SYSCFG_CCCR_ES0620_MANUAL, STM32_SYSCFG_VDDIO5CCCR);
+#endif
   putreg32(SYSCFG_CCCR_ES0620_MANUAL, STM32_SYSCFG_VDDCCCR);
 
   putreg32((uint32_t)_vectors, STM32_SYSCFG_INITSVTORCR);
