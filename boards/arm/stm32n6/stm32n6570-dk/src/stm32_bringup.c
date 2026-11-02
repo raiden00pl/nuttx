@@ -34,7 +34,9 @@
 #include <nuttx/leds/userled.h>
 #include <nuttx/input/buttons.h>
 #include <nuttx/timers/pwm.h>
+#include <nuttx/timers/rtc.h>
 
+#include "stm32_rtc.h"
 #include "stm32n6570-dk.h"
 #include "board_common.h"
 
@@ -101,6 +103,16 @@ int stm32_bringup(void)
 #  ifdef CONFIG_SPI_DRIVER
   stm32_spiregister();
 #  endif
+#endif
+
+#if defined(CONFIG_RTC_DRIVER) && defined(CONFIG_STM32_RTC)
+  /* Register the RTC driver as /dev/rtc0 */
+
+  ret = rtc_initialize(0, stm32_rtc_lowerhalf());
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: rtc_initialize() failed: %d\n", ret);
+    }
 #endif
 
 #ifdef CONFIG_PWM

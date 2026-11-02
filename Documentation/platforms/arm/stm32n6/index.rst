@@ -35,6 +35,8 @@ PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
 RNG         Yes      Through the common driver.
+RTC         Yes      Calendar, sub-seconds, Alarm A/B and wakeup timer
+                     through the common RTC v3 driver.
 SPI         Yes      SPI1-6 through the common SPI v5 driver, master
                      mode, optional GPDMA.
 TIM         Yes      Timer, PWM and tickless through the common drivers.
@@ -48,7 +50,6 @@ ICACHE      No
 LTDC        No
 MPU         No
 NPU         No
-RTC         No
 SAI         No
 SDMMC       No
 USB         No
