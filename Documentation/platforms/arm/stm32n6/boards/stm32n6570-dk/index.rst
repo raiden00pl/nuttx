@@ -128,6 +128,14 @@ I2C4  PE13, PE14   STMod+ connector
 The buses are registered as ``/dev/i2c1``, ``/dev/i2c2`` and ``/dev/i2c4``
 and can be explored with the ``i2c`` tool.
 
+SPI
+===
+
+SPI5 is wired to the Arduino connector: PE15 SCK (D13), PH8 MISO (D12),
+PG2 MOSI (D11) and PA3 as chip select (D10).  It is registered as
+``/dev/spi5`` and can be exercised with the ``spi`` tool; shorting D11
+to D12 loops the transmitted bytes back.
+
 Clocking
 ========
 

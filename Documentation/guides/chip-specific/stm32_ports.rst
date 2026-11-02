@@ -622,7 +622,7 @@ ICACHE        to be done    arch/arm/src/stm32h5/stm32_icache.c
 OCTOSPI       to be done    arch/arm/src/stm32h5/stm32_qspi.c      
 PWR           to be done    arch/arm/src/stm32h5/stm32_pwr.c       
 RCC           to be done    arch/arm/src/stm32h5/stm32_rcc.c       
-SPI/I2S       to be done    arch/arm/src/stm32h5/stm32_spi.c       
+SPI/I2S       v5            arch/arm/src/common/stm32/stm32_spi_v5.c
 TIM           v3            arch/arm/src/common/stm32/stm32_tim.c  
 USART/LPUART  v3            arch/arm/src/stm32h5/stm32_serial.c    
 USB           FS            arch/arm/src/stm32h5/stm32_usbfs.c     
@@ -783,7 +783,7 @@ PWM           v1v2v3        arch/arm/src/common/stm32/stm32_pwm_v1v2v3.c
 PWR           n6            arch/arm/src/stm32n6/stm32_pwr.c
 RCC           n6            arch/arm/src/stm32n6/stm32n6xx_rcc.c
 RNG           v1            arch/arm/src/common/stm32/stm32_rng_v1.c
-SPI/I2S       to be done    not supported
+SPI/I2S       v5            arch/arm/src/common/stm32/stm32_spi_v5.c
 TIM           v3            arch/arm/src/common/stm32/stm32_tim.c
 USART/LPUART  v4            arch/arm/src/stm32n6/stm32_serial.c
 USB           device        not supported
