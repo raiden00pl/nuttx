@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <nuttx/cache.h>
 #include <nuttx/init.h>
 #include <arch/barriers.h>
 #include <arch/board/board.h>
@@ -302,6 +303,11 @@ void __start_c(void)
 #endif
 
   stm32_board_initialize();
+
+  /* Enable the L1 I- and D-caches when configured */
+
+  up_enable_icache();
+  up_enable_dcache();
 
   /* Final DSB+ISB after SCB writes (VTOR, SYSTICK_CTRL, SYSCFG INITSVTORCR)
    * before handing off to NuttX.

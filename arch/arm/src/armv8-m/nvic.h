@@ -285,7 +285,11 @@
 #define NVIC_ITCMCR_OFFSET              0x0f90 /* Instruction Tightly-Coupled Memory Control Register */
 #define NVIC_DTCMCR_OFFSET              0x0f94 /* Data Tightly-Coupled Memory Control Registers */
 #define NVIC_AHBPCR_OFFSET              0x0f98 /* AHBP Control Register */
-#define NVIC_CACR_OFFSET                0x0f9c /* L1 Cache Control Register */
+
+/* L1 Cache Control Register of the Cortex-M55 and Cortex-M85 */
+
+#define NVIC_CACR_OFFSET                0x10008
+
 #define NVIC_AHBSCR_OFFSET              0x0fa0 /* AHB Slave Control Register */
 #define NVIC_ABFSR_OFFSET               0x0fa8 /* Auxiliary Bus Fault Status */
 
