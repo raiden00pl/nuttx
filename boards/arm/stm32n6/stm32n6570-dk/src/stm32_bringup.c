@@ -34,6 +34,7 @@
 #include <nuttx/board.h>
 #include <nuttx/leds/userled.h>
 #include <nuttx/input/buttons.h>
+#include <nuttx/timers/pwm.h>
 
 #include "stm32n6570-dk.h"
 
@@ -60,6 +61,7 @@
 int stm32_bringup(void)
 {
 #if defined(CONFIG_FS_PROCFS) || defined(CONFIG_INPUT_BUTTONS_LOWER) || \
+    defined(CONFIG_PWM) || \
     (!defined(CONFIG_ARCH_LEDS) && defined(CONFIG_USERLED_LOWER))
   int ret;
 #endif
@@ -91,6 +93,16 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_PWM
+  /* Initialize PWM and register the PWM device */
+
+  ret = stm32_pwm_setup();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
     }
 #endif
 

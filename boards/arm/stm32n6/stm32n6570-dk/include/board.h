@@ -239,6 +239,13 @@
 
 /* Alternate function pin selections ****************************************/
 
+/* TIM GPIOs ****************************************************************/
+
+/* TIM1 CH1 on PE9 (Arduino D6), TIM15 CH1 on PC12 (Arduino D10). */
+
+#define GPIO_TIM1_CH1OUT  GPIO_TIM1_CH1OUT_1
+#define GPIO_TIM15_CH1OUT GPIO_TIM15_CH1OUT_1
+
 /* USART1 GPIOs *************************************************************/
 
 /* USART1 (ST-LINK Virtual COM Port): PE5=TX (AF7), PE6=RX (AF7)

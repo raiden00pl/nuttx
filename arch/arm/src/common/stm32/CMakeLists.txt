@@ -80,6 +80,10 @@ if(CONFIG_STM32_RNG AND CONFIG_STM32_HAVE_IP_RNG_M3M4_V1)
   list(APPEND SRCS stm32_rng.c)
 endif()
 
+if(CONFIG_STM32_PWM AND CONFIG_STM32_HAVE_COMMON_PWM)
+  list(APPEND SRCS stm32_pwm_m3m4_v1v2v3.c)
+endif()
+
 if(CONFIG_STM32_COMMON_M33)
   list(APPEND SRCS stm32_allocateheap_m33_v1.c stm32_irq_m33_v1.c
        stm32_start_m33_v1.c)
@@ -328,10 +332,6 @@ if(CONFIG_STM32_COMMON_LEGACY)
 
   if(CONFIG_STM32_DMA2D AND CONFIG_STM32_HAVE_IP_DMA2D_M3M4_V1)
     list(APPEND SRCS stm32_dma2d_m3m4_v1.c)
-  endif()
-
-  if(CONFIG_STM32_PWM)
-    list(APPEND SRCS stm32_pwm_m3m4_v1v2v3.c)
   endif()
 
   if(CONFIG_STM32_CAP)

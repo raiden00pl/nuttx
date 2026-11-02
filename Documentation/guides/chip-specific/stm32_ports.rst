@@ -629,7 +629,7 @@ USB           FS            arch/arm/src/stm32h5/stm32_usbfs.c
 WWDG          v3            arch/arm/src/common/stm32/stm32_wwdg.c
 LPTIM         v2            arch/arm/src/common/stm32/stm32_lptim.c
 PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
-PWM           n/a           arch/arm/src/stm32h5/stm32_pwm.c       
+PWM           v1v2v3        arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.c
 RNG           v1            arch/arm/src/common/stm32/stm32_rng.c  
 USB host      n/a           arch/arm/src/stm32h5/stm32_usbdrdhost.c
 ============  ============  ============================================
@@ -672,7 +672,7 @@ BBSRAM        n/a           arch/arm/src/stm32h7/stm32_bbsram.c
 CAPTURE       n/a           arch/arm/src/stm32h7/stm32_capture.c   
 LPTIM         v1, H7RS v2   arch/arm/src/common/stm32/stm32_lptim.c
 PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
-PWM           n/a           arch/arm/src/stm32h7/stm32_pwm.c       
+PWM           v1v2v3        arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.c
 QENCODER      n/a           arch/arm/src/common/stm32/stm32_qencoder.c  
 USB host      n/a           arch/arm/src/stm32h7/stm32_otghost.c   
 ============  ============  ============================================
@@ -779,6 +779,7 @@ GPDMA         v1            arch/arm/src/common/stm32/stm32_dma_gpdma.c
 I2C           to be done    not supported
 IWDG          v3            arch/arm/src/common/stm32/stm32_iwdg.c
 LPTIM         v2            arch/arm/src/common/stm32/stm32_lptim.c
+PWM           v1v2v3        arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.c
 PWR           n6            arch/arm/src/stm32n6/stm32_pwr.c
 RCC           n6            arch/arm/src/stm32n6/stm32n6xx_rcc.c
 RNG           v1            arch/arm/src/common/stm32/stm32_rng.c
