@@ -108,6 +108,7 @@ static inline void gpdmach_modifyreg32(struct gpdma_ch_s *chan,
 static void gpdma_ch_abort(struct gpdma_ch_s *chan);
 static void gpdma_ch_disable(struct gpdma_ch_s *chan);
 
+static uint32_t gpdma_tr1(struct gpdma_ch_s *chan, uint32_t tr1);
 static int gpdma_setup(struct gpdma_ch_s *chan,
                        struct stm32_gpdma_cfg_s *cfg);
 static int gpdma_setup_circular(struct gpdma_ch_s *chan,
@@ -370,6 +371,29 @@ static void gpdma_ch_disable(struct gpdma_ch_s *chan)
 }
 
 /****************************************************************************
+ * Name: gpdma_tr1
+ *
+ * Description:
+ *   A channel configured Secure in SECCFGR issues Secure source and
+ *   destination transfers, as needed to reach memory and peripherals
+ *   through their Secure aliases.
+ *
+ ****************************************************************************/
+
+static uint32_t gpdma_tr1(struct gpdma_ch_s *chan, uint32_t tr1)
+{
+  uint32_t base = chan->base - CH_BASE_OFFSET(chan->channel);
+
+  if ((getreg32(base + STM32_GPDMA_SECCFGR_OFFSET) &
+       GPDMA_SECCFGR_SECX(chan->channel)) != 0)
+    {
+      tr1 |= GPDMA_CXTR1_SSEC | GPDMA_CXTR1_DSEC;
+    }
+
+  return tr1;
+}
+
+/****************************************************************************
  * Name: gpdma_setup
  *
  * Assumptions:
@@ -399,7 +423,7 @@ static int gpdma_setup(struct gpdma_ch_s *chan,
 
   /* Set channels TR1 register based on configuration provided. */
 
-  gpdmach_putreg(chan, CH_CXTR1_OFFSET, cfg->tr1);
+  gpdmach_putreg(chan, CH_CXTR1_OFFSET, gpdma_tr1(chan, cfg->tr1));
 
   /* Assemble the required config for TR2 */
 
@@ -431,7 +455,7 @@ static int gpdma_setup_circular(struct gpdma_ch_s *chan,
 {
   struct stm32_gpdma_lli_s *lli = chan->lli;
 
-  lli[0].tr1 = cfg->tr1;
+  lli[0].tr1 = gpdma_tr1(chan, cfg->tr1);
   lli[0].tr2 = (2U << GPDMA_CXTR2_TCEM_SHIFT)
              | (cfg->request & GPDMA_CXTR2_REQSEL_MASK);
   lli[0].br1 = cfg->ntransfers;

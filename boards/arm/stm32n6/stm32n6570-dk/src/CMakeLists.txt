@@ -68,6 +68,10 @@ if(CONFIG_STM32_DCMIPP)
   list(APPEND SRCS stm32_camera.c)
 endif()
 
+if(CONFIG_AUDIO_WM8904)
+  list(APPEND SRCS stm32_wm8904.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

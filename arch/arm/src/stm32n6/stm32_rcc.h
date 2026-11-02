@@ -128,6 +128,22 @@ void stm32_rcc_enablelse(void);
 
 void stm32_rcc_enablelsi(void);
 
+/****************************************************************************
+ * Name: stm32_rcc_setic
+ *
+ * Description:
+ *   Reprogram and enable the ICn divider at run time, e.g. to follow the
+ *   audio sample rate.  The kernel clocks of ICn stop while it changes.
+ *
+ * Input Parameters:
+ *   n   - IC divider number (1..20)
+ *   src - Source PLL (RCC_ICCFGR_SEL_PLLx)
+ *   div - Division factor (1..256)
+ *
+ ****************************************************************************/
+
+void stm32_rcc_setic(unsigned int n, uint32_t src, unsigned int div);
+
 #if defined(__cplusplus)
 }
 #endif

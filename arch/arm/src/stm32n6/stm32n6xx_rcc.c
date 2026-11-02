@@ -69,6 +69,8 @@
 
 #include <assert.h>
 
+#include <nuttx/spinlock.h>
+
 #include "stm32_rcc.h"
 #include "stm32_pwr.h"
 #include "stm32_gpio.h"
@@ -216,6 +218,14 @@
 
 #define STM32_RAMCFG_AXISRAM_CR(n) (STM32_RAMCFG_BASE + ((n) - 1) * 0x80)
 #define RAMCFG_CR_SRAMSD           (1 << 20)
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* Serializes the run-time IC divider changes */
+
+static spinlock_t g_rcc_iclock = SP_UNLOCKED;
 
 /****************************************************************************
  * Private Functions
@@ -457,6 +467,10 @@ static inline void rcc_enableapb2(void)
 
 #ifdef CONFIG_STM32_SPI5
   regval |= RCC_APB2ENR_SPI5EN;
+#endif
+
+#ifdef CONFIG_STM32_SAI1
+  regval |= RCC_APB2ENR_SAI1EN;
 #endif
 
   if (regval != 0)
@@ -895,6 +909,33 @@ void stm32_rcc_enablelsi(void)
 {
   putreg32(RCC_CR_LSION, STM32_RCC_CSR);
   rcc_waitflag(STM32_RCC_SR, RCC_SR_LSIRDY, true);
+}
+
+/****************************************************************************
+ * Name: stm32_rcc_setic
+ ****************************************************************************/
+
+void stm32_rcc_setic(unsigned int n, uint32_t src, unsigned int div)
+{
+  irqstate_t flags;
+  uint32_t regval;
+
+  DEBUGASSERT(n >= 1 && n <= 20 && div >= 1 && div <= 256);
+
+  regval = src | ((div - 1) << RCC_ICCFGR_INT_SHIFT);
+
+  flags = spin_lock_irqsave(&g_rcc_iclock);
+
+  /* Gate ICn while its source and divider change */
+
+  if (getreg32(STM32_RCC_ICCFGR(n)) != regval)
+    {
+      putreg32(RCC_DIVENR_ICEN(n), STM32_RCC_DIVENCR);
+      rcc_configic(n, src, div);
+    }
+
+  putreg32(RCC_DIVENR_ICEN(n), STM32_RCC_DIVENSR);
+  spin_unlock_irqrestore(&g_rcc_iclock, flags);
 }
 
 /****************************************************************************

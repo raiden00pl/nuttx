@@ -46,12 +46,16 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <errno.h>
 #include <assert.h>
 #include <nuttx/debug.h>
+#include <nuttx/nuttx.h>
 
 #include <arch/board/board.h>
 
+#include <nuttx/cache.h>
+#include <nuttx/kmalloc.h>
 #include <nuttx/wdog.h>
 #include <nuttx/irq.h>
 #include <nuttx/queue.h>
@@ -103,6 +107,12 @@
 #  define CONFIG_STM32_SAI_MAXINFLIGHT         (16)
 #endif
 
+/* After SAIEN is cleared, the audio block stops at the end of the current
+ * frame.  Wait for up to two frames.
+ */
+
+#define SAI_DISABLE_TIMEOUT_US(rate)           (2 * USEC_PER_SEC / (rate) + 1)
+
 #ifdef CONFIG_STM32_SAI1
 #ifndef STM32_SAI1_FREQUENCY
 #  error "Please define STM32_SAI1_FREQUENCY in board.h"
@@ -115,8 +125,37 @@
 #endif
 #endif
 
-#ifdef CONFIG_STM32_SAI_DMA
+#if defined(CONFIG_STM32_SAI_DMA) && defined(CONFIG_STM32_HAVE_IP_DMA_GPDMA)
+/* GPDMA: the channel is selected by the request line, the transfer
+ * register 1 holds the data widths and the incrementing side.
+ */
+
+#  define DMACHAN_SAI1_A       GPDMA_REQ_SAI1_A
+#  define DMACHAN_SAI1_B       GPDMA_REQ_SAI1_B
+#  define DMACHAN_SAI2_A       GPDMA_REQ_SAI2_A
+#  define DMACHAN_SAI2_B       GPDMA_REQ_SAI2_B
+
+#  define SAI_DMA_PRIO         GPDMACFG_PRIO_H
+#  define SAI_DMA_ERROR        DMA_STATUS_FATAL
+
+#  define SAI_RXDMA8_CONFIG    (GPDMA_CXTR1_SDW_LOG2_BYTE | \
+                                GPDMA_CXTR1_DDW_LOG2_BYTE | GPDMA_CXTR1_DINC)
+#  define SAI_RXDMA16_CONFIG   (GPDMA_CXTR1_SDW_LOG2_HW | \
+                                GPDMA_CXTR1_DDW_LOG2_HW | GPDMA_CXTR1_DINC)
+#  define SAI_RXDMA32_CONFIG   (GPDMA_CXTR1_SDW_LOG2_WORD | \
+                                GPDMA_CXTR1_DDW_LOG2_WORD | GPDMA_CXTR1_DINC)
+
+#  define SAI_TXDMA8_CONFIG    (GPDMA_CXTR1_SDW_LOG2_BYTE | \
+                                GPDMA_CXTR1_DDW_LOG2_BYTE | GPDMA_CXTR1_SINC)
+#  define SAI_TXDMA16_CONFIG   (GPDMA_CXTR1_SDW_LOG2_HW | \
+                                GPDMA_CXTR1_DDW_LOG2_HW | GPDMA_CXTR1_SINC)
+#  define SAI_TXDMA32_CONFIG   (GPDMA_CXTR1_SDW_LOG2_WORD | \
+                                GPDMA_CXTR1_DDW_LOG2_WORD | GPDMA_CXTR1_SINC)
+
+#elif defined(CONFIG_STM32_SAI_DMA)
 /* SAI DMA priority */
+
+#  define SAI_DMA_ERROR        DMA_STREAM_TEIF_BIT
 
 #  if defined(CONFIG_STM32_SAI_DMAPRIO)
 #    define SAI_DMA_PRIO       CONFIG_STM32_SAI_DMAPRIO
@@ -175,6 +214,7 @@ struct sai_buffer_s
   uint32_t timeout;            /* The timeout value to use with transfers */
   void *arg;                   /* The argument to be returned with the callback */
   struct ap_buffer_s *apb;     /* The audio buffer */
+  uint8_t *rxbuf;              /* Receive DMA buffer, NULL when sending */
   int result;                  /* The result of the transfer */
 };
 
@@ -192,9 +232,9 @@ struct stm32_sai_s
   uint32_t frequency;          /* SAI clock frequency */
   uint32_t syncen;             /* Synchronization setting */
 #ifdef CONFIG_STM32_SAI_DMA
-  uint16_t dma_ch;             /* DMA channel number */
+  uint16_t dma_ch;             /* DMA channel number or request */
   DMA_HANDLE dma;              /* DMA channel handle */
-  uint32_t dma_ccr;            /* DMA control register */
+  uint32_t dma_ccr;            /* DMA control or transfer register */
 #endif
   uint8_t datalen;             /* Data width */
   uint32_t samplerate;         /* Data sample rate */
@@ -453,6 +493,74 @@ static void sai_modifyreg(struct stm32_sai_s *priv, uint8_t offset,
 }
 
 /****************************************************************************
+ * Name: sai_disable
+ *
+ * Description:
+ *   Disable the audio block so that its configuration may be changed and
+ *   wait until it has stopped at the end of the current frame.
+ *
+ * Input Parameters:
+ *   priv    - private SAI device structure
+ *   enabled - Returned true if the audio block was enabled
+ *
+ * Returned Value:
+ *   OK on success; -ETIMEDOUT if the audio block did not stop
+ *
+ ****************************************************************************/
+
+static int sai_disable(struct stm32_sai_s *priv, bool *enabled)
+{
+  uint32_t timeout;
+
+  DEBUGASSERT(priv->samplerate > 0);
+
+  *enabled = (sai_getreg(priv, STM32_SAI_CR1_OFFSET) & SAI_CR1_SAIEN) != 0;
+  if (!*enabled)
+    {
+      return OK;
+    }
+
+  sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, SAI_CR1_SAIEN, 0);
+
+  for (timeout = SAI_DISABLE_TIMEOUT_US(priv->samplerate); timeout > 0;
+       timeout--)
+    {
+      if ((sai_getreg(priv, STM32_SAI_CR1_OFFSET) & SAI_CR1_SAIEN) == 0)
+        {
+          return OK;
+        }
+
+      up_udelay(1);
+    }
+
+  i2serr("ERROR: The audio block did not stop\n");
+  return -ETIMEDOUT;
+}
+
+/****************************************************************************
+ * Name: sai_enable
+ *
+ * Description:
+ *   Re-enable the audio block if it was enabled before sai_disable().
+ *
+ * Input Parameters:
+ *   priv    - private SAI device structure
+ *   enabled - value returned by sai_disable()
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void sai_enable(struct stm32_sai_s *priv, bool enabled)
+{
+  if (enabled)
+    {
+      sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0, SAI_CR1_SAIEN);
+    }
+}
+
+/****************************************************************************
  * Name: sai_dump_regs
  *
  * Description:
@@ -512,6 +620,18 @@ static void sai_mckdivider(struct stm32_sai_s *priv)
 
   DEBUGASSERT(priv && priv->samplerate > 0 && priv->frequency > 0);
 
+#ifdef CONFIG_STM32_HAVE_IP_SAI_V2
+  /* MCLK_x = SAI_CK_x / MCKDIV[5:0] (0 and 1 do not divide) with
+   * MCLK_x = 256 * FS, rounded to the nearest divider.
+   */
+
+  tmpval = priv->samplerate * 256;
+  mckdiv = (priv->frequency + tmpval / 2) / tmpval;
+  if (mckdiv > 63)
+    {
+      mckdiv = 63;
+    }
+#else
   /* Configure Master Clock using the following formula:
    * MCLK_x = SAI_CK_x / (MCKDIV[3:0] * 2) with MCLK_x = 256 * FS
    * FS = SAI_CK_x / (MCKDIV[3:0] * 2) * 256
@@ -529,6 +649,7 @@ static void sai_mckdivider(struct stm32_sai_s *priv)
     {
       mckdiv += 1;
     }
+#endif
 
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, SAI_CR1_MCKDIV_MASK,
                 mckdiv << SAI_CR1_MCKDIV_SHIFT);
@@ -592,8 +713,11 @@ static int sai_dma_setup(struct stm32_sai_s *priv)
 {
   struct sai_buffer_s *bfcontainer;
   struct ap_buffer_s *apb;
+#ifdef CONFIG_STM32_HAVE_IP_DMA_GPDMA
+  struct stm32_gpdma_cfg_s dmacfg;
+#endif
   uintptr_t samp;
-  apb_samp_t nbytes;
+  apb_samp_t nbytes = 0;
   size_t ntransfers = 0;
   int ret;
 
@@ -678,8 +802,43 @@ static int sai_dma_setup(struct stm32_sai_s *priv)
 
   DEBUGASSERT(ntransfers > 0);
 
+  /* The data cache was maintained when the buffer was queued */
+
+  if (priv->rxenab)
+    {
+      samp = (uintptr_t)bfcontainer->rxbuf;
+    }
+
+#ifdef CONFIG_STM32_HAVE_IP_DMA_GPDMA
+  /* The GPDMA block size is in bytes and limited to 16 bits.  The SAI
+   * drives the request on the destination side when transmitting.
+   */
+
+  DEBUGASSERT(nbytes <= UINT16_MAX);
+
+  if (priv->txenab)
+    {
+      dmacfg.src_addr  = samp;
+      dmacfg.dest_addr = priv->base + STM32_SAI_DR_OFFSET;
+      dmacfg.request   = priv->dma_ch | GPDMA_CXTR2_DREQ;
+    }
+  else
+    {
+      dmacfg.src_addr  = priv->base + STM32_SAI_DR_OFFSET;
+      dmacfg.dest_addr = samp;
+      dmacfg.request   = priv->dma_ch;
+    }
+
+  dmacfg.tr1        = priv->dma_ccr;
+  dmacfg.ntransfers = nbytes;
+  dmacfg.priority   = SAI_DMA_PRIO;
+  dmacfg.mode       = 0;
+
+  stm32_dmasetup(priv->dma, &dmacfg);
+#else
   stm32_dmasetup(priv->dma, priv->base + STM32_SAI_DR_OFFSET,
                  samp, ntransfers, priv->dma_ccr);
+#endif
 
   /* Add the container to the list of active DMAs */
 
@@ -715,6 +874,88 @@ static int sai_dma_setup(struct stm32_sai_s *priv)
   return OK;
 }
 #endif
+
+/****************************************************************************
+ * Name: sai_rxbuf_prepare
+ *
+ * Description:
+ *   Select the receive DMA buffer and maintain the data cache before the
+ *   transfer.  The DMA does not snoop the data cache, so the cache lines of
+ *   the receive buffer are invalidated before and after the transfer.  An
+ *   audio buffer that does not cover whole cache lines shares them with
+ *   other data, as its own header: it is received into a cache line
+ *   aligned buffer and copied by sai_rxbuf_complete().
+ *
+ * Input Parameters:
+ *   bfcontainer - The buffer container of the transfer
+ *   apb         - The audio buffer to receive into
+ *
+ * Returned Value:
+ *   OK on success; -ENOMEM if no aligned buffer could be allocated
+ *
+ ****************************************************************************/
+
+static int sai_rxbuf_prepare(struct sai_buffer_s *bfcontainer,
+                             struct ap_buffer_s *apb)
+{
+  uint8_t *samp = &apb->samp[apb->curbyte];
+  size_t nbytes = apb->nmaxbytes - apb->curbyte;
+  size_t linesize = up_get_dcache_linesize();
+
+  bfcontainer->rxbuf = samp;
+
+  if (linesize > 0 &&
+      ((((uintptr_t)samp) | nbytes) & (linesize - 1)) != 0)
+    {
+      bfcontainer->rxbuf = kmm_memalign(linesize,
+                                        ALIGN_UP(nbytes, linesize));
+      if (bfcontainer->rxbuf == NULL)
+        {
+          return -ENOMEM;
+        }
+    }
+
+  up_invalidate_dcache((uintptr_t)bfcontainer->rxbuf,
+                       (uintptr_t)bfcontainer->rxbuf + nbytes);
+  return OK;
+}
+
+/****************************************************************************
+ * Name: sai_rxbuf_complete
+ *
+ * Description:
+ *   Drop the cache lines speculatively loaded while the DMA was receiving
+ *   and copy the data from the aligned receive buffer if one was used.
+ *
+ * Input Parameters:
+ *   bfcontainer - The buffer container of the completed transfer
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+static void sai_rxbuf_complete(struct sai_buffer_s *bfcontainer)
+{
+  struct ap_buffer_s *apb = bfcontainer->apb;
+  uint8_t *samp = &apb->samp[apb->curbyte];
+  size_t nbytes = apb->nmaxbytes - apb->curbyte;
+
+  up_invalidate_dcache((uintptr_t)bfcontainer->rxbuf,
+                       (uintptr_t)bfcontainer->rxbuf + nbytes);
+
+  if (bfcontainer->rxbuf != samp)
+    {
+      if (bfcontainer->result == OK)
+        {
+          memcpy(samp, bfcontainer->rxbuf, nbytes);
+        }
+
+      kmm_free(bfcontainer->rxbuf);
+    }
+
+  bfcontainer->rxbuf = NULL;
+}
 
 /****************************************************************************
  * Name: sai_worker
@@ -778,9 +1019,16 @@ static void sai_worker(void *arg)
       bfcontainer = (struct sai_buffer_s *)sq_remfirst(&priv->done);
       leave_critical_section(flags);
 
-      /* Perform the transfer done callback */
+      /* Make the received data visible to the CPU */
 
       DEBUGASSERT(bfcontainer && bfcontainer->callback);
+      if (bfcontainer->rxbuf != NULL)
+        {
+          sai_rxbuf_complete(bfcontainer);
+        }
+
+      /* Perform the transfer done callback */
+
       bfcontainer->callback(&priv->dev, bfcontainer->apb,
                             bfcontainer->arg, bfcontainer->result);
 
@@ -884,7 +1132,11 @@ static void sai_dma_callback(DMA_HANDLE handle, uint8_t isr, void *arg)
 
   /* Then schedule completion of the transfer to occur on the worker thread */
 
-  sai_schedule(priv, (isr & DMA_STREAM_TEIF_BIT) ? -EIO : OK);
+  sai_schedule(priv, (isr & SAI_DMA_ERROR) ? -EIO : OK);
+
+  /* Start the next pending transfer now to keep the FIFO fed */
+
+  sai_dma_setup(priv);
 }
 #endif
 
@@ -906,10 +1158,18 @@ static void sai_dma_callback(DMA_HANDLE handle, uint8_t isr, void *arg)
 static int32_t sai_samplerate(struct i2s_dev_s *dev, uint32_t rate)
 {
   struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
+  bool enabled;
 
   DEBUGASSERT(priv && rate > 0);
 
-  /* Call callback to change system clock (needed for STM32F746 Disco) */
+  /* The clock configuration may only change with the block stopped */
+
+  if (sai_disable(priv, &enabled) < 0)
+    {
+      return 0;
+    }
+
+  /* Call callback to change the SAI kernel clock */
 
   if (priv->sampleratecb != NULL)
     {
@@ -924,6 +1184,7 @@ static int32_t sai_samplerate(struct i2s_dev_s *dev, uint32_t rate)
 
   priv->samplerate = rate;
   sai_mckdivider(priv);
+  sai_enable(priv, enabled);
 
   return sai_getbitrate(priv);
 }
@@ -948,6 +1209,7 @@ static int32_t sai_datawidth(struct i2s_dev_s *dev, int bits)
 {
   struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
   uint32_t setbits;
+  bool enabled;
 
   DEBUGASSERT(priv && bits >= 8);
 
@@ -970,11 +1232,18 @@ static int32_t sai_datawidth(struct i2s_dev_s *dev, int bits)
         return 0;
     }
 
+  if (sai_disable(priv, &enabled) < 0)
+    {
+      return 0;
+    }
+
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, SAI_CR1_DS_MASK, setbits);
 
   sai_modifyreg(priv, STM32_SAI_FRCR_OFFSET,
                 SAI_FRCR_FSALL_MASK | SAI_FRCR_FRL_MASK,
                 SAI_FRCR_FSALL(bits) | SAI_FRCR_FRL(bits * 2));
+
+  sai_enable(priv, enabled);
 
   /* Save the new data width */
 
@@ -1041,6 +1310,14 @@ static int sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
     {
       i2serr("ERROR: SAI has no receiver\n");
       ret = -EAGAIN;
+      goto errout_with_lock;
+    }
+
+  /* Get a receive DMA buffer that does not share cache lines */
+
+  ret = sai_rxbuf_prepare(bfcontainer, apb);
+  if (ret < 0)
+    {
       goto errout_with_lock;
     }
 
@@ -1148,6 +1425,11 @@ static int sai_send(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, SAI_CR1_MODE_MASK, mode);
   priv->txenab = true;
 
+  /* The DMA does not snoop the data cache: write back the data to send */
+
+  up_clean_dcache((uintptr_t)&apb->samp[apb->curbyte],
+                  (uintptr_t)&apb->samp[apb->nbytes]);
+
   /* Add a reference to the audio buffer */
 
   apb_reference(apb);
@@ -1158,6 +1440,7 @@ static int sai_send(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
   bfcontainer->timeout  = timeout;
   bfcontainer->arg      = arg;
   bfcontainer->apb      = apb;
+  bfcontainer->rxbuf    = NULL;
   bfcontainer->result   = -EBUSY;
 
   /* Add the buffer container to the end of the pending queue */
@@ -1326,7 +1609,11 @@ static void sai_portinitialize(struct stm32_sai_s *priv)
 #ifdef CONFIG_STM32_SAI_DMA
   /* Get DMA channel */
 
+#ifdef CONFIG_STM32_HAVE_IP_DMA_GPDMA
+  priv->dma = stm32_dmachannel(GPDMA_TTYPE_M2P);
+#else
   priv->dma = stm32_dmachannel(priv->dma_ch);
+#endif
   DEBUGASSERT(priv->dma);
 
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0, SAI_CR1_DMAEN);
@@ -1336,6 +1623,15 @@ static void sai_portinitialize(struct stm32_sai_s *priv)
                 priv->syncen);
 
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0, SAI_CR1_OUTDRIV);
+
+#ifdef CONFIG_STM32_HAVE_IP_SAI_V2
+  /* The master clock is only output when enabled */
+
+  if (priv->syncen == SAI_CR1_SYNCEN_ASYNCH)
+    {
+      sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0, SAI_CR1_MCKEN);
+    }
+#endif
 
   sai_modifyreg(priv, STM32_SAI_CR2_OFFSET, SAI_CR2_FTH_MASK,
                 SAI_CR2_FTH_1QF);

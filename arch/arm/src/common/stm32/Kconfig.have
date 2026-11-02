@@ -813,6 +813,12 @@ config STM32_HAVE_IP_SAI_V1
 	---help---
 		SAI with a 4-bit master clock divider (STM32F7).
 
+config STM32_HAVE_IP_SAI_V2
+	bool
+	---help---
+		SAI with a 6-bit master clock divider and a master clock enable
+		(STM32N6).
+
 # SDIO capabilities
 
 config STM32_HAVE_SDIO

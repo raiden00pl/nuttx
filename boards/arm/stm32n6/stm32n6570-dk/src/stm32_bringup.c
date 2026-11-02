@@ -194,6 +194,17 @@ int stm32_bringup(void)
     }
 #endif
 
+#ifdef HAVE_WM8904
+  /* Register the WM8904 headphone output as /dev/audio/pcm0 */
+
+  ret = stm32_wm8904_initialize(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_wm8904_initialize() failed: %d\n",
+             ret);
+    }
+#endif
+
 #if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
   /* Register the IMX335 camera and the V4L2 capture device /dev/video */
 

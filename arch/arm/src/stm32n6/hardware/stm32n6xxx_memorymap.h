@@ -116,6 +116,7 @@
 #define STM32_TIM17_BASE      0x52004800
 #define STM32_TIM9_BASE       0x52004c00
 #define STM32_SPI5_BASE       0x52005000
+#define STM32_SAI1_BASE       0x52005800
 
 /* APB5 peripherals *********************************************************/
 

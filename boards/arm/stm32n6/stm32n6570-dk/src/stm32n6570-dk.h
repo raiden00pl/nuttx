@@ -122,6 +122,21 @@
 #define SDIO_SLOTNO    0
 #define SDIO_MINOR     0
 
+/* WM8904 audio codec on I2C2 (0x1a).  SAI1 block A is the I2S master:
+ * PG7 MCLK, PB6 SCK, PB0 FS, PB7 SD (to the codec DACDAT).
+ */
+
+#define HAVE_WM8904 1
+
+#if !defined(CONFIG_AUDIO_WM8904) || !defined(CONFIG_STM32_I2C2) || \
+    !defined(CONFIG_STM32_SAI1_A) || !defined(CONFIG_AUDIO_FORMAT_PCM)
+#  undef HAVE_WM8904
+#endif
+
+#define WM8904_I2C_BUS       2
+#define WM8904_I2C_ADDRESS   0x1a
+#define WM8904_I2C_FREQUENCY 400000
+
 #ifndef __ASSEMBLY__
 
 /****************************************************************************
@@ -253,6 +268,18 @@ int stm32_nor_initialize(void);
 
 #if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
 int stm32_camera_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_wm8904_initialize
+ *
+ * Description:
+ *   Initialize the WM8904 codec on SAI1 and register /dev/audio/pcm<minor>.
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_WM8904
+int stm32_wm8904_initialize(int minor);
 #endif
 
 #endif /* __ASSEMBLY__ */
