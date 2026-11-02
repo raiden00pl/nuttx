@@ -245,6 +245,21 @@ registers only the flash above ``CONFIG_STM32N6570_DK_NOR_OFFSET`` (16 MiB)
 as ``/dev/nor`` and mounts it with littlefs at ``/data``; the boot image
 below it is never written.
 
+Camera
+======
+
+The MB1854 module (Sony IMX335, 2592x1944 RAW10) on the camera connector
+is wired to the CSI-2 host (two data lanes) and I2C1 (0x1a).  PD2 enables
+the module and PC8 releases the sensor reset; the module has its own
+24 MHz sensor clock.  The DCMIPP kernel clock is IC17 (300 MHz) and the
+D-PHY configuration clock IC18 (20 MHz).  Pipe1 demosaics the frames and
+scales them to RGB565 with fixed black level, white balance and colour
+matrix (ST values for TL84 light).  Exposure and analog gain are fixed
+(``CONFIG_VIDEO_IMX335_EXPOSURE``, ``CONFIG_VIDEO_IMX335_GAIN``).  The
+board registers the sensor and the DCMIPP; the ``camera`` example creates
+``/dev/video`` and ``camera 0`` shows a continuous 320x240 preview in the
+top left corner of the LCD.
+
 Clocking
 ========
 
@@ -280,6 +295,12 @@ lvgl
 ``fb`` plus the touch controller, LVGL and its widgets demo.  Start it
 with ``lvgldemo &``.  The image is close to the 511 KiB limit of the boot
 ROM, so LVGL logging and extra fonts are left out.
+
+camera
+------
+
+``fb`` plus the IMX335 camera, the DCMIPP, NX and the ``camera`` example
+with LCD output, see `Camera`_.  Run ``camera 0``.
 
 sdcard
 ------

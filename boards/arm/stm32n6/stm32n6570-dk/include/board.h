@@ -59,6 +59,8 @@
  *     IC11 /6 = 400 MHz  /
  *     IC4 /12 = 200 MHz  -> SDMMC2 kernel clock
  *     IC16 /96 = 25 MHz  -> LTDC pixel clock
+ *     IC17 /8 = 300 MHz  -> DCMIPP kernel clock
+ *     IC18 /120 = 20 MHz -> CSI-2 D-PHY configuration clock
  *   PLL2 = HSI / 2 * 48  = 1536 MHz   (audio kernel clocks)
  *   HPRE /2   = 200 MHz -> HCLK
  *   PPREx /1  = 200 MHz -> PCLK1/2/4/5
@@ -105,6 +107,15 @@
 #define STM32_IC4_SRC           RCC_ICCFGR_SEL_PLL1
 #define STM32_IC4_DIV           12
 
+/* IC17 = PLL1 / 8 = 300 MHz -> DCMIPP kernel clock
+ * IC18 = PLL1 / 120 = 20 MHz -> CSI-2 D-PHY configuration clock
+ */
+
+#define STM32_IC17_SRC          RCC_ICCFGR_SEL_PLL1
+#define STM32_IC17_DIV          8
+#define STM32_IC18_SRC          RCC_ICCFGR_SEL_PLL1
+#define STM32_IC18_DIV          120
+
 #define STM32_CPUCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC1_DIV)
 #define STM32_SYSCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC2_DIV)
 #define STM32_RCC_CFGR2_HPRE    RCC_CFGR2_HPRE_SYSCLKd2
@@ -121,6 +132,8 @@
  *     IC6  /12 = 66.7 MHz  > SYSCLK components (SYSSW IC2_IC6_IC11)
  *     IC11 /8  = 100 MHz  /
  *     IC4  /4  = 200 MHz  -> SDMMC2 kernel clock
+ *     IC17 /3  = 267 MHz  -> DCMIPP kernel clock
+ *     IC18 /40 = 20 MHz   -> CSI-2 D-PHY configuration clock
  *   HPRE /2   = 50 MHz   -> HCLK
  *   PPREx /1  = 50 MHz   -> PCLK1/2/4/5
  *   TIMPRE /1 = 100 MHz  -> timer kernel clock
@@ -151,6 +164,15 @@
 
 #define STM32_IC4_SRC           RCC_ICCFGR_SEL_PLL1
 #define STM32_IC4_DIV           4
+
+/* IC17 = PLL1 / 3 = 267 MHz -> DCMIPP kernel clock
+ * IC18 = PLL1 / 40 = 20 MHz -> CSI-2 D-PHY configuration clock
+ */
+
+#define STM32_IC17_SRC          RCC_ICCFGR_SEL_PLL1
+#define STM32_IC17_DIV          3
+#define STM32_IC18_SRC          RCC_ICCFGR_SEL_PLL1
+#define STM32_IC18_DIV          40
 
 #define STM32_CPUCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC1_DIV)
 #define STM32_SYSCLK_FREQUENCY  (STM32_PLL1_FREQUENCY / STM32_IC2_DIV)
@@ -214,6 +236,10 @@
 #  define STM32_OTGPHY2_FREQUENCY     (STM32_HSE_FREQUENCY / 2)
 #endif
 
+/* DCMIPP kernel clock: IC17 */
+
+#define STM32_RCC_CCIPR1_DCMIPPSEL RCC_CCIPR1_DCMIPPSEL_IC17
+
 /* I/O voltage domains ******************************************************/
 
 /* VDDIO2 and VDDIO3 are supplied at 1.8 V on the Discovery kit.
@@ -224,7 +250,11 @@
 #define BOARD_PWR_VDDIO  (PWR_SVMCR3_VDDIO2SV    | PWR_SVMCR3_VDDIO3SV | \
                           PWR_SVMCR3_VDDIO2VRSEL | PWR_SVMCR3_VDDIO3VRSEL)
 
-/* VDDIO5 supplies the microSD pads (SDMMC2) in its 3.3 V range */
+/* VDDIO4 supplies the camera control pads (PC8 NRST) and VDDIO5 the
+ * microSD pads (SDMMC2), both in their 3.3 V range.
+ */
+
+#define BOARD_PWR_VDDIO4 PWR_SVMCR1_VDDIO4SV
 
 #define BOARD_PWR_VDDIO5 PWR_SVMCR2_VDDIO5SV
 
