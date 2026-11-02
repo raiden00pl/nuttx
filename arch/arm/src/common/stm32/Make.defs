@@ -122,6 +122,10 @@ ifeq ($(CONFIG_STM32_SDMMC)$(CONFIG_STM32_HAVE_IP_SDMMC_IDMA),yy)
 CHIP_CSRCS += stm32_sdmmc_idma.c
 endif
 
+ifeq ($(CONFIG_STM32_XSPI)$(CONFIG_STM32_HAVE_IP_XSPI_V1),yy)
+CHIP_CSRCS += stm32_xspi_v1.c
+endif
+
 ifeq ($(CONFIG_STM32_ETHMAC)$(CONFIG_STM32_HAVE_IP_ETHMAC_V2),yy)
 CHIP_CSRCS += stm32_eth_v2.c
 endif

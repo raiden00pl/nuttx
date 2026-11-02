@@ -696,6 +696,11 @@ config STM32_HAVE_QSPI
 config STM32_HAVE_XSPI
 	bool
 
+config STM32_HAVE_IP_XSPI_V1
+	bool
+	---help---
+		XSPI controller with the XSPIM I/O manager (STM32H7RS, STM32N6).
+
 # SBS capabilities
 
 config STM32_HAVE_SBS

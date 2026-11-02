@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/stm32_xspi.c
+ * arch/arm/src/common/stm32/stm32_xspi_v1.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -35,12 +35,9 @@
 #include <nuttx/spi/qspi.h>
 
 #include "arm_internal.h"
-#include "stm32_gpio.h"
+#include "stm32.h"
 #include "stm32_xspi.h"
-#include "hardware/stm32h7rsxx_pwr.h"
-#include "hardware/stm32h7rsxx_rcc.h"
-#include "hardware/stm32h7rsxx_sbs.h"
-#include "hardware/stm32h7rsxx_xspi.h"
+#include "hardware/stm32_xspi.h"
 
 #ifdef CONFIG_STM32_XSPI
 
@@ -468,76 +465,26 @@ static void xspi_iom_config(struct stm32_xspidev_s *priv,
 }
 
 /****************************************************************************
- * Name: xspi_compensation_enable
- *
- * Description:
- *   Enable the XSPI I/O compensation cell and wait until it is ready.
- *
- ****************************************************************************/
-
-static int xspi_compensation_enable(struct stm32_xspidev_s *priv)
-{
-  uint32_t enable;
-  uint32_t ready;
-  int timeout;
-
-  modifyreg32(STM32_RCC_APB4ENR, 0, RCC_APB4ENR_SBSEN);
-  modifyreg32(STM32_RCC_CR, 0, RCC_CR_CSION);
-
-  for (timeout = XSPI_TIMEOUT; timeout > 0; timeout--)
-    {
-      if ((getreg32(STM32_RCC_CR) & RCC_CR_CSIRDY) != 0)
-        {
-          break;
-        }
-    }
-
-  if (timeout == 0)
-    {
-      return -ETIMEDOUT;
-    }
-
-  if (priv->intf == 1)
-    {
-      enable = SBS_CCCSR_XSPI1_COMP_EN | SBS_CCCSR_XSPI1_IOHSLV;
-      ready  = SBS_CCCSR_XSPI1_COMP_RDY;
-    }
-  else
-    {
-      enable = SBS_CCCSR_XSPI2_COMP_EN | SBS_CCCSR_XSPI2_IOHSLV;
-      ready  = SBS_CCCSR_XSPI2_COMP_RDY;
-    }
-
-  modifyreg32(STM32_SBS_CCCSR, 0, enable);
-  for (timeout = XSPI_TIMEOUT; timeout > 0; timeout--)
-    {
-      if ((getreg32(STM32_SBS_CCCSR) & ready) != 0)
-        {
-          return OK;
-        }
-    }
-
-  return -ETIMEDOUT;
-}
-
-/****************************************************************************
  * Name: xspi_hw_initialize
  *
  * Description:
- *   One-time hardware initialization: power, clocking and GPIO pins.
+ *   One-time hardware initialization: family power and clocking, then the
+ *   GPIO pins.
  *
  ****************************************************************************/
 
 static int xspi_hw_initialize(struct stm32_xspidev_s *priv)
 {
+  int ret;
+
+  ret = stm32_xspi_hwenable(priv->intf);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   if (priv->intf == 1)
     {
-      modifyreg32(STM32_PWR_CSR2, 0, PWR_CSR2_EN_XSPIM1);
-      modifyreg32(STM32_RCC_CCIPR1, RCC_CCIPR1_XSPI1SEL_MASK,
-                  RCC_CCIPR1_XSPI1SEL_HCLK);
-      modifyreg32(STM32_RCC_AHB5ENR, 0, RCC_AHB5ENR_XSPI1EN |
-                   RCC_AHB5ENR_XSPIMEN);
-
 #ifdef GPIO_XSPI1_CLK
       stm32_configgpio(GPIO_XSPI1_CLK);
 #endif
@@ -574,12 +521,6 @@ static int xspi_hw_initialize(struct stm32_xspidev_s *priv)
     }
   else
     {
-      modifyreg32(STM32_PWR_CSR2, 0, PWR_CSR2_EN_XSPIM2);
-      modifyreg32(STM32_RCC_CCIPR1, RCC_CCIPR1_XSPI2SEL_MASK,
-                  RCC_CCIPR1_XSPI2SEL_HCLK);
-      modifyreg32(STM32_RCC_AHB5ENR, 0, RCC_AHB5ENR_XSPI2EN |
-                   RCC_AHB5ENR_XSPIMEN);
-
 #ifdef GPIO_XSPI2_CLK
       stm32_configgpio(GPIO_XSPI2_CLK);
 #endif
@@ -615,7 +556,7 @@ static int xspi_hw_initialize(struct stm32_xspidev_s *priv)
 #endif
     }
 
-  return xspi_compensation_enable(priv);
+  return OK;
 }
 
 /****************************************************************************

@@ -102,7 +102,7 @@ CHIP_CSRCS += stm32_qspi.c
 endif
 
 ifeq ($(CONFIG_STM32_XSPI),y)
-CHIP_CSRCS += stm32_xspi.c
+CHIP_CSRCS += stm32h7rsxx_xspi.c
 endif
 
 ifeq ($(CONFIG_STM32_RTC),y)

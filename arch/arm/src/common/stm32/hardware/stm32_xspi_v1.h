@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/hardware/stm32h7rsxx_xspi.h
+ * arch/arm/src/common/stm32/hardware/stm32_xspi_v1.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,14 +20,14 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7RSXX_XSPI_H
-#define __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7RSXX_XSPI_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_XSPI_V1_H
+#define __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_XSPI_V1_H
 
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
-#include "stm32_memorymap.h"
+#include "chip.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -403,4 +403,4 @@
 #define XSPIM_CR_REQ2ACK_MASK        (0xff << XSPIM_CR_REQ2ACK_SHIFT)
 #  define XSPIM_CR_REQ2ACK(n)        (((n) - 1) << XSPIM_CR_REQ2ACK_SHIFT)
 
-#endif /* __ARCH_ARM_SRC_STM32H7_HARDWARE_STM32H7RSXX_XSPI_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_XSPI_V1_H */

@@ -667,6 +667,7 @@ TIM           v2, H7RS v3   arch/arm/src/common/stm32/stm32_tim.c
 USART/LPUART  v4            arch/arm/src/stm32h7/stm32_serial.c    
 USB           OTG v2        arch/arm/src/common/stm32/stm32_otgdev_v2.c
 WWDG          v2, H7RS v3   arch/arm/src/common/stm32/stm32_wwdg.c
+XSPI          H7RS v1       arch/arm/src/common/stm32/stm32_xspi_v1.c
 AES/CRYP      n/a           arch/arm/src/stm32h7/stm32_aes.c       
 BBSRAM        n/a           arch/arm/src/stm32h7/stm32_bbsram.c    
 CAPTURE       n/a           arch/arm/src/stm32h7/stm32_capture.c   
