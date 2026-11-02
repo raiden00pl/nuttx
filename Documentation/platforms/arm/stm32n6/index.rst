@@ -31,6 +31,8 @@ DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
+SPI         Yes      SPI1-6 through the common SPI v5 driver, master
+                     mode, optional GPDMA.
 USART       Yes      USART1 only.
 
 ADC         No
@@ -48,7 +50,6 @@ RNG         No
 RTC         No
 SAI         No
 SDMMC       No
-SPI         No
 TIM         No
 USB         No
 XSPI        No

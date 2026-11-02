@@ -114,6 +114,14 @@ TAMP  PE0   Button B4, EXTI0, high when pressed
 The LEDs are available through ``/dev/userleds`` and the button through
 ``/dev/buttons`` in the nsh configuration.
 
+SPI
+===
+
+SPI5 is wired to the Arduino connector: PE15 SCK (D13), PH8 MISO (D12),
+PG2 MOSI (D11) and PA3 as chip select (D10).  It is registered as
+``/dev/spi5`` and can be exercised with the ``spi`` tool; shorting D11
+to D12 loops the transmitted bytes back.
+
 Clocking
 ========
 

@@ -94,5 +94,15 @@ int stm32_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_STM32_SPI
+  /* Initialize the SPI buses and their chip selects */
+
+  stm32_spiinitialize();
+
+#  ifdef CONFIG_SPI_DRIVER
+  stm32_spiregister();
+#  endif
+#endif
+
   return OK;
 }
