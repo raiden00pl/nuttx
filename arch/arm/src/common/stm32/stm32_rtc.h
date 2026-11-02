@@ -29,7 +29,8 @@
 
 #include <nuttx/config.h>
 
-#ifdef CONFIG_STM32_HAVE_IP_RTC_M3M4_V1
+#if defined(CONFIG_STM32_HAVE_IP_RTC_M3M4_V1) || \
+    defined(CONFIG_STM32_HAVE_IP_RTCC_V3)
 
 #include "chip.h"
 
@@ -50,11 +51,15 @@
       defined(CONFIG_STM32_STM32F30XX) || defined(CONFIG_STM32_STM32F4XXX) || \
       defined(CONFIG_STM32_STM32G4XXX)
 #  include "hardware/stm32_rtcc.h"
+#elif defined(CONFIG_STM32_HAVE_IP_RTCC_V3)
+#  include "hardware/stm32_rtcc.h"
 #endif
 
 /* Alarm function differs from part to part */
 
-#if defined(CONFIG_STM32_STM32F4XXX)
+#if defined(CONFIG_STM32_HAVE_IP_RTCC_V3)
+#  include "stm32_alarm_v3.h"
+#elif defined(CONFIG_STM32_STM32F4XXX)
 #  include "stm32f40xxx_alarm.h"
 #elif defined(CONFIG_STM32_STM32L15XX)
 #  include "stm32l15xxx_alarm.h"
@@ -65,6 +70,11 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#if defined(CONFIG_STM32_STM32F4XXX) || defined(CONFIG_STM32_STM32L15XX) || \
+    defined(CONFIG_STM32_HAVE_IP_RTCC_V3)
+#  define STM32_RTC_HAVE_ALARMB 1
+#endif
 
 #define STM32_RTC_PRESCALER_SECOND        32767  /* Default prescaler to get a
                                                   * second base */
@@ -221,5 +231,5 @@ struct rtc_lowerhalf_s *stm32_rtc_lowerhalf(void);
 #endif
 #endif /* __ASSEMBLY__ */
 
-#endif /* CONFIG_STM32_HAVE_IP_RTC_M3M4_V1 */
+#endif /* CONFIG_STM32_HAVE_IP_RTC_M3M4_V1 || CONFIG_STM32_HAVE_IP_RTCC_V3 */
 #endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_RTC_H */

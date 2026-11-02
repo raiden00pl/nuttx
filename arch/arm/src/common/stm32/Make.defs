@@ -87,6 +87,13 @@ ifeq ($(CONFIG_STM32_HAVE_IP_EXTI_M33M55_V1),y)
 CHIP_CSRCS += stm32_exti_gpio_m33m55_v1.c
 endif
 
+ifeq ($(CONFIG_STM32_RTC)$(CONFIG_STM32_HAVE_IP_RTCC_V3),yy)
+CHIP_CSRCS += stm32_rtcc_v3.c
+ifeq ($(CONFIG_RTC_DRIVER),y)
+CHIP_CSRCS += stm32_rtc_m3m4_v1_lowerhalf.c
+endif
+endif
+
 ifeq ($(CONFIG_STM32_RNG)$(CONFIG_STM32_HAVE_IP_RNG_V1),yy)
 CHIP_CSRCS += stm32_rng_v1.c
 endif
