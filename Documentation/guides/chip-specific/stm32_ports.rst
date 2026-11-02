@@ -630,7 +630,7 @@ WWDG          v3            arch/arm/src/common/stm32/stm32_wwdg.c
 LPTIM         v2            arch/arm/src/common/stm32/stm32_lptim.c
 PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32h5/stm32_pwm.c       
-RNG           n/a           arch/arm/src/stm32h5/stm32_rng.c       
+RNG           v1            arch/arm/src/common/stm32/stm32_rng_m3m4_v1.c
 USB host      n/a           arch/arm/src/stm32h5/stm32_usbdrdhost.c
 ============  ============  ============================================
 
@@ -659,7 +659,7 @@ MDMA          to be done    arch/arm/src/stm32h7/stm32_dma.c
 PWR           to be done    arch/arm/src/stm32h7/stm32_pwr.c       
 QUADSPI       to be done    arch/arm/src/stm32h7/stm32_qspi.c      
 RCC           to be done    arch/arm/src/stm32h7/stm32_rcc.c       
-RNG           to be done    arch/arm/src/stm32h7/stm32_rng.c       
+RNG           v1            arch/arm/src/common/stm32/stm32_rng_m3m4_v1.c
 RTC           to be done    arch/arm/src/stm32h7/stm32_rtc.c       
 SDMMC         to be done    arch/arm/src/stm32h7/stm32_sdmmc.c     
 SPI/I2S       to be done    arch/arm/src/stm32h7/stm32_spi.c       
@@ -781,6 +781,7 @@ IWDG          v3            arch/arm/src/common/stm32/stm32_iwdg.c
 LPTIM         v2            arch/arm/src/common/stm32/stm32_lptim.c
 PWR           n6            arch/arm/src/stm32n6/stm32_pwr.c
 RCC           n6            arch/arm/src/stm32n6/stm32n6xx_rcc.c
+RNG           v1            arch/arm/src/common/stm32/stm32_rng_m3m4_v1.c
 SPI/I2S       to be done    not supported
 TIM           v3            arch/arm/src/common/stm32/stm32_tim.c
 USART/LPUART  v4            arch/arm/src/stm32n6/stm32_serial.c
