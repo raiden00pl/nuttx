@@ -161,10 +161,6 @@ endif
 endif
 endif
 
-ifeq ($(CONFIG_STM32_PWM),y)
-CHIP_CSRCS += stm32_pwm.c
-endif
-
 ifeq ($(CONFIG_STM32_ETHMAC),y)
 CHIP_CSRCS += stm32_ethernet.c
 endif

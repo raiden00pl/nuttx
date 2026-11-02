@@ -44,6 +44,12 @@
 #  include "hardware/stm32_tim.h"
 #endif
 
+/* The V3 timers implement all the V2 features used by this driver */
+
+#if defined(CONFIG_STM32_HAVE_IP_TIMERS_V3) && !defined(HAVE_IP_TIMERS_V2)
+#  define HAVE_IP_TIMERS_V2 1
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/

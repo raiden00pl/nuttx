@@ -92,10 +92,6 @@ if(CONFIG_STM32_DTS)
   list(APPEND SRCS stm32_dts.c)
 endif()
 
-if(CONFIG_STM32_PWM)
-  list(APPEND SRCS stm32_pwm.c)
-endif()
-
 if(CONFIG_STM32_TIMX_CAP)
   list(APPEND SRCS stm32_capture.c)
   if(CONFIG_CAPTURE)
