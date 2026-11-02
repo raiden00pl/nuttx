@@ -37,6 +37,7 @@
 /* Peripherals **************************************************************/
 
 #include "chip.h"
+#include "stm32_dma.h"
 #include "stm32_gpio.h"
 #include "stm32_lowputc.h"
 #include "stm32_pwr.h"

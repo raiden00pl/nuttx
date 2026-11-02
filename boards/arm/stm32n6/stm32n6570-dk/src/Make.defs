@@ -71,6 +71,10 @@ ifeq ($(CONFIG_STM32_DCMIPP),y)
 CSRCS += stm32_camera.c
 endif
 
+ifeq ($(CONFIG_AUDIO_WM8904),y)
+CSRCS += stm32_wm8904.c
+endif
+
 DEPPATH += --dep-path board
 VPATH += :board
 CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)arch$(DELIM)$(CONFIG_ARCH)$(DELIM)src$(DELIM)board$(DELIM)board

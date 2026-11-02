@@ -44,12 +44,15 @@ EXTI        Yes      GPIO interrupts through the common driver.
 ETH         Yes      ETH1 through the common Ethernet v2 driver, MII, RMII
                      or RGMII up to 1000 Mbps.
 DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
+                     The channels are Secure and privileged.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
 RNG         Yes      Through the common driver.
 RTC         Yes      Calendar, sub-seconds, Alarm A/B and wakeup timer
                      through the common RTC v3 driver.
+SAI         Yes      SAI1 through the common SAI driver, I2S master with
+                     GPDMA.
 SDMMC       Yes      SDMMC1-2 through the common IDMA SDMMC driver.  The
                      IDMA masters get Secure, privileged CID 1 RIF
                      attributes at start-up.
@@ -67,7 +70,6 @@ DCACHE      No
 ICACHE      No
 MPU         No
 NPU         No
-SAI         No
 USB device  No
 ==========  =======  ===================================================
 

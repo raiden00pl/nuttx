@@ -436,6 +436,10 @@ static inline void rcc_enableapb2(void)
   regval |= RCC_APB2ENR_SPI5EN;
 #endif
 
+#ifdef CONFIG_STM32_SAI1
+  regval |= RCC_APB2ENR_SAI1EN;
+#endif
+
   if (regval != 0)
     {
       putreg32(regval, STM32_RCC_APB2ENSR);

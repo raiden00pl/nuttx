@@ -145,6 +145,15 @@ struct wm8904_lower_s
 
   uint32_t mclk;       /* W8904 Master clock frequency */
 
+  /* By default the WM8904 is the I2S clock master: its FLL generates
+   * SYSCLK from MCLK and it drives BCLK and LRCLK.  Set slave when the I2S
+   * peripheral drives BCLK and LRCLK and provides MCLK = 256 x Fs: SYSCLK
+   * is then MCLK and the I2S sample rate and data width are set from the
+   * audio stream.
+   */
+
+  bool slave;
+
   /* IRQ/GPIO access callbacks.  These operations all hidden behind
    * callbacks to isolate the WM8904 driver from differences in GPIO
    * interrupt handling by varying boards and MCUs.  If possible,

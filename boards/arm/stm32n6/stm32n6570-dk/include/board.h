@@ -232,6 +232,16 @@
 #define STM32_RCC_CCIPR13_USART2SEL RCC_CCIPR13_USART2SEL_HSI
 #define STM32_USART2_FREQUENCY      STM32_HSI_FREQUENCY
 
+/* SAI1 kernel clock: IC7 = PLL2 / 125 = 12.288 MHz, which is MCLK =
+ * 256 x 48 kHz.  The WM8904 board code switches IC7 to PLL2 / 136 =
+ * 11.294 MHz (+0.04 %) for 44.1 kHz streams.
+ */
+
+#define STM32_IC7_SRC            RCC_ICCFGR_SEL_PLL2
+#define STM32_IC7_DIV            125
+#define STM32_RCC_CCIPR7_SAI1SEL RCC_CCIPR7_SAI1SEL_IC7
+#define STM32_SAI1_FREQUENCY     (STM32_PLL2_FREQUENCY / STM32_IC7_DIV)
+
 /* LTDC kernel clock: IC16 (25 MHz pixel clock) */
 
 #define STM32_RCC_CCIPR4_LTDCSEL RCC_CCIPR4_LTDCSEL_IC16
@@ -381,6 +391,19 @@
 
 #define STM32_RCC_CCIPR9_SPI5SEL RCC_CCIPR9_SPI5SEL_PCLK2
 #define STM32_SPI5_FREQUENCY     STM32_PCLK2_FREQUENCY
+
+/* SAI GPIOs ****************************************************************/
+
+/* SAI1 block A to the WM8904 codec: PG7 MCLK, PB6 SCK, PB0 FS, PB7 SD.
+ * Block B (PE3 SD, codec ADCDAT) is for capture synchronous with block A.
+ * These pins are shared with the trace port.
+ */
+
+#define GPIO_SAI1_MCLK_A  GPIO_SAI1_MCLK_A_1
+#define GPIO_SAI1_SCK_A   GPIO_SAI1_SCK_A_1
+#define GPIO_SAI1_FS_A    GPIO_SAI1_FS_A_1
+#define GPIO_SAI1_SD_A    GPIO_SAI1_SD_A_1
+#define GPIO_SAI1_SD_B    GPIO_SAI1_SD_B_1
 
 /* LTDC *********************************************************************/
 

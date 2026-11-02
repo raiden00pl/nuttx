@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include "arm_internal.h"
+#include "hardware/stm32_gpdma.h"
 #include "hardware/stm32n6xxx_rcc.h"
 #include "stm32_rif.h"
 
@@ -81,6 +82,21 @@ void stm32_rifconfig(void)
 {
   putreg32(RCC_AHB3ENR_RIFSCEN, STM32_RCC_AHB3ENSR);
 
+#ifdef CONFIG_STM32_DMA1
+  /* GPDMA1 channels are Secure and privileged so that they can reach
+   * Secure memory and peripherals (the driver then marks the transfers
+   * Secure as well).
+   */
+
+  putreg32(0xffff, STM32_GPDMA1_SECCFGR);
+  putreg32(0xffff, STM32_GPDMA1_PRIVCFGR);
+#endif
+
+#ifdef CONFIG_STM32_DMA2
+  putreg32(0xffff, STM32_GPDMA2_SECCFGR);
+  putreg32(0xffff, STM32_GPDMA2_PRIVCFGR);
+#endif
+
 #ifdef CONFIG_STM32_LTDC
   /* Both LTDC layers fetch the framebuffer from Secure AXISRAM */
 
@@ -96,6 +112,12 @@ void stm32_rifconfig(void)
   rif_setmaster(RIFSC_MASTER_DCMIPP, RIF_MASTER_CID1_SEC_PRIV);
   rif_setslave_secpriv(RIFSC_PERIPH_DCMIPP);
   rif_setslave_secpriv(RIFSC_PERIPH_CSI);
+#endif
+
+#ifdef CONFIG_STM32_SAI1
+  /* SAI1 is accessed by the Secure GPDMA */
+
+  rif_setslave_secpriv(RIFSC_PERIPH_SAI1);
 #endif
 
 #ifdef CONFIG_STM32_SDMMC1

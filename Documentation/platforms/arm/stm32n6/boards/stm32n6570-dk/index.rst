@@ -195,6 +195,22 @@ With a FAT formatted card::
   nsh> dd if=/dev/zero of=/mnt/big.bin bs=4096 count=256
   nsh> umount /mnt
 
+Audio
+=====
+
+The WM8904 codec on I2C2 (0x1a) drives the headphone jack.  SAI1 block A
+is the I2S master: PG7 MCLK, PB6 SCK, PB0 FS, PB7 SD (AF6, shared with the
+trace port), 16-bit stereo through GPDMA1.  The SAI1 kernel clock is IC7
+from PLL2: 12.288 MHz for 8 to 48 kHz and 11.294 MHz for 11.025, 22.05
+and 44.1 kHz streams; MCLK is 256 x Fs and clocks the codec.  The device
+is ``/dev/audio/pcm0``.  Play a 16-bit PCM WAV file from the microSD
+card::
+
+  nsh> mount -t vfat /dev/mmcsd0 /mnt
+  nsh> nxplayer
+  nxplayer> volume 50
+  nxplayer> play /mnt/test.wav
+
 Ethernet
 ========
 
@@ -322,6 +338,12 @@ xspi
 16 MiB exceed the internal SRAM, so ``ramtest`` tests a PSRAM allocation.
 Without ``CONFIG_STM32N6570_DK_PSRAM_HEAP`` the whole PSRAM can be tested
 with ``ramtest -w -a 0x90000000 -s 33554432``.
+
+audio
+-----
+
+``sdcard`` plus the WM8904 headphone output and ``nxplayer``, see
+`Audio`_.
 
 netnsh
 ------
