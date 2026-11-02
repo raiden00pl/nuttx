@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h7/stm32_xspi.h
+ * arch/arm/src/common/stm32/stm32_xspi.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32H7_STM32_XSPI_H
-#define __ARCH_ARM_SRC_STM32H7_STM32_XSPI_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_STM32_XSPI_H
+#define __ARCH_ARM_SRC_COMMON_STM32_STM32_XSPI_H
 
 /****************************************************************************
  * Included Files
@@ -95,6 +95,24 @@ extern "C"
 #endif
 
 /****************************************************************************
+ * Name: stm32_xspi_hwenable
+ *
+ * Description:
+ *   Family hook called once per XSPI controller before it is first used.
+ *   It enables the I/O supply of the XSPIM port, the controller and XSPIM
+ *   clocks, the kernel clock source and the I/O compensation cell.
+ *
+ * Input Parameters:
+ *   intf - XSPI controller number (1 or 2)
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+int stm32_xspi_hwenable(int intf);
+
+/****************************************************************************
  * Name: stm32_xspi_initialize
  *
  * Description:
@@ -155,4 +173,4 @@ void stm32_xspi_exit_memorymapped(struct qspi_dev_s *dev);
 
 #endif /* __ASSEMBLY__ */
 #endif /* CONFIG_STM32_XSPI */
-#endif /* __ARCH_ARM_SRC_STM32H7_STM32_XSPI_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_XSPI_H */

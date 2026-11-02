@@ -99,7 +99,7 @@ if(CONFIG_STM32_QSPI)
 endif()
 
 if(CONFIG_STM32_XSPI)
-  list(APPEND SRCS stm32_xspi.c)
+  list(APPEND SRCS stm32h7rsxx_xspi.c)
 endif()
 
 if(CONFIG_STM32_RTC)
