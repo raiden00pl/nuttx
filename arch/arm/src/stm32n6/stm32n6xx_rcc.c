@@ -253,6 +253,10 @@ static inline void rcc_enableahb1(void)
   regval |= RCC_AHB1ENR_GPDMA1EN;
 #endif
 
+#if defined(CONFIG_STM32_ADC1) || defined(CONFIG_STM32_ADC2)
+  regval |= RCC_AHB1ENR_ADC12EN;
+#endif
+
   if (regval != 0)
     {
       putreg32(regval, STM32_RCC_AHB1ENSR);

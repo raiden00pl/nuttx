@@ -10,6 +10,7 @@ comment "STM32N6 Configuration Options"
 config STM32_N6_PERIPHERALS
 	bool
 	default y
+	select STM32_HAVE_IP_ADC_V3_N6
 	select STM32_HAVE_IP_DMA_GPDMA
 	select STM32_HAVE_IP_EXTI_M33M55_V1
 	select STM32_HAVE_IP_GPIO_M33M55_V1
@@ -22,6 +23,7 @@ config STM32_N6_PERIPHERALS
 	select STM32_HAVE_IP_RTCC_V3
 	select STM32_HAVE_IP_SPI_V5
 	select STM32_HAVE_IP_WDG_V3
+	select STM32_HAVE_ADC2
 	select STM32_HAVE_DMA1
 	select STM32_HAVE_DMA2
 	select STM32_HAVE_I2C1

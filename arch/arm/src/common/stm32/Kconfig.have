@@ -117,7 +117,14 @@ config STM32_HAVE_IP_ADC_V3
 	select STM32_HAVE_ADC1
 	---help---
 		ADC with channel preselection (PCSEL), data management (DMNGT)
-		and up to 20 channels (STM32H7).
+		and up to 20 channels (STM32H7, STM32N6).
+
+config STM32_HAVE_IP_ADC_V3_N6
+	bool
+	select STM32_HAVE_IP_ADC_V3
+	---help---
+		STM32N6 variant of the ADC v3: 12-bit resolution, no internal
+		voltage regulator, kernel clock prescaler in RCC.
 
 config STM32_HAVE_ADC1
 	bool

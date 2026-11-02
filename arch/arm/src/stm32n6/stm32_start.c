@@ -252,6 +252,14 @@ void __start_c(void)
 
   stm32_pwr_enablevddio(BOARD_PWR_VDDIO);
 
+#if defined(CONFIG_STM32_ADC1) || defined(CONFIG_STM32_ADC2)
+  /* The ADC analog part is supplied from VDDA18ADC and converts only
+   * zeros until that supply is marked valid.
+   */
+
+  stm32_pwr_enablevddio(PWR_SVMCR3_ASV);
+#endif
+
   /* Apply the ES0620 I/O-compensation mitigation (write 0x287) to the
    * domains we use.  Only VDDIO2 and VDDIO3 are touched: the other
    * VDDIOxCCCR registers cannot be accessed without their VDDIOxSV bit

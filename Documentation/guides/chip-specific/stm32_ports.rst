@@ -769,7 +769,7 @@ STM32N6
 ============  ============  ==================================================
 Peripheral    Core version  Driver
 ============  ============  ==================================================
-ADC           to be done    not supported
+ADC           v3            arch/arm/src/common/stm32/stm32_adc_v3.c
 CAN/FDCAN     to be done    not supported
 DAC           to be done    not supported
 ETH           to be done    not supported

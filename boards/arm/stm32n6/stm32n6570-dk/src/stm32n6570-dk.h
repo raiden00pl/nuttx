@@ -125,6 +125,18 @@ int stm32_pwm_setup(void);
 #endif
 
 /****************************************************************************
+ * Name: stm32_adc_setup
+ *
+ * Description:
+ *   Initialize ADC1 and register the ADC device.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_ADC1
+int stm32_adc_setup(void);
+#endif
+
+/****************************************************************************
  * Name: stm32_spiinitialize
  *
  * Description:

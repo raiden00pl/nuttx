@@ -25,6 +25,9 @@ The following list indicates peripherals supported in NuttX:
 ==========  =======  ===================================================
 Peripheral  Support  Notes
 ==========  =======  ===================================================
+ADC         Yes      ADC1 and ADC2 through the common ADC v3 driver,
+                     interrupt-driven conversions only (no DMA or timer
+                     trigger).
 GPIO        Yes
 I2C         Yes      I2C1-4 through the common I2C v2 driver.
 IWDG        Yes      Through the common driver.
@@ -45,7 +48,6 @@ SPI         Yes      SPI1-6 through the common SPI v5 driver, master
 TIM         Yes      Timer, PWM and tickless through the common drivers.
 USART       Yes      USART1 and USART2.
 
-ADC         No
 DCACHE      No
 DCMIPP      No
 ETH         No
