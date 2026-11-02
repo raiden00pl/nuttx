@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32f7/stm32_sai.c
+ * arch/arm/src/common/stm32/stm32_sai.c
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
@@ -61,12 +61,9 @@
 #include <nuttx/audio/audio.h>
 #include <nuttx/audio/i2s.h>
 
-#include "chip.h"
+#include "stm32.h"
 #include "arm_internal.h"
-#include "stm32_dma.h"
-#include "stm32_gpio.h"
 #include "stm32_sai.h"
-#include "stm32_pwr.h"
 
 #ifdef CONFIG_STM32_SAI
 
@@ -183,7 +180,7 @@ struct sai_buffer_s
 
 /* The state of the one SAI peripheral */
 
-struct stm32f7_sai_s
+struct stm32_sai_s
 {
   struct i2s_dev_s dev;        /* Externally visible I2S interface */
 
@@ -221,7 +218,7 @@ struct stm32f7_sai_s
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_I2S_INFO
-static void     sai_dump_regs(struct stm32f7_sai_s *priv, const char *msg);
+static void     sai_dump_regs(struct stm32_sai_s *priv, const char *msg);
 #else
 #  define       sai_dump_regs(s,m)
 #endif
@@ -229,15 +226,15 @@ static void     sai_dump_regs(struct stm32f7_sai_s *priv, const char *msg);
 /* Buffer container helpers */
 
 static struct sai_buffer_s *
-                sai_buf_allocate(struct stm32f7_sai_s *priv);
-static void     sai_buf_free(struct stm32f7_sai_s *priv,
+                sai_buf_allocate(struct stm32_sai_s *priv);
+static void     sai_buf_free(struct stm32_sai_s *priv,
                   struct sai_buffer_s *bfcontainer);
-static void     sai_buf_initialize(struct stm32f7_sai_s *priv);
+static void     sai_buf_initialize(struct stm32_sai_s *priv);
 
 /* DMA support */
 
 #ifdef CONFIG_STM32_SAI_DMA
-static void     sai_schedule(struct stm32f7_sai_s *priv, int result);
+static void     sai_schedule(struct stm32_sai_s *priv, int result);
 static void     sai_dma_callback(DMA_HANDLE handle, uint8_t isr, void *arg);
 #endif
 
@@ -275,7 +272,7 @@ static const struct i2s_ops_s g_i2sops =
 /* SAI1 state */
 
 #ifdef CONFIG_STM32_SAI1_A
-static struct stm32f7_sai_s g_sai1a_priv =
+static struct stm32_sai_s g_sai1a_priv =
 {
   .dev.ops     = &g_i2sops,
   .base        = STM32_SAI1_A_BASE,
@@ -296,7 +293,7 @@ static struct stm32f7_sai_s g_sai1a_priv =
 #endif
 
 #ifdef CONFIG_STM32_SAI1_B
-static struct stm32f7_sai_s g_sai1b_priv =
+static struct stm32_sai_s g_sai1b_priv =
 {
   .dev.ops     = &g_i2sops,
   .base        = STM32_SAI1_B_BASE,
@@ -319,7 +316,7 @@ static struct stm32f7_sai_s g_sai1b_priv =
 /* SAI2 state */
 
 #ifdef CONFIG_STM32_SAI2_A
-static struct stm32f7_sai_s g_sai2a_priv =
+static struct stm32_sai_s g_sai2a_priv =
 {
   .dev.ops     = &g_i2sops,
   .base        = STM32_SAI2_A_BASE,
@@ -340,7 +337,7 @@ static struct stm32f7_sai_s g_sai2a_priv =
 #endif
 
 #ifdef CONFIG_STM32_SAI2_B
-static struct stm32f7_sai_s g_sai2b_priv =
+static struct stm32_sai_s g_sai2b_priv =
 {
   .dev.ops     = &g_i2sops,
   .base        = STM32_SAI2_B_BASE,
@@ -378,7 +375,7 @@ static struct stm32f7_sai_s g_sai2b_priv =
  *
  ****************************************************************************/
 
-static inline uint32_t sai_getbitrate(struct stm32f7_sai_s *priv)
+static inline uint32_t sai_getbitrate(struct stm32_sai_s *priv)
 {
   /* Calculate the bitrate in Hz */
 
@@ -400,7 +397,7 @@ static inline uint32_t sai_getbitrate(struct stm32f7_sai_s *priv)
  *
  ****************************************************************************/
 
-static inline uint32_t sai_getreg(struct stm32f7_sai_s *priv, uint8_t offset)
+static inline uint32_t sai_getreg(struct stm32_sai_s *priv, uint8_t offset)
 {
   return getreg32(priv->base + offset);
 }
@@ -421,7 +418,7 @@ static inline uint32_t sai_getreg(struct stm32f7_sai_s *priv, uint8_t offset)
  *
  ****************************************************************************/
 
-static inline void sai_putreg(struct stm32f7_sai_s *priv, uint8_t offset,
+static inline void sai_putreg(struct stm32_sai_s *priv, uint8_t offset,
                               uint32_t value)
 {
   putreg32(value, priv->base + offset);
@@ -444,7 +441,7 @@ static inline void sai_putreg(struct stm32f7_sai_s *priv, uint8_t offset,
  *
  ****************************************************************************/
 
-static void sai_modifyreg(struct stm32f7_sai_s *priv, uint8_t offset,
+static void sai_modifyreg(struct stm32_sai_s *priv, uint8_t offset,
                           uint32_t clrbits, uint32_t setbits)
 {
   uint32_t regval;
@@ -471,12 +468,13 @@ static void sai_modifyreg(struct stm32f7_sai_s *priv, uint8_t offset,
  ****************************************************************************/
 
 #ifdef CONFIG_DEBUG_I2S_INFO
-static void sai_dump_regs(struct stm32f7_sai_s *priv, const char *msg)
+static void sai_dump_regs(struct stm32_sai_s *priv, const char *msg)
 {
   if (msg)
+    {
       i2sinfo("%s\n", msg);
+    }
 
-#if 0
   i2sinfo("CR1:%08" PRIx32 " CR2:%08" PRIx32
           "  FRCR:%08" PRIx32 " SLOTR:%08" PRIx32 "\n",
           sai_getreg(priv, STM32_SAI_CR1_OFFSET),
@@ -488,205 +486,6 @@ static void sai_dump_regs(struct stm32f7_sai_s *priv, const char *msg)
           sai_getreg(priv, STM32_SAI_IM_OFFSET),
           sai_getreg(priv, STM32_SAI_SR_OFFSET),
           sai_getreg(priv, STM32_SAI_CLRFR_OFFSET));
-#else
-  /* GCR */
-
-#ifdef CONFIG_STM32_SAI1
-  uint32_t gcr = getreg32(STM32_SAI1_GCR);
-  i2sinfo("GCR: *%08x = %08" PRIx32 "\n", STM32_SAI1_GCR, gcr);
-#else
-  uint32_t gcr = getreg32(STM32_SAI2_GCR);
-  i2sinfo("GCR: *%08x = %08" PRIx32 "\n", STM32_SAI2_GCR, gcr);
-#endif
-
-  /* CR1 */
-
-  uint32_t cr1 = sai_getreg(priv, STM32_SAI_CR1_OFFSET);
-  i2sinfo("CR1: *%08" PRIx32 " = %08x\n", STM32_SAI_CR1_OFFSET, cr1);
-
-  uint32_t mode = (cr1 & SAI_CR1_MODE_MASK) >> SAI_CR1_MODE_SHIFT;
-  const char *mode_string[] =
-  { "Master transmitter",
-    "Master receiver",
-    "Slave transmitter",
-    "Slave receiver"
-  };
-
-  i2sinfo("\t\tCR1: MODE[1:0] = %s\n", mode_string[mode]);
-
-  uint32_t prtcfg = (cr1 & SAI_CR1_PRTCFG_MASK) >> SAI_CR1_PRTCFG_SHIFT;
-  const char *prtcfg_string[] =
-  { "Free protocol",
-    "SPDIF protocol",
-    "AC'97 protocol",
-    "Reserved"
-  };
-
-  i2sinfo("\t\tCR1: PRTCFG[3:2] = %s\n", prtcfg_string[prtcfg]);
-
-  uint32_t ds = (cr1 & SAI_CR1_DS_MASK) >> SAI_CR1_DS_SHIFT;
-  const char *ds_string[] =
-  { "Reserved",
-    "Reserved",
-    "8 Bits",
-    "10 Bits",
-    "16 Bits",
-    "20 Bits",
-    "24 Bits",
-    "32 Bits"
-  };
-
-  i2sinfo("\t\tCR1: DS[7:5] = %s\n", ds_string[ds]);
-
-  uint32_t lsbfirst = cr1 & SAI_CR1_LSBFIRST;
-  i2sinfo("\t\tCR1: LSBFIRST[8] = %s\n",
-          lsbfirst ? "Data are transferred with LSB first"
-                   : "Data are transferred with MSB first");
-  uint32_t ckstr = cr1 & SAI_CR1_CKSTR;
-  i2sinfo("\t\tCR1: CKSTR[9] = %s\n", ckstr ? "SCK falling edge"
-                                            : "SCK rising edge");
-
-  uint32_t syncen = (cr1 & SAI_CR1_SYNCEN_MASK) >> SAI_CR1_SYNCEN_SHIFT;
-  const char *syncen_string[] =
-  { "audio sub-block in asynchronous mode",
-    "audio sub-block in asynchronous with the other internal audio "
-      "sub-block",
-    "audio sub-block in synchronous with an external SAI embedded "
-      "peripheral",
-    "Reserved"
-  };
-
-  i2sinfo("\t\tCR1: SYNCEN[11:10] = %s\n", syncen_string[syncen]);
-
-  uint32_t mono = cr1 & SAI_CR1_MONO;
-  i2sinfo("\t\tCR1: MONO[12] = %s\n",
-          mono ? "Mono mode"
-               : "Stereo mode");
-  uint32_t outdriv = cr1 & SAI_CR1_OUTDRIV;
-  i2sinfo("\t\tCR1: OUTDRIV[13] = %s\n",
-          outdriv ? "Audio block output driven immediately after "
-                      "the setting of this bit"
-                  : "Audio block output driven when SAIEN is set");
-  uint32_t saien = cr1 & SAI_CR1_SAIEN;
-  i2sinfo("\t\tCR1: SAIEN[16] = %s\n",
-          saien ? "SAI audio block enabled"
-                : "SAI audio block disabled");
-  uint32_t dmaen = cr1 & SAI_CR1_DMAEN;
-  i2sinfo("\t\tCR1: DMAEN[17] = %s\n",
-          dmaen ? "DMA enabled"
-                : "DMA disabled");
-  uint32_t nodiv = cr1 & SAI_CR1_NODIV;
-  i2sinfo("\t\tCR1: NODIV[19] = %s\n",
-          nodiv ? "No divider used in the clock generator"
-          : "Master clock generator is enabled");
-  uint32_t mckdiv = (cr1 & SAI_CR1_MCKDIV_MASK) >> SAI_CR1_MCKDIV_SHIFT;
-  i2sinfo("\t\tCR1: MCKDIV[23:20] = %d\n", mckdiv);
-
-  /* CR2 */
-
-  uint32_t cr2 = sai_getreg(priv, STM32_SAI_CR2_OFFSET);
-  i2sinfo("CR2: *%08x = %08" PRIx32 "\n", STM32_SAI_CR2_OFFSET, cr2);
-  uint32_t fth = (cr2 & SAI_CR2_FTH_MASK) >> SAI_CR2_FTH_SHIFT;
-  const char *fth_string[] =
-  { "FIFO empty",
-    "1/4 FIFO",
-    "1/2 FIFO",
-    "3/4 FIFO",
-    "FIFO full",
-    "Reserved",
-    "Reserved",
-    "Reserved"
-  };
-
-  i2sinfo("\t\tCR2: FTH[2:0] = %s\n", fth_string[fth]);
-  uint32_t fflush = cr2 & SAI_CR2_FFLUSH;
-  i2sinfo("\t\tCR2: FFLUSH[3] = %s\n",
-          fflush ? "FIFO flush"
-                 : "no FIFO flush");
-
-  uint32_t tris = cr2 & SAI_CR2_TRIS;
-  i2sinfo("\t\tCR2: TRIS[4] = %s\n",
-          tris ? "SD output line is release (HI-Z)" :
-                 "SD output line is still driven by the SAI when a slot is "
-                   "inactive");
-  uint32_t mute = cr2 & SAI_CR2_MUTE;
-  i2sinfo("\t\tCR2: MUTE[5] = %s\n",
-          mute ? "Mute mode enabled"
-               : "No mute mode");
-
-  uint32_t muteval = cr2 & SAI_CR2_MUTEVAL;
-  i2sinfo("\t\tCR2: MUTEVAL[6] = %s\n",
-          muteval ? "Last values are sent during the mute mode"
-                  : "Bit value 0 is sent during the mute mode");
-
-  uint32_t mutecnt = (cr2 & SAI_CR2_MUTECNT_MASK) >> SAI_CR2_MUTECNT_SHIFT;
-  i2sinfo("\t\tCR2: MUTECNT[12:7] = %d\n", mutecnt);
-
-  uint32_t cpl = cr2 & SAI_CR2_CPL;
-  i2sinfo("\t\tCR2: CPL[13] = %s\n",
-          cpl ? "1's complement representation"
-              : "2's complement representation");
-  uint32_t comp = (cr2 & SAI_CR2_COMP_MASK) >> SAI_CR2_COMP_SHIFT;
-  const char *comp_string[] =
-  { "No companding algorithm",
-    "Reserved",
-    "u-Law algorithm",
-    "A-Law algorithm"
-  };
-
-  i2sinfo("\t\tCR2: COMP[15:14] = %s\n", comp_string[comp]);
-
-  /* FRCR */
-
-  uint32_t frcr = sai_getreg(priv, STM32_SAI_FRCR_OFFSET);
-  i2sinfo("FRCR: *%08x = %08" PRIx32 "\n", STM32_SAI_FRCR_OFFSET, frcr);
-
-  uint32_t frl = (frcr & SAI_FRCR_FRL_MASK) >> SAI_FRCR_FRL_SHIFT;
-  i2sinfo("\t\tFRCR: FRL[7:0] = %d\n", frl);
-
-  uint32_t fsall = (frcr & SAI_FRCR_FSALL_MASK) >> SAI_FRCR_FSALL_SHIFT;
-  i2sinfo("\t\tFRCR: FSALL[14:8] = %d\n", fsall + 1);
-
-  uint32_t fsdef = frcr & SAI_FRCR_FSDEF;
-  i2sinfo("\t\tFRCR: FSDEF[16] = %s\n",
-          fsdef ? "FS signal is a start of frame + channel side ID"
-                : "FS signal is a start frame signal");
-
-  uint32_t fspol = frcr & SAI_FRCR_FSPOL;
-  i2sinfo("\t\tFRCR: FSPOL[17] = %s\n", fspol ? "FS is active high"
-                                            : "FS is active low");
-  uint32_t fsoff = frcr & SAI_FRCR_FSOFF;
-  i2sinfo("\t\tFRCR: FSOFF[18] = %s\n",
-          fsoff ? "FS one bit before first bit of slot 0"
-                : "FS on first bit of slot 0");
-
-  /* SLOTR */
-
-  uint32_t slotr = sai_getreg(priv, STM32_SAI_SLOTR_OFFSET);
-  i2sinfo("SLOTR: *%08x = %08" PRIx32 "\n", STM32_SAI_SLOTR_OFFSET, slotr);
-
-  uint32_t fboff = (slotr & SAI_SLOTR_FBOFF_MASK) >> SAI_SLOTR_FBOFF_SHIFT;
-  i2sinfo("\t\tSLOTR: FBOFF[4:0] = %d\n", fboff);
-
-  uint32_t slotsz = (slotr & SAI_SLOTR_SLOTSZ_MASK) >>
-                      SAI_SLOTR_SLOTSZ_SHIFT;
-  const char *slotsz_string[] =
-  { "Same as data size",
-    "16-bit",
-    "32-bit",
-    "Reserved"
-  };
-
-  i2sinfo("\t\tSLOTR: SLOTSZ[7:6] = %s\n", slotsz_string[slotsz]);
-
-  uint32_t nbslot = (slotr & SAI_SLOTR_NBSLOT_MASK) >>
-                      SAI_SLOTR_NBSLOT_SHIFT;
-  i2sinfo("\t\tSLOTR: NBSLOT[11:8] = %d\n", nbslot + 1);
-
-  uint32_t sloten = (slotr & SAI_SLOTR_SLOTEN_MASK) >>
-                      SAI_SLOTR_SLOTEN_SHIFT;
-  i2sinfo("\t\tSLOTR: SLOTEN[31:16] = %08" PRIx32 "\n", sloten + 1);
-#endif
 }
 #endif
 
@@ -706,7 +505,7 @@ static void sai_dump_regs(struct stm32f7_sai_s *priv, const char *msg)
  *
  ****************************************************************************/
 
-static void sai_mckdivider(struct stm32f7_sai_s *priv)
+static void sai_mckdivider(struct stm32_sai_s *priv)
 {
   uint32_t mckdiv;
   uint32_t tmpval;
@@ -754,7 +553,8 @@ static void sai_mckdivider(struct stm32f7_sai_s *priv)
 
 static void sai_timeout(wdparm_t arg)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)arg;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)arg;
+
   DEBUGASSERT(priv != NULL);
 
 #ifdef CONFIG_STM32_SAI_DMA
@@ -788,7 +588,7 @@ static void sai_timeout(wdparm_t arg)
  ****************************************************************************/
 
 #ifdef CONFIG_STM32_SAI_DMA
-static int sai_dma_setup(struct stm32f7_sai_s *priv)
+static int sai_dma_setup(struct stm32_sai_s *priv)
 {
   struct sai_buffer_s *bfcontainer;
   struct ap_buffer_s *apb;
@@ -932,7 +732,7 @@ static int sai_dma_setup(struct stm32f7_sai_s *priv)
 
 static void sai_worker(void *arg)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)arg;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)arg;
   struct sai_buffer_s *bfcontainer;
   irqstate_t flags;
 
@@ -1016,7 +816,7 @@ static void sai_worker(void *arg)
  *
  ****************************************************************************/
 
-static void sai_schedule(struct stm32f7_sai_s *priv, int result)
+static void sai_schedule(struct stm32_sai_s *priv, int result)
 {
   struct sai_buffer_s *bfcontainer;
   int ret;
@@ -1074,7 +874,8 @@ static void sai_schedule(struct stm32f7_sai_s *priv, int result)
 #ifdef CONFIG_STM32_SAI_DMA
 static void sai_dma_callback(DMA_HANDLE handle, uint8_t isr, void *arg)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)arg;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)arg;
+
   DEBUGASSERT(priv);
 
   /* Cancel the watchdog timeout */
@@ -1104,7 +905,7 @@ static void sai_dma_callback(DMA_HANDLE handle, uint8_t isr, void *arg)
 
 static int32_t sai_samplerate(struct i2s_dev_s *dev, uint32_t rate)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)dev;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
 
   DEBUGASSERT(priv && rate > 0);
 
@@ -1145,7 +946,7 @@ static int32_t sai_samplerate(struct i2s_dev_s *dev, uint32_t rate)
 
 static int32_t sai_datawidth(struct i2s_dev_s *dev, int bits)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)dev;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
   uint32_t setbits;
 
   DEBUGASSERT(priv && bits >= 8);
@@ -1215,7 +1016,7 @@ static int32_t sai_datawidth(struct i2s_dev_s *dev, int bits)
 static int sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
                        i2s_callback_t callback, void *arg, uint32_t timeout)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)dev;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
   struct sai_buffer_s *bfcontainer;
   uint32_t mode;
   irqstate_t flags;
@@ -1315,7 +1116,7 @@ errout_with_lock:
 static int sai_send(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
                     i2s_callback_t callback, void *arg, uint32_t timeout)
 {
-  struct stm32f7_sai_s *priv = (struct stm32f7_sai_s *)dev;
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
   struct sai_buffer_s *bfcontainer;
   uint32_t mode;
   irqstate_t flags;
@@ -1402,7 +1203,7 @@ errout_with_lock:
  *
  ****************************************************************************/
 
-static struct sai_buffer_s *sai_buf_allocate(struct stm32f7_sai_s *priv)
+static struct sai_buffer_s *sai_buf_allocate(struct stm32_sai_s *priv)
 {
   struct sai_buffer_s *bfcontainer;
   irqstate_t flags;
@@ -1444,7 +1245,7 @@ static struct sai_buffer_s *sai_buf_allocate(struct stm32f7_sai_s *priv)
  *
  ****************************************************************************/
 
-static void sai_buf_free(struct stm32f7_sai_s *priv,
+static void sai_buf_free(struct stm32_sai_s *priv,
                          struct sai_buffer_s *bfcontainer)
 {
   irqstate_t flags;
@@ -1480,7 +1281,7 @@ static void sai_buf_free(struct stm32f7_sai_s *priv,
  *
  ****************************************************************************/
 
-static void sai_buf_initialize(struct stm32f7_sai_s *priv)
+static void sai_buf_initialize(struct stm32_sai_s *priv)
 {
   int i;
 
@@ -1505,7 +1306,7 @@ static void sai_buf_initialize(struct stm32f7_sai_s *priv)
  *
  ****************************************************************************/
 
-static void sai_portinitialize(struct stm32f7_sai_s *priv)
+static void sai_portinitialize(struct stm32_sai_s *priv)
 {
   sai_dump_regs(priv, "Before initialization");
 
@@ -1574,7 +1375,7 @@ static void sai_portinitialize(struct stm32f7_sai_s *priv)
 struct i2s_dev_s *stm32_sai_initialize(int intf,
                                        stm32_sai_sampleratecb_t sampleratecb)
 {
-  struct stm32f7_sai_s *priv;
+  struct stm32_sai_s *priv;
   irqstate_t flags;
 
   flags = enter_critical_section();

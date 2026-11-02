@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32f7/hardware/stm32_sai.h
+ * arch/arm/src/common/stm32/hardware/stm32_sai_v1.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,8 +20,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32_SAI_H
-#define __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32_SAI_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SAI_V1_H
+#define __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SAI_V1_H
 
 /****************************************************************************
  * Included Files
@@ -258,4 +258,4 @@
 
 /* SAI Data Register (32-bit data) */
 
-#endif /* __ARCH_ARM_SRC_STM32F7_HARDWARE_STM32_SAI_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_HARDWARE_STM32_SAI_V1_H */

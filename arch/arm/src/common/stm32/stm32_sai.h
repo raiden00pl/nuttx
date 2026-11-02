@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32f7/stm32_sai.h
+ * arch/arm/src/common/stm32/stm32_sai.h
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * SPDX-FileCopyrightText: 2019 Gregory Nutt. All rights reserved.
@@ -34,8 +34,8 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_STM32F7_STM32_SAI_H
-#define __ARCH_ARM_SRC_STM32F7_STM32_SAI_H
+#ifndef __ARCH_ARM_SRC_COMMON_STM32_STM32_SAI_H
+#define __ARCH_ARM_SRC_COMMON_STM32_STM32_SAI_H
 
 /****************************************************************************
  * Included Files
@@ -92,4 +92,4 @@ struct i2s_dev_s *stm32_sai_initialize(int intf,
 #endif
 #endif /* __ASSEMBLY__ */
 
-#endif /* __ARCH_ARM_SRC_STM32F7_STM32_SAI_H */
+#endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_SAI_H */

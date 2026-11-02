@@ -566,7 +566,7 @@ FOC           n/a           arch/arm/src/stm32f7/stm32_foc.c
 PULSECOUNT    n/a           arch/arm/src/common/stm32/stm32_pulsecount.c
 PWM           n/a           arch/arm/src/stm32f7/stm32_pwm.c       
 QENCODER      n/a           arch/arm/src/common/stm32/stm32_qencoder.c  
-SAI           n/a           arch/arm/src/stm32f7/stm32_sai.c       
+SAI           v1            arch/arm/src/common/stm32/stm32_sai.c  
 USB host      n/a           arch/arm/src/stm32f7/stm32_otghost.c   
 ============  ============  ============================================
 
