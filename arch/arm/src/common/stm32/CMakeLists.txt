@@ -107,6 +107,10 @@ if(CONFIG_STM32_ADC AND CONFIG_STM32_HAVE_IP_ADC_V3)
   list(APPEND SRCS stm32_adc_v3.c)
 endif()
 
+if(CONFIG_STM32_SDMMC AND CONFIG_STM32_HAVE_IP_SDMMC_IDMA)
+  list(APPEND SRCS stm32_sdmmc_idma.c)
+endif()
+
 if(CONFIG_STM32_COMMON_M33)
   list(APPEND SRCS stm32_allocateheap_m33_v1.c stm32_irq_m33_v1.c
        stm32_start_m33_v1.c)

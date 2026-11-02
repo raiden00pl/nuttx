@@ -118,6 +118,10 @@ ifeq ($(CONFIG_STM32_ADC)$(CONFIG_STM32_HAVE_IP_ADC_V3),yy)
 CHIP_CSRCS += stm32_adc_v3.c
 endif
 
+ifeq ($(CONFIG_STM32_SDMMC)$(CONFIG_STM32_HAVE_IP_SDMMC_IDMA),yy)
+CHIP_CSRCS += stm32_sdmmc_idma.c
+endif
+
 ifeq ($(CONFIG_STM32_COMMON_M33),y)
 CHIP_CSRCS += stm32_allocateheap_m33_v1.c
 CHIP_CSRCS += stm32_irq_m33_v1.c
