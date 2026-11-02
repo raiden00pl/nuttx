@@ -384,6 +384,10 @@ static inline void rcc_enableapb1(void)
   regval |= RCC_APB1LENR_SPI3EN;
 #endif
 
+#ifdef CONFIG_STM32_USART2
+  regval |= RCC_APB1LENR_USART2EN;
+#endif
+
   if (regval != 0)
     {
       putreg32(regval, STM32_RCC_APB1LENSR);

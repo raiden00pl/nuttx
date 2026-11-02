@@ -40,7 +40,7 @@ RTC         Yes      Calendar, sub-seconds, Alarm A/B and wakeup timer
 SPI         Yes      SPI1-6 through the common SPI v5 driver, master
                      mode, optional GPDMA.
 TIM         Yes      Timer, PWM and tickless through the common drivers.
-USART       Yes      USART1 only.
+USART       Yes      USART1 and USART2.
 
 ADC         No
 DCACHE      No
