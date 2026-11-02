@@ -33,7 +33,8 @@ list(
   stm32_lowputc.c
   stm32_rcc.c
   stm32_start.c
-  stm32_pwr.c)
+  stm32_pwr.c
+  stm32_rif.c)
 
 if(NOT CONFIG_ARCH_IDLE_CUSTOM)
   list(APPEND SRCS stm32_idle.c)

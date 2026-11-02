@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/common/stm32/stm32_ltdc_m3m4_v1.h
+ * boards/arm/stm32n6/stm32n6570-dk/src/stm32_lcd.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -20,87 +20,95 @@
  *
  ****************************************************************************/
 
-#ifndef __ARCH_ARM_SRC_COMMON_STM32_STM32_LTDC_H
-#define __ARCH_ARM_SRC_COMMON_STM32_STM32_LTDC_H
-
 /****************************************************************************
  * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32_HAVE_IP_LTDC_M3M4_V1)
-
-#include <stdbool.h>
-
+#include <nuttx/arch.h>
+#include <nuttx/board.h>
+#include <nuttx/signal.h>
 #include <nuttx/video/fb.h>
-#include <nuttx/nx/nxglib.h>
+
+#include "stm32_gpio.h"
+#include "stm32_ltdc.h"
+#include "stm32n6570-dk.h"
 
 /****************************************************************************
- * Public Function Prototypes
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+/* LCD_NRST low time, as for the GT911 that shares the line */
+
+#define LCD_RESET_DELAY 1000
+
+/****************************************************************************
+ * Public Functions
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stm32_ltdcreset
+ * Name: up_fbinitialize
  *
  * Description:
- *   Reset LTDC via APB2RSTR
+ *   Power the RK050HR18 panel and initialize the LTDC.
  *
  ****************************************************************************/
 
-void stm32_ltdcreset(void);
+int up_fbinitialize(int display)
+{
+  int ret;
 
-/****************************************************************************
- * Name: stm32_ltdcinitialize
- *
- * Description:
- *   Initialize the ltdc controller
- *
- * Returned Value:
- *   OK
- *
- ****************************************************************************/
+#ifndef CONFIG_INPUT_GT9XX
+  /* Reset the panel.  With the touch controller, its set-up did it. */
 
-int stm32_ltdcinitialize(void);
-
-/****************************************************************************
- * Name: stm32_ltdcuninitialize
- *
- * Description:
- *   Uninitialize the ltdc controller
- *
- ****************************************************************************/
-
-void stm32_ltdcuninitialize(void);
-
-/****************************************************************************
- * Name: stm32_ltdcgetvplane
- *
- * Description:
- *   Get video plane reference used by framebuffer interface
- *
- * Parameter:
- *   vplane - Video plane
- *
- * Returned Value:
- *   Video plane reference
- *
- ****************************************************************************/
-
-struct fb_vtable_s *stm32_ltdcgetvplane(int vplane);
-
-/****************************************************************************
- * Name: stm32_lcd_backlight
- *
- * Description:
- *   If CONFIG_STM32_LCD_BACKLIGHT is defined, then the board-specific logic
- *   must provide this interface to turn the backlight on and off.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_STM32_LCD_BACKLIGHT
-void stm32_backlight(bool blon);
+  stm32_configgpio(GPIO_LCD_NRST);
+  nxsig_usleep(LCD_RESET_DELAY);
+  stm32_gpiowrite(GPIO_LCD_NRST, true);
 #endif
 
-#endif /* CONFIG_STM32_HAVE_IP_LTDC_M3M4_V1 */
-#endif /* __ARCH_ARM_SRC_COMMON_STM32_STM32_LTDC_H */
+  /* Turn the display on */
+
+  stm32_configgpio(GPIO_LCD_DISP);
+  stm32_configgpio(GPIO_LCD_BL);
+  stm32_gpiowrite(GPIO_LCD_DISP, true);
+
+  ret = stm32_ltdcinitialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  stm32_gpiowrite(GPIO_LCD_BL, true);
+  return OK;
+}
+
+/****************************************************************************
+ * Name: up_fbgetvplane
+ *
+ * Description:
+ *   Return a reference to the framebuffer object for the specified video
+ *   plane.
+ *
+ ****************************************************************************/
+
+struct fb_vtable_s *up_fbgetvplane(int display, int vplane)
+{
+  return stm32_ltdcgetvplane(vplane);
+}
+
+/****************************************************************************
+ * Name: up_fbuninitialize
+ *
+ * Description:
+ *   Turn the panel off and uninitialize the LTDC.
+ *
+ ****************************************************************************/
+
+void up_fbuninitialize(int display)
+{
+  stm32_gpiowrite(GPIO_LCD_BL, false);
+  stm32_gpiowrite(GPIO_LCD_DISP, false);
+
+  stm32_ltdcuninitialize();
+}

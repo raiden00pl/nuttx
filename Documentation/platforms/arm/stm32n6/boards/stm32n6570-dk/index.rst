@@ -155,6 +155,21 @@ alarms with the ``alarm`` example, e.g. ``alarm 5`` or ``alarm -a 1 5``.
 The time survives a reset; without a backup battery it is lost on power
 off.
 
+LCD
+===
+
+The 5" 800x480 Rocktech RK050HR18 panel is driven by the LTDC (RGB888
+output, pins in ``board.h``) and registered as ``/dev/fb0``.  The 25 MHz
+pixel clock is IC16 (PLL1 / 96).  PQ3 enables the panel, PQ6 the backlight
+and PE1 is the shared panel/touch reset.  Layer 1 is RGB565 and its
+framebuffer is placed in AXISRAM1/2 at 0x34080000 (768000 bytes), below
+the image, so the heap is not affected.  Run ``fb`` to draw the test
+pattern.
+
+The GT911 touch controller on I2C2 (interrupt on PQ4) is reset at bring-up
+with PQ4 held low, which selects address 0x5d, and registered as
+``/dev/input0``; ``tc`` prints the touch coordinates.
+
 Clocking
 ========
 
@@ -177,3 +192,16 @@ nsh
 
 NuttShell with the user LEDs, the buttons, GPDMA1, ``/dev/random``,
 PWM, I2C, SPI and the RTC enabled.
+
+fb
+--
+
+``nsh`` plus the LCD framebuffer ``/dev/fb0`` and the ``fb`` example, which
+draws nested coloured rectangles on the panel.
+
+lvgl
+----
+
+``fb`` plus the touch controller, LVGL and its widgets demo.  Start it
+with ``lvgldemo &``.  The image is close to the 511 KiB limit of the boot
+ROM, so LVGL logging and extra fonts are left out.
