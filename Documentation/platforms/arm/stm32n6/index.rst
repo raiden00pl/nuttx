@@ -52,6 +52,8 @@ SPI         Yes      SPI1-6 through the common SPI v5 driver, master
                      mode, optional GPDMA.
 TIM         Yes      Timer, PWM and tickless through the common drivers.
 USART       Yes      USART1 and USART2.
+USB         Yes      USB1 or USB2 OTG HS host through the common OTG v2
+                     driver, full and low speed on the embedded HS PHY.
 
 DCACHE      No
 DCMIPP      No
@@ -59,7 +61,7 @@ ICACHE      No
 MPU         No
 NPU         No
 SAI         No
-USB         No
+USB device  No
 XSPI        No
 ==========  =======  ===================================================
 

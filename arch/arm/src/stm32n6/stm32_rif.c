@@ -110,4 +110,11 @@ void stm32_rifconfig(void)
   rif_setmaster(RIFSC_MASTER_ETH1, RIF_MASTER_CID1_SEC_PRIV);
   rif_setslave_secpriv(RIFSC_PERIPH_ETH1);
 #endif
+
+#ifdef CONFIG_STM32_OTGHS
+  /* USB1 OTG HS is a bus master (its DMA mode is not used by the driver) */
+
+  rif_setmaster(RIFSC_MASTER_OTG1, RIF_MASTER_CID1_SEC_PRIV);
+  rif_setslave_secpriv(RIFSC_PERIPH_OTG1HS);
+#endif
 }

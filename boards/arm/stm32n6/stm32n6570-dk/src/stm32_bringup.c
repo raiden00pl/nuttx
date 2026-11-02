@@ -163,6 +163,17 @@ int stm32_bringup(void)
     }
 #endif
 
+#if defined(CONFIG_STM32_OTGHS) && defined(CONFIG_USBHOST)
+  /* Start the USB host on the USB1 connector */
+
+  ret = stm32_usbhost_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_usbhost_initialize() failed: %d\n",
+             ret);
+    }
+#endif
+
 #if defined(CONFIG_ADC) && defined(CONFIG_STM32_ADC1)
   /* Initialize ADC1 and register it as /dev/adc0 */
 
