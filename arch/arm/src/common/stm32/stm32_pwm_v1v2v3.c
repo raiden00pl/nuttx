@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/stm32h5/stm32_pwm.c
+ * arch/arm/src/common/stm32/stm32_pwm_v1v2v3.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -40,14 +40,17 @@
 #include "chip.h"
 #include "stm32_pwm.h"
 #include "stm32.h"
+#include "stm32_tim_clk.h"
 
 /* This module then only compiles if there is at least one enabled timer
  * intended for use with the PWM upper half driver.
  *
  * It implements support for both:
  *   1. STM32 TIMER IP version 1 - F0, F1, F2, F37x, F4, L0, L1
- *   2. STM32 TIMER IP version 2 - F3 (no F37x), F7, H7, L4, L4+, H5
+ *   2. STM32 TIMER IP version 2 - F3 (no F37x), F7, H7, L4, L4+
  */
+
+#ifdef CONFIG_STM32_PWM
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -55,7 +58,11 @@
 
 /* PWM/Timer Definitions ****************************************************/
 
-/* The following definitions are used to identify the various time types. */
+/* The following definitions are used to identify the various time types.
+ * There are some differences in timer types across STM32 families:
+ *   - TIM2 is 16-bit timer for F1, L1 and L0
+ *   - TIM5 is 16-bit timer for F1
+ */
 
 #define TIMTYPE_BASIC        0  /* Basic timers (no outputs) */
 #define TIMTYPE_GENERAL16    1  /* General 16-bit timers (up, down, up/down)*/
@@ -67,14 +74,24 @@
 #define TIMTYPE_ADVANCED     5  /* Advanced timers */
 
 #define TIMTYPE_TIM1       TIMTYPE_ADVANCED
-#define TIMTYPE_TIM2       TIMTYPE_GENERAL32
+#if defined(CONFIG_STM32_STM32L15XX) || defined(CONFIG_STM32_STM32F10XX)
+#  define TIMTYPE_TIM2     TIMTYPE_GENERAL16
+#else
+#  define TIMTYPE_TIM2     TIMTYPE_GENERAL32
+#endif
 #define TIMTYPE_TIM3       TIMTYPE_GENERAL16
 #define TIMTYPE_TIM4       TIMTYPE_GENERAL16
-#define TIMTYPE_TIM5       TIMTYPE_GENERAL32
+#if defined(CONFIG_STM32_STM32F10XX)
+#  define TIMTYPE_TIM5     TIMTYPE_GENERAL16
+#else
+#  define TIMTYPE_TIM5     TIMTYPE_GENERAL32
+#endif
 #define TIMTYPE_TIM6       TIMTYPE_BASIC
 #define TIMTYPE_TIM7       TIMTYPE_BASIC
 #define TIMTYPE_TIM8       TIMTYPE_ADVANCED
-/* No TIM9-11 */
+#define TIMTYPE_TIM9       TIMTYPE_COUNTUP16
+#define TIMTYPE_TIM10      TIMTYPE_COUNTUP16
+#define TIMTYPE_TIM11      TIMTYPE_COUNTUP16
 #define TIMTYPE_TIM12      TIMTYPE_COUNTUP16
 #define TIMTYPE_TIM13      TIMTYPE_COUNTUP16
 #define TIMTYPE_TIM14      TIMTYPE_COUNTUP16
@@ -82,76 +99,105 @@
 #define TIMTYPE_TIM16      TIMTYPE_COUNTUP16_N /* Treated as ADVTIM */
 #define TIMTYPE_TIM17      TIMTYPE_COUNTUP16_N /* Treated as ADVTIM */
 
-/* Timer clock source, RCC EN offset, enable bit,
- * RCC RST offset, reset bit to use
- *
- * TODO: simplify this and move somewhere else.
+/* Timer clock source and RCC enable/reset register and bit for each timer,
+ * taken from the shared timer clock map.
  */
 
-#define TIMCLK_TIM1      STM32_TIM1_CLKIN
-#define TIMRCCEN_TIM1    STM32_RCC_APB2ENR
-#define TIMEN_TIM1       RCC_APB2ENR_TIM1EN
-#define TIMRCCRST_TIM1   STM32_RCC_APB2RSTR
-#define TIMRST_TIM1      RCC_APB2RSTR_TIM1RST
-#define TIMCLK_TIM2      STM32_TIM2_CLKIN
-#define TIMRCCEN_TIM2    STM32_RCC_APB1LENR
-#define TIMEN_TIM2       RCC_APB1LENR_TIM2EN
-#define TIMRCCRST_TIM2   STM32_RCC_APB1LRSTR
-#define TIMRST_TIM2      RCC_APB1LRSTR_TIM2RST
-#define TIMCLK_TIM3      STM32_TIM3_CLKIN
-#define TIMRCCEN_TIM3    STM32_RCC_APB1LENR
-#define TIMEN_TIM3       RCC_APB1LENR_TIM3EN
-#define TIMRCCRST_TIM3   STM32_RCC_APB1LRSTR
-#define TIMRST_TIM3      RCC_APB1LRSTR_TIM3RST
-#define TIMCLK_TIM4      STM32_TIM4_CLKIN
-#define TIMRCCEN_TIM4    STM32_RCC_APB1LENR
-#define TIMEN_TIM4       RCC_APB1LENR_TIM4EN
-#define TIMRCCRST_TIM4   STM32_RCC_APB1LRSTR
-#define TIMRST_TIM4      RCC_APB1LRSTR_TIM4RST
-#define TIMCLK_TIM5      STM32_TIM5_CLKIN
-#define TIMRCCEN_TIM5    STM32_RCC_APB1LENR
-#define TIMEN_TIM5       RCC_APB1LENR_TIM5EN
-#define TIMRCCRST_TIM5   STM32_RCC_APB1LRSTR
-#define TIMRST_TIM5      RCC_APB1LRSTR_TIM5RST
-#define TIMCLK_TIM8      STM32_TIM8_CLKIN
-#define TIMRCCEN_TIM8    STM32_RCC_APB2ENR
-#define TIMEN_TIM8       RCC_APB2ENR_TIM8EN
-#define TIMRCCRST_TIM8   STM32_RCC_APB2RSTR
-#define TIMRST_TIM8      RCC_APB2RSTR_TIM8RST
-#define TIMCLK_TIM12     STM32_TIM12_CLKIN
-#define TIMRCCEN_TIM12   STM32_RCC_APB1LENR
-#define TIMEN_TIM12      RCC_APB1LENR_TIM12EN
-#define TIMRCCRST_TIM12  STM32_RCC_APB1LRSTR
-#define TIMRST_TIM12     RCC_APB1LRSTR_TIM12RST
-#define TIMCLK_TIM13     STM32_TIM13_CLKIN
-#define TIMRCCEN_TIM13   STM32_RCC_APB1LENR
-#define TIMEN_TIM13      RCC_APB1LENR_TIM13EN
-#define TIMRCCRST_TIM13  STM32_RCC_APB1LRSTR
-#define TIMRST_TIM13     RCC_APB1LRSTR_TIM13RST
-#define TIMCLK_TIM14     STM32_TIM14_CLKIN
-#define TIMRCCEN_TIM14   STM32_RCC_APB1LENR
-#define TIMEN_TIM14      RCC_APB1LENR_TIM14EN
-#define TIMRCCRST_TIM14  STM32_RCC_APB1LRSTR
-#define TIMRST_TIM14     RCC_APB1LRSTR_TIM14RST
-#define TIMCLK_TIM15     STM32_TIM15_CLKIN
-#define TIMRCCEN_TIM15   STM32_RCC_APB2ENR
-#define TIMEN_TIM15      RCC_APB2ENR_TIM15EN
-#define TIMRCCRST_TIM15  STM32_RCC_APB2RSTR
-#define TIMRST_TIM15     RCC_APB2RSTR_TIM15RST
-#define TIMCLK_TIM16     STM32_TIM16_CLKIN
-#define TIMRCCEN_TIM16   STM32_RCC_APB2ENR
-#define TIMEN_TIM16      RCC_APB2ENR_TIM16EN
-#define TIMRCCRST_TIM16  STM32_RCC_APB2RSTR
-#define TIMRST_TIM16     RCC_APB2RSTR_TIM16RST
-#define TIMCLK_TIM17     STM32_TIM17_CLKIN
-#define TIMRCCEN_TIM17   STM32_RCC_APB2ENR
-#define TIMEN_TIM17      RCC_APB2ENR_TIM17EN
-#define TIMRCCRST_TIM17  STM32_RCC_APB2RSTR
-#define TIMRST_TIM17     RCC_APB2RSTR_TIM17RST
+#define TIMCLK_TIM1     STM32_TIM1_CLKIN
+#define TIMRCCEN_TIM1   STM32_RCC_TIM1_EN_REG
+#define TIMEN_TIM1      STM32_RCC_TIM1_EN
+#define TIMRCCRST_TIM1  STM32_RCC_TIM1_RST_REG
+#define TIMRST_TIM1     STM32_RCC_TIM1_RST
+#define TIMCLK_TIM2     STM32_TIM2_CLKIN
+#define TIMRCCEN_TIM2   STM32_RCC_TIM2_EN_REG
+#define TIMEN_TIM2      STM32_RCC_TIM2_EN
+#define TIMRCCRST_TIM2  STM32_RCC_TIM2_RST_REG
+#define TIMRST_TIM2     STM32_RCC_TIM2_RST
+#define TIMCLK_TIM3     STM32_TIM3_CLKIN
+#define TIMRCCEN_TIM3   STM32_RCC_TIM3_EN_REG
+#define TIMEN_TIM3      STM32_RCC_TIM3_EN
+#define TIMRCCRST_TIM3  STM32_RCC_TIM3_RST_REG
+#define TIMRST_TIM3     STM32_RCC_TIM3_RST
+#define TIMCLK_TIM4     STM32_TIM4_CLKIN
+#define TIMRCCEN_TIM4   STM32_RCC_TIM4_EN_REG
+#define TIMEN_TIM4      STM32_RCC_TIM4_EN
+#define TIMRCCRST_TIM4  STM32_RCC_TIM4_RST_REG
+#define TIMRST_TIM4     STM32_RCC_TIM4_RST
+#define TIMCLK_TIM5     STM32_TIM5_CLKIN
+#define TIMRCCEN_TIM5   STM32_RCC_TIM5_EN_REG
+#define TIMEN_TIM5      STM32_RCC_TIM5_EN
+#define TIMRCCRST_TIM5  STM32_RCC_TIM5_RST_REG
+#define TIMRST_TIM5     STM32_RCC_TIM5_RST
+#define TIMCLK_TIM6     STM32_TIM6_CLKIN
+#define TIMRCCEN_TIM6   STM32_RCC_TIM6_EN_REG
+#define TIMEN_TIM6      STM32_RCC_TIM6_EN
+#define TIMRCCRST_TIM6  STM32_RCC_TIM6_RST_REG
+#define TIMRST_TIM6     STM32_RCC_TIM6_RST
+#define TIMCLK_TIM7     STM32_TIM7_CLKIN
+#define TIMRCCEN_TIM7   STM32_RCC_TIM7_EN_REG
+#define TIMEN_TIM7      STM32_RCC_TIM7_EN
+#define TIMRCCRST_TIM7  STM32_RCC_TIM7_RST_REG
+#define TIMRST_TIM7     STM32_RCC_TIM7_RST
+#define TIMCLK_TIM8     STM32_TIM8_CLKIN
+#define TIMRCCEN_TIM8   STM32_RCC_TIM8_EN_REG
+#define TIMEN_TIM8      STM32_RCC_TIM8_EN
+#define TIMRCCRST_TIM8  STM32_RCC_TIM8_RST_REG
+#define TIMRST_TIM8     STM32_RCC_TIM8_RST
+#define TIMCLK_TIM9     STM32_TIM9_CLKIN
+#define TIMRCCEN_TIM9   STM32_RCC_TIM9_EN_REG
+#define TIMEN_TIM9      STM32_RCC_TIM9_EN
+#define TIMRCCRST_TIM9  STM32_RCC_TIM9_RST_REG
+#define TIMRST_TIM9     STM32_RCC_TIM9_RST
+#define TIMCLK_TIM10    STM32_TIM10_CLKIN
+#define TIMRCCEN_TIM10  STM32_RCC_TIM10_EN_REG
+#define TIMEN_TIM10     STM32_RCC_TIM10_EN
+#define TIMRCCRST_TIM10 STM32_RCC_TIM10_RST_REG
+#define TIMRST_TIM10    STM32_RCC_TIM10_RST
+#define TIMCLK_TIM11    STM32_TIM11_CLKIN
+#define TIMRCCEN_TIM11  STM32_RCC_TIM11_EN_REG
+#define TIMEN_TIM11     STM32_RCC_TIM11_EN
+#define TIMRCCRST_TIM11 STM32_RCC_TIM11_RST_REG
+#define TIMRST_TIM11    STM32_RCC_TIM11_RST
+#define TIMCLK_TIM12    STM32_TIM12_CLKIN
+#define TIMRCCEN_TIM12  STM32_RCC_TIM12_EN_REG
+#define TIMEN_TIM12     STM32_RCC_TIM12_EN
+#define TIMRCCRST_TIM12 STM32_RCC_TIM12_RST_REG
+#define TIMRST_TIM12    STM32_RCC_TIM12_RST
+#define TIMCLK_TIM13    STM32_TIM13_CLKIN
+#define TIMRCCEN_TIM13  STM32_RCC_TIM13_EN_REG
+#define TIMEN_TIM13     STM32_RCC_TIM13_EN
+#define TIMRCCRST_TIM13 STM32_RCC_TIM13_RST_REG
+#define TIMRST_TIM13    STM32_RCC_TIM13_RST
+#define TIMCLK_TIM14    STM32_TIM14_CLKIN
+#define TIMRCCEN_TIM14  STM32_RCC_TIM14_EN_REG
+#define TIMEN_TIM14     STM32_RCC_TIM14_EN
+#define TIMRCCRST_TIM14 STM32_RCC_TIM14_RST_REG
+#define TIMRST_TIM14    STM32_RCC_TIM14_RST
+#define TIMCLK_TIM15    STM32_TIM15_CLKIN
+#define TIMRCCEN_TIM15  STM32_RCC_TIM15_EN_REG
+#define TIMEN_TIM15     STM32_RCC_TIM15_EN
+#define TIMRCCRST_TIM15 STM32_RCC_TIM15_RST_REG
+#define TIMRST_TIM15    STM32_RCC_TIM15_RST
+#define TIMCLK_TIM16    STM32_TIM16_CLKIN
+#define TIMRCCEN_TIM16  STM32_RCC_TIM16_EN_REG
+#define TIMEN_TIM16     STM32_RCC_TIM16_EN
+#define TIMRCCRST_TIM16 STM32_RCC_TIM16_RST_REG
+#define TIMRST_TIM16    STM32_RCC_TIM16_RST
+#define TIMCLK_TIM17    STM32_TIM17_CLKIN
+#define TIMRCCEN_TIM17  STM32_RCC_TIM17_EN_REG
+#define TIMEN_TIM17     STM32_RCC_TIM17_EN
+#define TIMRCCRST_TIM17 STM32_RCC_TIM17_RST_REG
+#define TIMRST_TIM17    STM32_RCC_TIM17_RST
 
 /* Default GPIO pins state */
 
-#define PINCFG_DEFAULT (GPIO_INPUT | GPIO_FLOAT)
+#if defined(CONFIG_STM32_STM32F10XX)
+#  define PINCFG_DEFAULT (GPIO_INPUT | GPIO_CNF_INFLOAT | GPIO_MODE_INPUT)
+#elif defined(GPIO_FLOAT)
+#  define PINCFG_DEFAULT (GPIO_INPUT | GPIO_FLOAT)
+#else
+#  error "Unrecognized STM32 GPIO configuration"
+#endif
 
 /* Advanced Timer support
  * NOTE: TIM15-17 are not ADVTIM but they support most of the
@@ -160,14 +206,14 @@
  */
 
 #if defined(CONFIG_STM32_TIM1_PWM) || defined(CONFIG_STM32_TIM8_PWM) || \
-  defined(CONFIG_STM32_TIM15_PWM) || defined(CONFIG_STM32_TIM16_PWM) || \
-  defined(CONFIG_STM32_TIM17_PWM)
+    defined(CONFIG_STM32_TIM15_PWM) || defined(CONFIG_STM32_TIM16_PWM) || \
+    defined(CONFIG_STM32_TIM17_PWM)
 #  define HAVE_ADVTIM
 #else
 #  undef HAVE_ADVTIM
 #endif
 
-/* Synchronisation support */
+/* TRGO/TRGO2 support */
 
 #ifdef CONFIG_STM32_PWM_TRGO
 #  define HAVE_TRGO
@@ -240,31 +286,31 @@ struct stm32_pwmchan_s
 
 struct stm32_pwmtimer_s
 {
-  const struct pwm_ops_s *ops;         /* PWM operations */
+  const struct pwm_ops_s *ops;      /* PWM operations */
 #ifdef CONFIG_STM32_PWM_LL_OPS
   const struct stm32_pwm_ops_s *llops; /* Low-level PWM ops */
 #endif
-  struct stm32_pwmchan_s *channels;    /* Channels configuration */
-  uint8_t  timid:5;                    /* Timer ID {1,...,17} */
-  uint8_t  chan_num:3;                 /* Number of configured channels */
-  uint8_t  timtype:3;                  /* See the TIMTYPE_* definitions */
-  uint8_t  mode:3;                     /* Timer mode (see stm32_pwm_tim_mode_e) */
-  uint8_t  lock:2;                     /* TODO: Lock configuration */
-  uint8_t  t_dts:3;                    /* Clock division for t_DTS */
-  uint8_t  _res:5;                     /* Reserved */
+  struct stm32_pwmchan_s *channels; /* Channels configuration */
+  uint8_t  timid:5;                 /* Timer ID {1,...,17} */
+  uint8_t  chan_num:3;              /* Number of configured channels */
+  uint8_t  timtype:3;               /* See the TIMTYPE_* definitions */
+  uint8_t  mode:3;                  /* Timer mode (see stm32_pwm_tim_mode_e) */
+  uint8_t  lock:2;                  /* Lock configuration */
+  uint8_t  t_dts:3;                 /* Clock division for t_DTS */
+  uint8_t  _res:5;                  /* Reserved */
 #ifdef HAVE_PWM_COMPLEMENTARY
-  uint8_t  deadtime;                   /* Dead-time value */
+  uint8_t  deadtime;                /* Dead-time value */
 #endif
 #ifdef HAVE_TRGO
-  uint8_t  trgo;                       /* TRGO configuration:
-                                        * 4 LSB = TRGO, 4 MSB = TRGO2
-                                        */
+  uint8_t  trgo;                    /* TRGO configuration:
+                                     * 4 LSB = TRGO, 4 MSB = TRGO2
+                                     */
 #endif
-  uint32_t frequency;                  /* Current frequency setting */
-  uint32_t base;                       /* The base address of the timer */
-  uint32_t pclk;                       /* The frequency of the peripheral clock
-                                        * that drives the timer module.
-                                        */
+  uint32_t frequency;               /* Current frequency setting */
+  uint32_t base;                    /* The base address of the timer */
+  uint32_t pclk;                    /* The frequency of the peripheral
+                                     * clock that drives the timer module
+                                     */
 };
 
 /****************************************************************************
@@ -311,7 +357,7 @@ static int pwm_timer_enable(struct pwm_lowerhalf_s *dev, bool state);
 static int pwm_break_dt_configure(struct stm32_pwmtimer_s *priv);
 #endif
 #ifdef HAVE_TRGO
-static int pwm_sync_configure(struct stm32_pwmtimer_s *priv,
+static int pwm_trgo_configure(struct pwm_lowerhalf_s *dev,
                               uint8_t trgo);
 #endif
 #if defined(HAVE_PWM_COMPLEMENTARY) && defined(CONFIG_STM32_PWM_LL_OPS)
@@ -319,6 +365,10 @@ static int pwm_deadtime_update(struct pwm_lowerhalf_s *dev, uint8_t dt);
 #endif
 #ifdef CONFIG_STM32_PWM_LL_OPS
 static uint32_t pwm_ccr_get(struct pwm_lowerhalf_s *dev, uint8_t index);
+static uint16_t pwm_rcr_get(struct pwm_lowerhalf_s *dev);
+#endif
+#ifdef HAVE_ADVTIM
+static int pwm_rcr_update(struct pwm_lowerhalf_s *dev, uint16_t rcr);
 #endif
 
 static int pwm_configure(struct pwm_lowerhalf_s *dev);
@@ -364,6 +414,13 @@ static const struct stm32_pwm_ops_s g_llpwmops =
   .ccr_get         = pwm_ccr_get,
   .arr_update      = pwm_arr_update,
   .arr_get         = pwm_arr_get,
+#ifdef HAVE_ADVTIM
+  .rcr_update      = pwm_rcr_update,
+#endif
+  .rcr_get         = pwm_rcr_get,
+#ifdef HAVE_TRGO
+  .trgo_set        = pwm_trgo_configure,
+#endif
   .outputs_enable  = pwm_outputs_enable,
   .soft_update     = pwm_soft_update,
   .freq_update     = pwm_frequency_update,
@@ -915,7 +972,7 @@ static struct stm32_pwmtimer_s g_pwm5dev =
   .deadtime    = 0,             /* No deadtime */
 #endif
 #if defined(HAVE_TRGO) && defined(STM32_TIM5_TRGO)
-  .trgo        = STM32_TIM5_TRGO
+  .trgo        = STM32_TIM5_TRGO,
 #endif
   .base        = STM32_TIM5_BASE,
   .pclk        = TIMCLK_TIM5,
@@ -1084,6 +1141,166 @@ static struct stm32_pwmtimer_s g_pwm8dev =
   .pclk        = TIMCLK_TIM8,
 };
 #endif /* CONFIG_STM32_TIM8_PWM */
+
+#ifdef CONFIG_STM32_TIM9_PWM
+
+static struct stm32_pwmchan_s g_pwm9channels[] =
+{
+  /* TIM9 has 2 channels */
+
+#ifdef CONFIG_STM32_TIM9_CHANNEL1
+  {
+    .channel = 1,
+    .mode    = CONFIG_STM32_TIM9_CH1MODE,
+#ifdef CONFIG_STM32_TIM9_CH1OUT
+    .out1    =
+    {
+      .in_use  = 1,
+      .pol     = CONFIG_STM32_TIM9_CH1POL,
+      .idle    = CONFIG_STM32_TIM9_CH1IDLE,
+      .pincfg  = PWM_TIM9_CH1CFG,
+    }
+#endif
+    /* No complementary outputs */
+  },
+#endif
+#ifdef CONFIG_STM32_TIM9_CHANNEL2
+  {
+    .channel = 2,
+    .mode    = CONFIG_STM32_TIM9_CH2MODE,
+#ifdef CONFIG_STM32_TIM9_CH2OUT
+    .out1    =
+    {
+      .in_use  = 1,
+      .pol     = CONFIG_STM32_TIM9_CH2POL,
+      .idle    = CONFIG_STM32_TIM9_CH2IDLE,
+      .pincfg  = PWM_TIM9_CH2CFG,
+    }
+#endif
+    /* No complementary outputs */
+  }
+#endif
+};
+
+static struct stm32_pwmtimer_s g_pwm9dev =
+{
+  .ops         = &g_pwmops,
+#ifdef CONFIG_STM32_PWM_LL_OPS
+  .llops       = &g_llpwmops,
+#endif
+  .timid       = 9,
+  .chan_num    = PWM_TIM9_NCHANNELS,
+  .channels    = g_pwm9channels,
+  .timtype     = TIMTYPE_TIM9,
+  .mode        = STM32_TIMMODE_COUNTUP,
+  .lock        = 0,             /* No lock */
+  .t_dts       = 0,             /* No t_dts */
+#ifdef HAVE_PWM_COMPLEMENTARY
+  .deadtime    = 0,             /* No deadtime */
+#endif
+#if defined(HAVE_TRGO)
+  .trgo        = 0,             /* TRGO not supported for TIM9 */
+#endif
+  .base        = STM32_TIM9_BASE,
+  .pclk        = TIMCLK_TIM9,
+};
+#endif /* CONFIG_STM32_TIM9_PWM */
+
+#ifdef CONFIG_STM32_TIM10_PWM
+
+static struct stm32_pwmchan_s g_pwm10channels[] =
+{
+  /* TIM10 has 1 channel */
+
+#ifdef CONFIG_STM32_TIM10_CHANNEL1
+  {
+    .channel = 1,
+    .mode    = CONFIG_STM32_TIM10_CH1MODE,
+#ifdef CONFIG_STM32_TIM10_CH1OUT
+    .out1    =
+    {
+      .in_use  = 1,
+      .pol     = CONFIG_STM32_TIM10_CH1POL,
+      .idle    = CONFIG_STM32_TIM10_CH1IDLE,
+      .pincfg  = PWM_TIM10_CH1CFG,
+    }
+#endif
+    /* No complementary outputs */
+  }
+#endif
+};
+
+static struct stm32_pwmtimer_s g_pwm10dev =
+{
+  .ops         = &g_pwmops,
+#ifdef CONFIG_STM32_PWM_LL_OPS
+  .llops       = &g_llpwmops,
+#endif
+  .timid       = 10,
+  .chan_num    = PWM_TIM10_NCHANNELS,
+  .channels    = g_pwm10channels,
+  .timtype     = TIMTYPE_TIM10,
+  .mode        = STM32_TIMMODE_COUNTUP,
+  .lock        = 0,             /* No lock */
+  .t_dts       = 0,             /* No t_dts */
+#ifdef HAVE_PWM_COMPLEMENTARY
+  .deadtime    = 0,             /* No deadtime */
+#endif
+#if defined(HAVE_TRGO)
+  .trgo        = 0,             /* TRGO not supported for TIM10 */
+#endif
+  .base        = STM32_TIM10_BASE,
+  .pclk        = TIMCLK_TIM10,
+};
+#endif /* CONFIG_STM32_TIM10_PWM */
+
+#ifdef CONFIG_STM32_TIM11_PWM
+
+static struct stm32_pwmchan_s g_pwm11channels[] =
+{
+  /* TIM11 has 1 channel */
+
+#ifdef CONFIG_STM32_TIM11_CHANNEL1
+  {
+    .channel = 1,
+    .mode    = CONFIG_STM32_TIM11_CH1MODE,
+#ifdef CONFIG_STM32_TIM11_CH1OUT
+    .out1    =
+    {
+      .in_use  = 1,
+      .pol     = CONFIG_STM32_TIM11_CH1POL,
+      .idle    = CONFIG_STM32_TIM11_CH1IDLE,
+      .pincfg  = PWM_TIM11_CH1CFG,
+    }
+#endif
+    /* No complementary outputs */
+  }
+#endif
+};
+
+static struct stm32_pwmtimer_s g_pwm11dev =
+{
+  .ops         = &g_pwmops,
+#ifdef CONFIG_STM32_PWM_LL_OPS
+  .llops       = &g_llpwmops,
+#endif
+  .timid       = 11,
+  .chan_num    = PWM_TIM11_NCHANNELS,
+  .channels    = g_pwm11channels,
+  .timtype     = TIMTYPE_TIM11,
+  .mode        = STM32_TIMMODE_COUNTUP,
+  .lock        = 0,             /* No lock */
+  .t_dts       = 0,             /* No t_dts */
+#ifdef HAVE_PWM_COMPLEMENTARY
+  .deadtime    = 0,             /* No deadtime */
+#endif
+#if defined(HAVE_TRGO)
+  .trgo        = 0,             /* TRGO not supported for TIM11 */
+#endif
+  .base        = STM32_TIM11_BASE,
+  .pclk        = TIMCLK_TIM11,
+};
+#endif /* CONFIG_STM32_TIM11_PWM */
 
 #ifdef CONFIG_STM32_TIM12_PWM
 
@@ -1734,6 +1951,8 @@ static int pwm_ccr_update(struct pwm_lowerhalf_s *dev, uint8_t index,
     }
 #endif
 
+  /* REVISIT: start index from 0? */
+
   switch (index)
     {
       case STM32_PWM_CHAN1:
@@ -1876,6 +2095,36 @@ static uint32_t pwm_arr_get(struct pwm_lowerhalf_s *dev)
 
   return pwm_getreg(priv, STM32_GTIM_ARR_OFFSET);
 }
+
+#ifdef HAVE_ADVTIM
+/****************************************************************************
+ * Name: pwm_rcr_update
+ ****************************************************************************/
+
+static int pwm_rcr_update(struct pwm_lowerhalf_s *dev, uint16_t rcr)
+{
+  struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
+
+  /* Update RCR register */
+
+  pwm_putreg(priv, STM32_ATIM_RCR_OFFSET, rcr);
+
+  return OK;
+}
+#endif
+
+#ifdef CONFIG_STM32_PWM_LL_OPS
+/****************************************************************************
+ * Name: pwm_rcr_get
+ ****************************************************************************/
+
+static uint16_t pwm_rcr_get(struct pwm_lowerhalf_s *dev)
+{
+  struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
+
+  return pwm_getreg(priv, STM32_ATIM_RCR_OFFSET);
+}
+#endif
 
 /****************************************************************************
  * Name: pwm_duty_update
@@ -2028,9 +2277,9 @@ static int pwm_frequency_update(struct pwm_lowerhalf_s *dev,
       reload--;
     }
 
-  pwminfo("TIM%u PCLK: %" PRIu32 " frequency: %" PRIu32
-          " TIMCLK: %" PRIu32
-          " prescaler: %" PRIu32 " reload: %" PRIu32 "\n",
+  pwminfo("TIM%u PCLK: %" PRIu32" frequency: %" PRIu32
+          " TIMCLK: %" PRIu32 " "
+          "prescaler: %" PRIu32 " reload: %" PRIu32 "\n",
           priv->timid, priv->pclk, frequency, timclk, prescaler, reload);
 
   /* Set the reload and prescaler values */
@@ -2619,16 +2868,17 @@ errout:
 
 #ifdef HAVE_TRGO
 /****************************************************************************
- * Name: pwm_sync_configure
+ * Name: pwm_trgo_configure
  *
  * Description:
  *   Configure an output synchronisation event for PWM timer (TRGO/TRGO2)
  *
  ****************************************************************************/
 
-static int pwm_sync_configure(struct stm32_pwmtimer_s *priv,
+static int pwm_trgo_configure(struct pwm_lowerhalf_s *dev,
                               uint8_t trgo)
 {
+  struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
   uint32_t cr2 = 0;
 
   /* Configure TRGO (4 LSB in trgo) */
@@ -2886,7 +3136,7 @@ static int pwm_configure(struct pwm_lowerhalf_s *dev)
 #ifdef HAVE_TRGO
       /* Configure TRGO/TRGO2 */
 
-      ret = pwm_sync_configure(priv, priv->trgo);
+      ret = pwm_trgo_configure(dev, priv->trgo);
       if (ret < 0)
         {
           goto errout;
@@ -3070,7 +3320,7 @@ static int pwm_timer(struct pwm_lowerhalf_s *dev,
 
       /* Set the repetition counter to zero */
 
-      pwm_putreg(priv, STM32_ATIM_RCR_OFFSET, 0);
+      pwm_rcr_update(dev, 0);
 
       /* Generate an update event to reload the prescaler */
 
@@ -3180,6 +3430,33 @@ static int pwm_set_apb_clock(struct stm32_pwmtimer_s *priv, bool on)
         {
           regaddr = TIMRCCEN_TIM8;
           en_bit  = TIMEN_TIM8;
+          break;
+        }
+#endif
+
+#ifdef CONFIG_STM32_TIM9_PWM
+      case 9:
+        {
+          regaddr = TIMRCCEN_TIM9;
+          en_bit  = TIMEN_TIM9;
+          break;
+        }
+#endif
+
+#ifdef CONFIG_STM32_TIM10_PWM
+      case 10:
+        {
+          regaddr = TIMRCCEN_TIM10;
+          en_bit  = TIMEN_TIM10;
+          break;
+        }
+#endif
+
+#ifdef CONFIG_STM32_TIM11_PWM
+      case 11:
+        {
+          regaddr = TIMRCCEN_TIM11;
+          en_bit  = TIMEN_TIM11;
           break;
         }
 #endif
@@ -3516,131 +3793,10 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
 {
   struct stm32_pwmtimer_s *priv = (struct stm32_pwmtimer_s *)dev;
   irqstate_t flags    = 0;
-  uint32_t   resetbit = 0;
-  uint32_t   regaddr  = 0;
-  uint32_t   regval   = 0;
+  uint16_t   outputs  = 0;
   int        ret = OK;
 
   pwminfo("TIM%u\n", priv->timid);
-
-  /* Determine which timer to reset */
-
-  switch (priv->timid)
-    {
-#ifdef CONFIG_STM32_TIM1_PWM
-      case 1:
-      {
-        regaddr  = TIMRCCRST_TIM1;
-        resetbit = TIMRST_TIM1;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM2_PWM
-      case 2:
-      {
-        regaddr  = TIMRCCRST_TIM2;
-        resetbit = TIMRST_TIM2;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM3_PWM
-      case 3:
-      {
-        regaddr  = TIMRCCRST_TIM3;
-        resetbit = TIMRST_TIM3;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM4_PWM
-      case 4:
-      {
-        regaddr  = TIMRCCRST_TIM4;
-        resetbit = TIMRST_TIM4;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM5_PWM
-      case 5:
-      {
-        regaddr  = TIMRCCRST_TIM5;
-        resetbit = TIMRST_TIM5;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM8_PWM
-      case 8:
-      {
-        regaddr  = TIMRCCRST_TIM8;
-        resetbit = TIMRST_TIM8;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM12_PWM
-      case 12:
-      {
-        regaddr  = TIMRCCRST_TIM12;
-        resetbit = TIMRST_TIM12;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM13_PWM
-      case 13:
-      {
-        regaddr  = TIMRCCRST_TIM13;
-        resetbit = TIMRST_TIM13;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM14_PWM
-      case 14:
-      {
-        regaddr  = TIMRCCRST_TIM14;
-        resetbit = TIMRST_TIM14;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM15_PWM
-      case 15:
-      {
-        regaddr  = TIMRCCRST_TIM15;
-        resetbit = TIMRST_TIM15;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM16_PWM
-      case 16:
-      {
-        regaddr  = TIMRCCRST_TIM16;
-        resetbit = TIMRST_TIM16;
-        break;
-      }
-#endif
-
-#ifdef CONFIG_STM32_TIM17_PWM
-      case 17:
-      {
-        regaddr  = TIMRCCRST_TIM17;
-        resetbit = TIMRST_TIM17;
-        break;
-      }
-#endif
-
-      default:
-      {
-        ret = -EINVAL;
-        goto errout;
-      }
-    }
 
   /* Disable interrupts momentary to stop any ongoing timer processing and
    * to prevent any concurrent access to the reset register.
@@ -3657,16 +3813,11 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
   pwm_putreg(priv, STM32_GTIM_DIER_OFFSET, 0);
   pwm_putreg(priv, STM32_GTIM_SR_OFFSET, 0);
 
-  /* Reset the timer - stopping the output and putting the timer back
-   * into a state where pwm_start() can be called.
-   */
+  /* Disable the timer and timer outputs */
 
-  regval  = getreg32(regaddr);
-  regval |= resetbit;
-  putreg32(regval, regaddr);
-
-  regval &= ~resetbit;
-  putreg32(regval, regaddr);
+  pwm_timer_enable(dev, false);
+  outputs = pwm_outputs_from_channels(priv);
+  ret = pwm_outputs_enable(dev, outputs, false);
 
   /* Clear all channels */
 
@@ -3677,11 +3828,8 @@ static int pwm_stop(struct pwm_lowerhalf_s *dev)
 
   leave_critical_section(flags);
 
-  pwminfo("regaddr: %08" PRIx32 " resetbit: %08" PRIx32 "\n",
-          regaddr, resetbit);
   pwm_dumpregs(dev, "After stop");
 
-errout:
   return ret;
 }
 
@@ -3797,6 +3945,31 @@ struct pwm_lowerhalf_s *stm32_pwminitialize(int timer)
         }
 #endif
 
+#ifdef CONFIG_STM32_TIM9_PWM
+      case 9:
+        {
+          lower = &g_pwm9dev;
+          break;
+        }
+#endif
+
+#ifdef CONFIG_STM32_TIM10_PWM
+      case 10:
+        {
+          lower = &g_pwm10dev;
+          break;
+        }
+
+#endif
+
+#ifdef CONFIG_STM32_TIM11_PWM
+      case 11:
+        {
+          lower = &g_pwm11dev;
+          break;
+        }
+#endif
+
 #ifdef CONFIG_STM32_TIM12_PWM
       case 12:
         {
@@ -3856,3 +4029,5 @@ struct pwm_lowerhalf_s *stm32_pwminitialize(int timer)
 errout:
   return (struct pwm_lowerhalf_s *)lower;
 }
+
+#endif /* CONFIG_STM32_PWM */

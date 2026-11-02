@@ -34,7 +34,7 @@
 #elif defined(CONFIG_STM32_HAVE_IP_TIMERS_V1) || \
       defined(CONFIG_STM32_HAVE_IP_TIMERS_V2) || \
       defined(CONFIG_STM32_HAVE_IP_TIMERS_V3)
-#  include "stm32_pwm_m3m4_v1v2v3.h"
+#  include "stm32_pwm_v1v2v3.h"
 #else
 #  error "Unsupported STM32 PWM"
 #endif

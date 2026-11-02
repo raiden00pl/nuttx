@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.h
+ * arch/arm/src/common/stm32/stm32_pwm_v1v2v3.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -42,6 +42,12 @@
 #ifdef CONFIG_STM32_PWM
 #  include <arch/board/board.h>
 #  include "hardware/stm32_tim.h"
+#endif
+
+/* The V3 timers implement all the V2 features used by this driver */
+
+#if defined(CONFIG_STM32_HAVE_IP_TIMERS_V3) && !defined(HAVE_IP_TIMERS_V2)
+#  define HAVE_IP_TIMERS_V2 1
 #endif
 
 /****************************************************************************

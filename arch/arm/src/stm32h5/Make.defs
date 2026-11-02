@@ -100,10 +100,6 @@ ifeq ($(CONFIG_STM32_DTS),y)
 CHIP_CSRCS += stm32_dts.c
 endif
 
-ifeq ($(CONFIG_STM32_PWM),y)
-CHIP_CSRCS += stm32_pwm.c
-endif
-
 ifeq ($(CONFIG_STM32_TIMX_CAP),y)
 CHIP_CSRCS += stm32_capture.c
 ifeq ($(CONFIG_CAPTURE),y)

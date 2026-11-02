@@ -1820,8 +1820,8 @@ arch/arm/src/common/stm32/stm32_pulsecount.h alin.jerpelea@sony.com raiden00@rai
 arch/arm/src/common/stm32/stm32_pwm.h alin.jerpelea@sony.com raiden00@railab.me
 arch/arm/src/common/stm32/stm32_pwm_m0_v1.c paul-a.patience@polymtl.ca dev@ziggurat29.com dpo@certi.org.br raiden00@railab.me gvr@certi.org.br
 arch/arm/src/common/stm32/stm32_pwm_m0_v1.h raiden00@railab.me dpo@certi.org.br alin.jerpelea@sony.com gvr@certi.org.br anchao@xiaomi.com
-arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.c raiden00pl@gmail.com paul-a.patience@polymtl.ca raiden00@railab.me mrechte2@yahoo.com xiaoxiang@xiaomi.com
-arch/arm/src/common/stm32/stm32_pwm_m3m4_v1v2v3.h raiden00pl@gmail.com paul-a.patience@polymtl.ca alin.jerpelea@sony.com xiaoxiang@xiaomi.com raiden00@railab.me
+arch/arm/src/common/stm32/stm32_pwm_v1v2v3.c raiden00pl@gmail.com paul-a.patience@polymtl.ca raiden00@railab.me mrechte2@yahoo.com xiaoxiang@xiaomi.com
+arch/arm/src/common/stm32/stm32_pwm_v1v2v3.h raiden00pl@gmail.com paul-a.patience@polymtl.ca alin.jerpelea@sony.com xiaoxiang@xiaomi.com raiden00@railab.me
 arch/arm/src/common/stm32/stm32_pwr.h alin.jerpelea@sony.com ev.mipt@gmail.com raiden00@railab.me f.panag@amco.gr david_s5@nscdg.com
 arch/arm/src/common/stm32/stm32_pwr_m0_g0.c alin.jerpelea@sony.com raiden00pl@gmail.com paul-a.patience@polymtl.ca dpo@certi.org.br raiden00@railab.me
 arch/arm/src/common/stm32/stm32_pwr_m0_v1.c ev.mipt@gmail.com david_s5@nscdg.com alin.jerpelea@sony.com sebastien@lorquet.fr mrechte2@yahoo.com

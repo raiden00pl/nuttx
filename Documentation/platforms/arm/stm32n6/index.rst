@@ -22,16 +22,19 @@ Peripheral Support
 
 The following list indicates peripherals supported in NuttX:
 
-==========  =======  ===============================================
+==========  =======  ===================================================
 Peripheral  Support  Notes
-==========  =======  ===============================================
+==========  =======  ===================================================
 GPIO        Yes
+IWDG        Yes      Through the common driver.
+LPTIM       Yes      Through the common driver.
 EXTI        Yes      GPIO interrupts through the common driver.
 DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
 RNG         Yes      Through the common driver.
+TIM         Yes      Timer, PWM and tickless through the common drivers.
 USART       Yes      USART1 only.
 
 ADC         No
@@ -40,8 +43,6 @@ DCMIPP      No
 ETH         No
 I2C         No
 ICACHE      No
-IWDG        No
-LPTIM       No
 LTDC        No
 MPU         No
 NPU         No
@@ -49,10 +50,9 @@ RTC         No
 SAI         No
 SDMMC       No
 SPI         No
-TIM         No
 USB         No
 XSPI        No
-==========  =======  ===============================================
+==========  =======  ===================================================
 
 References
 ==========
