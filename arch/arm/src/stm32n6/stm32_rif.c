@@ -101,4 +101,13 @@ void stm32_rifconfig(void)
   rif_setmaster(RIFSC_MASTER_SDMMC2, RIF_MASTER_CID1_SEC_PRIV);
   rif_setslave_secpriv(RIFSC_PERIPH_SDMMC2);
 #endif
+
+#ifdef CONFIG_STM32_ETHMAC
+  /* The ETH1 DMA reads and writes descriptors and buffers in Secure
+   * AXISRAM
+   */
+
+  rif_setmaster(RIFSC_MASTER_ETH1, RIF_MASTER_CID1_SEC_PRIV);
+  rif_setslave_secpriv(RIFSC_PERIPH_ETH1);
+#endif
 }

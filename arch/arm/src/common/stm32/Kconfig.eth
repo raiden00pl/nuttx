@@ -34,6 +34,12 @@ config STM32_MII
 	---help---
 		Support Ethernet MII interface.
 
+config STM32_RGMII
+	bool "Use RGMII interface"
+	depends on STM32_HAVE_ETH_RGMII && !STM32_MII
+	---help---
+		Support the gigabit Ethernet RGMII interface.
+
 config STM32_AUTONEG
 	bool "Use autonegotiation"
 	default y
@@ -110,6 +116,14 @@ config STM32_PHYSR_100MBPS
 		This must be provided if STM32_AUTONEG is defined.  This provides the value
 		of the speed bit(s) indicating 100MBps speed.
 
+config STM32_PHYSR_1000MBPS
+	hex "PHY 1000Mbps Speed Value"
+	depends on STM32_RGMII
+	---help---
+		This must be provided if STM32_AUTONEG and STM32_RGMII are defined.
+		This provides the value of the speed bit(s) indicating 1000MBps
+		speed.
+
 config STM32_PHYSR_MODE
 	hex "PHY Mode Mask"
 	---help---
@@ -160,6 +174,24 @@ endif # STM32_PHYSR_ALTCONFIG
 
 endif # STM32_AUTONEG
 
+config STM32_ETH_RTL8211F_TXDELAY
+	bool "RTL8211F delays the RGMII transmit clock"
+	depends on STM32_RGMII && ETH0_PHY_RTL8211F
+	default y
+	---help---
+		Enable the 2 ns delay of the RTL8211F on the RGMII transmit clock,
+		so that the MAC and the board do not need to delay it.  The setting
+		overrides the strap pin of the PHY.
+
+config STM32_ETH_RTL8211F_RXDELAY
+	bool "RTL8211F delays the RGMII receive clock"
+	depends on STM32_RGMII && ETH0_PHY_RTL8211F
+	default y
+	---help---
+		Enable the 2 ns delay of the RTL8211F on the RGMII receive clock,
+		so that the MAC and the board do not need to delay it.  The setting
+		overrides the strap pin of the PHY.
+
 config STM32_ETH_PTP
 	bool "Precision Time Protocol (PTP)"
 	---help---
@@ -209,7 +241,7 @@ config STM32_ETH_TIMESTAMP_TX
 
 config STM32_RMII
 	bool
-	default !STM32_MII
+	default !STM32_MII && !STM32_RGMII
 
 config STM32_ETHMAC_REGDEBUG
 	bool "Register-Level Debug"
