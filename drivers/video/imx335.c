@@ -29,9 +29,9 @@
  * The sensor only outputs raw Bayer data.  The capture interface it is
  * paired with (for example the STM32N6 DCMIPP) must demosaic and scale the
  * frames, so the formats and sizes reported here are the ones produced by
- * that image pipeline.  Exposure and analog gain are fixed (no automatic
- * exposure); the exposure time can be changed with
- * V4L2_CID_EXPOSURE_ABSOLUTE.
+ * that image pipeline.  There is no automatic exposure in the sensor; the
+ * exposure time and the gain can be changed with V4L2_CID_EXPOSURE_ABSOLUTE
+ * and V4L2_CID_GAIN.
  */
 
 /****************************************************************************
@@ -75,6 +75,10 @@
 #define IMX335_HMAX              0x0226
 #define IMX335_SHR0_MIN          9
 
+/* Gain in 0.3 dB steps, 0 to 72 dB (Zephyr IMX335_GAIN_UNIT_MDB) */
+
+#define IMX335_GAIN_MAX          240
+
 /* Registers */
 
 #define IMX335_REG_STANDBY       0x3000  /* Bit 0: standby */
@@ -109,6 +113,7 @@ struct imx335_dev_s
   FAR struct i2c_master_s *i2c;       /* I2C bus */
   FAR const struct imx335_inck_s *inck;
   uint32_t exposure;                  /* Exposure time in 100 us units */
+  uint32_t gain;                      /* Gain in 0.3 dB steps */
   bool streaming;
 };
 
@@ -571,6 +576,29 @@ static int imx335_setexposure(FAR struct imx335_dev_s *priv,
 }
 
 /****************************************************************************
+ * Name: imx335_setgain
+ ****************************************************************************/
+
+static int imx335_setgain(FAR struct imx335_dev_s *priv, uint32_t gain)
+{
+  int ret;
+
+  ret = imx335_putreg(priv, IMX335_REG_REGHOLD, 1, 1);
+  if (ret >= 0)
+    {
+      ret = imx335_putreg(priv, IMX335_REG_GAIN, gain, 2);
+      imx335_putreg(priv, IMX335_REG_REGHOLD, 0, 1);
+    }
+
+  if (ret >= 0)
+    {
+      priv->gain = gain;
+    }
+
+  return ret;
+}
+
+/****************************************************************************
  * Name: imx335_is_available
  ****************************************************************************/
 
@@ -615,8 +643,8 @@ static int imx335_init(FAR struct imgsensor_s *sensor)
 
   if (ret >= 0)
     {
-      ret = imx335_putreg(priv, IMX335_REG_GAIN,
-                          CONFIG_VIDEO_IMX335_GAIN, 2);
+      ret = imx335_putreglist(priv, priv->inck->regs,
+                              nitems(priv->inck->regs));
     }
 
   if (ret >= 0)
@@ -777,6 +805,14 @@ static int imx335_get_supported_value(FAR struct imgsensor_s *sensor,
         val->u.range.default_value = CONFIG_VIDEO_IMX335_EXPOSURE;
         return OK;
 
+      case IMGSENSOR_ID_GAIN:
+        val->type                  = IMGSENSOR_CTRL_TYPE_INTEGER;
+        val->u.range.minimum       = 0;
+        val->u.range.maximum       = IMX335_GAIN_MAX;
+        val->u.range.step          = 1;
+        val->u.range.default_value = CONFIG_VIDEO_IMX335_GAIN;
+        return OK;
+
       default:
         return -EINVAL;
     }
@@ -796,6 +832,10 @@ static int imx335_get_value(FAR struct imgsensor_s *sensor,
     {
       case IMGSENSOR_ID_EXPOSURE_ABSOLUTE:
         value->value32 = priv->exposure;
+        return OK;
+
+      case IMGSENSOR_ID_GAIN:
+        value->value32 = priv->gain;
         return OK;
 
       default:
@@ -822,6 +862,14 @@ static int imx335_set_value(FAR struct imgsensor_s *sensor,
           }
 
         return imx335_setexposure(priv, value.value32);
+
+      case IMGSENSOR_ID_GAIN:
+        if (value.value32 < 0 || value.value32 > IMX335_GAIN_MAX)
+          {
+            return -EINVAL;
+          }
+
+        return imx335_setgain(priv, value.value32);
 
       default:
         return -EINVAL;
@@ -871,6 +919,7 @@ FAR struct imgsensor_s *imx335_initialize(FAR struct i2c_master_s *i2c,
 
   priv->i2c      = i2c;
   priv->exposure = CONFIG_VIDEO_IMX335_EXPOSURE;
+  priv->gain     = CONFIG_VIDEO_IMX335_GAIN;
 
   priv->sensor.ops              = &g_imx335_ops;
   priv->sensor.fmtdescs         = g_imx335_fmtdescs;

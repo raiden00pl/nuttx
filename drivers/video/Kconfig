@@ -514,8 +514,8 @@ config VIDEO_IMX335_GAIN
 	default 0
 	range 0 240
 	---help---
-		Fixed analog gain written at initialization, in 0.3 dB steps
-		(67 = 20 dB, 240 = 72 dB).  There is no automatic exposure.
+		Initial gain in 0.3 dB steps (67 = 20 dB, 240 = 72 dB).  It can
+		be changed with V4L2_CID_GAIN.
 
 config VIDEO_IMX335_EXPOSURE
 	int "Exposure time (100 us units)"
