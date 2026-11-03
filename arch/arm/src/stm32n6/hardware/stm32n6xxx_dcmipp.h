@@ -51,6 +51,14 @@
 #define STM32_DCMIPP_P1BLCCR_OFFSET    0x0840  /* Black level calibration */
 #define STM32_DCMIPP_P1EXCR1_OFFSET    0x0844  /* Exposure control 1 */
 #define STM32_DCMIPP_P1EXCR2_OFFSET    0x0848  /* Exposure control 2 */
+#define STM32_DCMIPP_P1ST1CR_OFFSET    0x0850  /* Statistics 1 control */
+#define STM32_DCMIPP_P1ST2CR_OFFSET    0x0854  /* Statistics 2 control */
+#define STM32_DCMIPP_P1ST3CR_OFFSET    0x0858  /* Statistics 3 control */
+#define STM32_DCMIPP_P1STSTR_OFFSET    0x085c  /* Statistics window start */
+#define STM32_DCMIPP_P1STSZR_OFFSET    0x0860  /* Statistics window size */
+#define STM32_DCMIPP_P1ST1SR_OFFSET    0x0864  /* Statistics 1 status */
+#define STM32_DCMIPP_P1ST2SR_OFFSET    0x0868  /* Statistics 2 status */
+#define STM32_DCMIPP_P1ST3SR_OFFSET    0x086c  /* Statistics 3 status */
 #define STM32_DCMIPP_P1DMCR_OFFSET     0x0870  /* Demosaicing configuration */
 #define STM32_DCMIPP_P1CCCR_OFFSET     0x0880  /* ColorConv configuration */
 #define STM32_DCMIPP_P1CCRR1_OFFSET    0x0884  /* ColorConv red coeff 1 */
@@ -88,6 +96,22 @@
                                  STM32_DCMIPP_P1EXCR1_OFFSET)
 #define STM32_DCMIPP_P1EXCR2    (STM32_DCMIPP_BASE + \
                                  STM32_DCMIPP_P1EXCR2_OFFSET)
+#define STM32_DCMIPP_P1ST1CR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST1CR_OFFSET)
+#define STM32_DCMIPP_P1ST2CR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST2CR_OFFSET)
+#define STM32_DCMIPP_P1ST3CR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST3CR_OFFSET)
+#define STM32_DCMIPP_P1STSTR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1STSTR_OFFSET)
+#define STM32_DCMIPP_P1STSZR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1STSZR_OFFSET)
+#define STM32_DCMIPP_P1ST1SR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST1SR_OFFSET)
+#define STM32_DCMIPP_P1ST2SR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST2SR_OFFSET)
+#define STM32_DCMIPP_P1ST3SR    (STM32_DCMIPP_BASE + \
+                                 STM32_DCMIPP_P1ST3SR_OFFSET)
 #define STM32_DCMIPP_P1DMCR     (STM32_DCMIPP_BASE + \
                                  STM32_DCMIPP_P1DMCR_OFFSET)
 #define STM32_DCMIPP_P1CCCR     (STM32_DCMIPP_BASE + \
@@ -188,6 +212,37 @@
 #define DCMIPP_P1EXCR2_SHFB_SHIFT  (12)      /* Bits 12-14: Blue shift */
 #define DCMIPP_P1EXCR2_MULTG_SHIFT (20)      /* Bits 20-27: Green multiplier */
 #define DCMIPP_P1EXCR2_SHFG_SHIFT  (28)      /* Bits 28-30: Green shift */
+
+/* Pipe1 statistics 1-3 control registers */
+
+#define DCMIPP_P1STCR_ENABLE       (1 << 0)  /* Bit 0: Enable */
+#define DCMIPP_P1STCR_BINS_SHIFT   (2)       /* Bits 2-3: Bins or average
+                                              * range */
+#define DCMIPP_P1STCR_BINS_MASK    (0x3 << DCMIPP_P1STCR_BINS_SHIFT)
+#  define DCMIPP_P1STCR_AVER_ALL   (0 << DCMIPP_P1STCR_BINS_SHIFT)
+#define DCMIPP_P1STCR_SRC_SHIFT    (4)       /* Bits 4-6: Source */
+#define DCMIPP_P1STCR_SRC_MASK     (0x7 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_PRER   (0 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_PREG   (1 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_PREB   (2 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_PREL   (3 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_POSTR  (4 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_POSTG  (5 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_POSTB  (6 << DCMIPP_P1STCR_SRC_SHIFT)
+#  define DCMIPP_P1STCR_SRC_POSTL  (7 << DCMIPP_P1STCR_SRC_SHIFT)
+#define DCMIPP_P1STCR_MODE_BINS    (1 << 7)  /* Bit 7: Bins, not average */
+
+/* Pipe1 statistics window start and size registers */
+
+#define DCMIPP_P1STSTR_HSTART_SHIFT (0)      /* Bits 0-11: Horizontal start */
+#define DCMIPP_P1STSTR_VSTART_SHIFT (16)     /* Bits 16-27: Vertical start */
+#define DCMIPP_P1STSZR_HSIZE_SHIFT (0)       /* Bits 0-11: Horizontal size */
+#define DCMIPP_P1STSZR_VSIZE_SHIFT (16)      /* Bits 16-27: Vertical size */
+#define DCMIPP_P1STSZR_CROPEN      (1 << 31) /* Bit 31: Window enable */
+
+/* Pipe1 statistics 1-3 status registers (accumulation divided by 256) */
+
+#define DCMIPP_P1STSR_ACCU_MASK    (0xffffff) /* Bits 0-23: Accumulation */
 
 /* Pipe1 demosaicing configuration register */
 

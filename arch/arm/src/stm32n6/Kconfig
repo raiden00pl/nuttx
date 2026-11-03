@@ -131,4 +131,43 @@ config STM32N6_DEBUG
 		to attach without switching to DEV boot mode.  This changes runtime
 		BSEC registers only, not OTP fuses.
 
+menu "DCMIPP Configuration"
+	depends on STM32_DCMIPP
+
+config STM32_DCMIPP_AE
+	bool "Automatic exposure"
+	default y
+	select SCHED_LPWORK
+	---help---
+		Adjust the sensor exposure time, then the gain, from the pipe1
+		statistics towards a target mean luminance.
+
+config STM32_DCMIPP_AE_TARGET
+	int "Target mean luminance"
+	default 46
+	range 16 224
+	depends on STM32_DCMIPP_AE
+	---help---
+		Mean luminance (8-bit, linear, before gamma) of the frame.  46 is
+		18 % of full scale, the reflectance of a middle grey.
+
+config STM32_DCMIPP_AWB
+	bool "Automatic white balance"
+	default y
+	select SCHED_LPWORK
+	---help---
+		Grey world white balance: adjust the red and blue gains of the
+		pipe1 exposure block until the R, G and B means are equal.
+
+config STM32_DCMIPP_ISP_INTERVAL
+	int "Frames skipped after an update"
+	default 4
+	range 1 60
+	depends on STM32_DCMIPP_AE || STM32_DCMIPP_AWB
+	---help---
+		Frames ignored after each exposure or white balance update; it
+		must cover the sensor latency.
+
+endmenu # DCMIPP Configuration
+
 endif # ARCH_CHIP_STM32N6

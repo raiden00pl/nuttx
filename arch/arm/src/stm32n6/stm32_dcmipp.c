@@ -28,9 +28,12 @@
  *   demosaicing -> colour correction -> decimation -> downsize ->
  *   gamma -> RGB565 pixel packer -> memory
  *
- * The image processing is static: the black level, white balance gains
- * and colour matrix come from the board.  There is no automatic exposure
- * or white balance.
+ * The black level, colour matrix and initial white balance gains come
+ * from the board.  The statistics unit averages R, G and B after the
+ * demosaicing over the whole frame.  From these means a
+ * worker adjusts the sensor exposure time and gain towards a target
+ * luminance (CONFIG_STM32_DCMIPP_AE) and the red and blue gains for a grey
+ * world (CONFIG_STM32_DCMIPP_AWB).
  */
 
 /****************************************************************************
@@ -40,8 +43,10 @@
 #include <nuttx/config.h>
 
 #include <sys/param.h>
+#include <sys/video_controls.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -50,7 +55,9 @@
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
 #include <nuttx/signal.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/video/imgdata.h>
+#include <nuttx/video/imgsensor.h>
 
 #include "arm_internal.h"
 #include "chip.h"
@@ -74,10 +81,39 @@
 #define DCMIPP_DM_LINEH          0
 #define DCMIPP_DM_EDGE           0
 
-/* Pipe1 interrupts */
+#if defined(CONFIG_STM32_DCMIPP_AE) || defined(CONFIG_STM32_DCMIPP_AWB)
+#  define HAVE_DCMIPP_AUTO
+#endif
 
-#define DCMIPP_P1_INTS           (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1FRAME | \
+/* Pipe1 interrupts; the statistics are read at the vertical sync */
+
+#ifdef HAVE_DCMIPP_AUTO
+#  define DCMIPP_P1_INTS         (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1FRAME | \
+                                  DCMIPP_CMINT_P1OVR | DCMIPP_CMINT_P1VSYNC)
+#else
+#  define DCMIPP_P1_INTS         (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1FRAME | \
                                   DCMIPP_CMINT_P1OVR)
+#endif
+
+/* Automatic exposure: dead band around the target (8-bit luminance) and
+ * limits of the exposure change in one step (Q8).  The gain table holds
+ * 2^(n / 20) in Q8.
+ */
+
+#define DCMIPP_AE_TOLERANCE      4
+#define DCMIPP_AE_RATIO_MIN      64
+#define DCMIPP_AE_RATIO_MAX      1024
+#define DCMIPP_AE_POW2_STEPS     20
+
+/* Automatic white balance: gain limits (128 = 1.0), usable green mean
+ * (8-bit) and dead band (1/32 of the gain).
+ */
+
+#define DCMIPP_AWB_GAIN_MIN      64
+#define DCMIPP_AWB_GAIN_MAX      512
+#define DCMIPP_AWB_GREEN_MIN     8
+#define DCMIPP_AWB_GREEN_MAX     224
+#define DCMIPP_AWB_DEADBAND      32
 
 /* Timeout waiting for the end of a capture, in milliseconds */
 
@@ -96,6 +132,23 @@ struct stm32_dcmipp_s
   uintptr_t buf;                      /* Buffer receiving the frame */
   uint32_t framesize;                 /* Bytes in one output frame */
   bool capturing;
+#ifdef HAVE_DCMIPP_AUTO
+  struct work_s work;                 /* Statistics processing */
+  uint32_t stat[3];                   /* R, G, B sums / 256 */
+  uint32_t statpixels;                /* Pixels in the statistics window */
+  uint16_t gain[3];                   /* White balance gains, 128 = 1.0 */
+  volatile uint8_t skip;              /* Frames before the next statistics */
+  volatile bool busy;                 /* Statistics being processed */
+#endif
+#ifdef CONFIG_STM32_DCMIPP_AE
+  FAR struct imgsensor_s *sensor;     /* Sensor exposure and gain */
+  bool ae;                            /* Exposure time control available */
+  bool aegain;                        /* Gain control available */
+  int32_t expmin;                     /* Exposure time range */
+  int32_t expmax;
+  int32_t gainmin;                    /* Gain range */
+  int32_t gainmax;
+#endif
 };
 
 /****************************************************************************
@@ -141,6 +194,14 @@ static struct stm32_dcmipp_s g_dcmipp =
       .ops = &g_dcmipp_ops,
     },
 };
+
+#ifdef CONFIG_STM32_DCMIPP_AE
+static const uint16_t g_dcmipp_pow2[DCMIPP_AE_POW2_STEPS] =
+{
+  256, 265, 274, 284, 294, 304, 315, 326, 338, 350,
+  362, 375, 388, 402, 416, 431, 446, 461, 478, 495
+};
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -188,6 +249,26 @@ static uint32_t dcmipp_coef(int16_t low, int16_t high)
 }
 
 /****************************************************************************
+ * Name: dcmipp_setwb
+ *
+ * Description:
+ *   Program the white balance gains (128 = 1.0) of the exposure block.
+ *
+ ****************************************************************************/
+
+static void dcmipp_setwb(FAR const uint16_t *gain)
+{
+  putreg32(dcmipp_gain(gain[1], DCMIPP_P1EXCR2_MULTG_SHIFT,
+                       DCMIPP_P1EXCR2_SHFG_SHIFT) |
+           dcmipp_gain(gain[2], DCMIPP_P1EXCR2_MULTB_SHIFT,
+                       DCMIPP_P1EXCR2_SHFB_SHIFT),
+           STM32_DCMIPP_P1EXCR2);
+  putreg32(dcmipp_gain(gain[0], DCMIPP_P1EXCR1_MULTR_SHIFT,
+                       DCMIPP_P1EXCR1_SHFR_SHIFT) | DCMIPP_P1EXCR1_ENABLE,
+           STM32_DCMIPP_P1EXCR1);
+}
+
+/****************************************************************************
  * Name: dcmipp_configisp
  *
  * Description:
@@ -217,14 +298,7 @@ static void dcmipp_configisp(FAR const struct stm32_dcmipp_config_s *cfg)
 
   /* White balance gains in the exposure block */
 
-  putreg32(dcmipp_gain(cfg->gain[1], DCMIPP_P1EXCR2_MULTG_SHIFT,
-                       DCMIPP_P1EXCR2_SHFG_SHIFT) |
-           dcmipp_gain(cfg->gain[2], DCMIPP_P1EXCR2_MULTB_SHIFT,
-                       DCMIPP_P1EXCR2_SHFB_SHIFT),
-           STM32_DCMIPP_P1EXCR2);
-  putreg32(dcmipp_gain(cfg->gain[0], DCMIPP_P1EXCR1_MULTR_SHIFT,
-                       DCMIPP_P1EXCR1_SHFR_SHIFT) | DCMIPP_P1EXCR1_ENABLE,
-           STM32_DCMIPP_P1EXCR1);
+  dcmipp_setwb(cfg->gain);
 
   /* Demosaicing */
 
@@ -253,6 +327,351 @@ static void dcmipp_configisp(FAR const struct stm32_dcmipp_config_s *cfg)
 
   putreg32(cfg->gamma ? DCMIPP_P1GMCR_ENABLE : 0, STM32_DCMIPP_P1GMCR);
 }
+
+#ifdef HAVE_DCMIPP_AUTO
+/****************************************************************************
+ * Name: dcmipp_configstats
+ *
+ * Description:
+ *   Average R, G and B after the demosaicing over the whole sensor frame
+ *   (average metering).  The 24-bit sums / 256 hold a full 5 MP frame.
+ *
+ ****************************************************************************/
+
+static void dcmipp_configstats(FAR struct stm32_dcmipp_s *priv)
+{
+  FAR const struct stm32_dcmipp_config_s *cfg = priv->config;
+  uint32_t width  = cfg->width & ~1;
+  uint32_t height = cfg->height & ~1;
+
+  putreg32(0, STM32_DCMIPP_P1STSTR);
+  putreg32((width << DCMIPP_P1STSZR_HSIZE_SHIFT) |
+           (height << DCMIPP_P1STSZR_VSIZE_SHIFT) | DCMIPP_P1STSZR_CROPEN,
+           STM32_DCMIPP_P1STSZR);
+
+  putreg32(DCMIPP_P1STCR_ENABLE | DCMIPP_P1STCR_SRC_POSTR |
+           DCMIPP_P1STCR_AVER_ALL, STM32_DCMIPP_P1ST1CR);
+  putreg32(DCMIPP_P1STCR_ENABLE | DCMIPP_P1STCR_SRC_POSTG |
+           DCMIPP_P1STCR_AVER_ALL, STM32_DCMIPP_P1ST2CR);
+  putreg32(DCMIPP_P1STCR_ENABLE | DCMIPP_P1STCR_SRC_POSTB |
+           DCMIPP_P1STCR_AVER_ALL, STM32_DCMIPP_P1ST3CR);
+
+  priv->statpixels = width * height;
+}
+#endif
+
+#ifdef CONFIG_STM32_DCMIPP_AE
+/****************************************************************************
+ * Name: dcmipp_aetotal
+ *
+ * Description:
+ *   Exposure time times the linear sensor gain, Q8.
+ *
+ ****************************************************************************/
+
+static uint64_t dcmipp_aetotal(FAR struct stm32_dcmipp_s *priv,
+                               int32_t exposure, int32_t gain)
+{
+  uint32_t steps = priv->config->gainsteps;
+  uint32_t shift;
+  uint32_t g;
+
+  exposure = MIN(MAX(exposure, priv->expmin), priv->expmax);
+  if (!priv->aegain)
+    {
+      return (uint64_t)exposure << 8;
+    }
+
+  g     = MIN(MAX(gain, priv->gainmin), priv->gainmax) - priv->gainmin;
+  shift = MIN(g / steps, 31);
+
+  return ((uint64_t)exposure *
+          g_dcmipp_pow2[(g % steps) * DCMIPP_AE_POW2_STEPS / steps]) <<
+         shift;
+}
+
+/****************************************************************************
+ * Name: dcmipp_aesplit
+ *
+ * Description:
+ *   Split an exposure time times gain product (Q8) into the sensor
+ *   settings.  The exposure time is used first, the gain only adds noise.
+ *
+ ****************************************************************************/
+
+static void dcmipp_aesplit(FAR struct stm32_dcmipp_s *priv, uint64_t total,
+                           FAR int32_t *exposure, FAR int32_t *gain)
+{
+  uint32_t steps = priv->config->gainsteps;
+  uint64_t lin;
+  int32_t g = 0;
+  int i;
+
+  if (!priv->aegain || total <= ((uint64_t)priv->expmax << 8))
+    {
+      *exposure = MIN(MAX((int32_t)((total + 128) >> 8), priv->expmin),
+                      priv->expmax);
+      *gain     = priv->aegain ? priv->gainmin : 0;
+      return;
+    }
+
+  /* Linear gain (Q8) at the longest exposure time, then in sensor steps */
+
+  *exposure = priv->expmax;
+  lin       = total / priv->expmax;
+
+  while (lin >= 512 && g < priv->gainmax - priv->gainmin)
+    {
+      lin >>= 1;
+      g    += steps;
+    }
+
+  for (i = DCMIPP_AE_POW2_STEPS - 1; i > 0 && g_dcmipp_pow2[i] > lin; i--)
+    {
+    }
+
+  g    += i * steps / DCMIPP_AE_POW2_STEPS;
+  *gain = MIN(priv->gainmin + g, priv->gainmax);
+}
+
+/****************************************************************************
+ * Name: dcmipp_ae
+ *
+ * Description:
+ *   Move the sensor exposure half way to the one giving the target mean
+ *   luminance.  Nothing changes inside the dead band.
+ *
+ ****************************************************************************/
+
+static void dcmipp_ae(FAR struct stm32_dcmipp_s *priv,
+                      FAR const uint32_t *avg)
+{
+  imgsensor_value_t exposure;
+  imgsensor_value_t gain;
+  uint32_t target = CONFIG_STM32_DCMIPP_AE_TARGET << 8;
+  uint64_t total;
+  uint32_t ratio;
+  uint32_t lum;
+  int32_t newexp;
+  int32_t newgain;
+
+  if (!priv->ae)
+    {
+      return;
+    }
+
+  /* BT.601 luminance of the means, 1/256 units */
+
+  lum = (77 * avg[0] + 150 * avg[1] + 29 * avg[2]) >> 8;
+  if (abs((int32_t)lum - (int32_t)target) <= (DCMIPP_AE_TOLERANCE << 8))
+    {
+      return;
+    }
+
+  gain.value32 = 0;
+  if (IMGSENSOR_GET_VALUE(priv->sensor, IMGSENSOR_ID_EXPOSURE_ABSOLUTE,
+                          sizeof(int32_t), &exposure) < 0 ||
+      (priv->aegain &&
+       IMGSENSOR_GET_VALUE(priv->sensor, IMGSENSOR_ID_GAIN,
+                           sizeof(int32_t), &gain) < 0))
+    {
+      return;
+    }
+
+  /* Exposure ratio towards the target (Q8), limited.  Take half of it, or
+   * all of it when half does not change the coarse sensor settings.
+   */
+
+  ratio = lum > 0 ? (target << 8) / lum : DCMIPP_AE_RATIO_MAX;
+  ratio = MIN(MAX(ratio, DCMIPP_AE_RATIO_MIN), DCMIPP_AE_RATIO_MAX);
+  total = dcmipp_aetotal(priv, exposure.value32, gain.value32);
+
+  dcmipp_aesplit(priv, (total * ((ratio + 256) / 2)) >> 8,
+                 &newexp, &newgain);
+  if (newexp == exposure.value32 && newgain == gain.value32)
+    {
+      dcmipp_aesplit(priv, (total * ratio) >> 8, &newexp, &newgain);
+    }
+
+  if (newexp != exposure.value32)
+    {
+      exposure.value32 = newexp;
+      IMGSENSOR_SET_VALUE(priv->sensor, IMGSENSOR_ID_EXPOSURE_ABSOLUTE,
+                          sizeof(int32_t), exposure);
+    }
+
+  if (priv->aegain && newgain != gain.value32)
+    {
+      gain.value32 = newgain;
+      IMGSENSOR_SET_VALUE(priv->sensor, IMGSENSOR_ID_GAIN,
+                          sizeof(int32_t), gain);
+    }
+}
+#endif
+
+#ifdef CONFIG_STM32_DCMIPP_AWB
+/****************************************************************************
+ * Name: dcmipp_awb
+ *
+ * Description:
+ *   Grey world white balance: move the red and blue gains half way to the
+ *   ones matching the red and blue means to the green one.  Dark and
+ *   saturated frames are skipped.
+ *
+ ****************************************************************************/
+
+static void dcmipp_awb(FAR struct stm32_dcmipp_s *priv,
+                       FAR const uint32_t *avg)
+{
+  bool update = false;
+  uint32_t target;
+  uint32_t gain;
+  int i;
+
+  if (avg[1] < (DCMIPP_AWB_GREEN_MIN << 8) ||
+      avg[1] > (DCMIPP_AWB_GREEN_MAX << 8))
+    {
+      return;
+    }
+
+  for (i = 0; i < 3; i += 2)
+    {
+      gain   = priv->gain[i];
+      target = avg[i] > 0 ? gain * avg[1] / avg[i] : DCMIPP_AWB_GAIN_MAX;
+
+      if (abs((int32_t)target - (int32_t)gain) * DCMIPP_AWB_DEADBAND <=
+          gain)
+        {
+          continue;
+        }
+
+      gain = MIN(MAX((gain + target) / 2, DCMIPP_AWB_GAIN_MIN),
+                 DCMIPP_AWB_GAIN_MAX);
+      if (gain != priv->gain[i])
+        {
+          priv->gain[i] = gain;
+          update        = true;
+        }
+    }
+
+  if (update)
+    {
+      dcmipp_setwb(priv->gain);
+    }
+}
+#endif
+
+#ifdef HAVE_DCMIPP_AUTO
+/****************************************************************************
+ * Name: dcmipp_worker
+ *
+ * Description:
+ *   Run the automatic exposure and white balance on the latest statistics.
+ *
+ ****************************************************************************/
+
+static void dcmipp_worker(FAR void *arg)
+{
+  FAR struct stm32_dcmipp_s *priv = arg;
+  uint32_t avg[3];
+  int i;
+
+  if (priv->capturing && priv->statpixels > 0)
+    {
+      /* Means of the 8-bit components, 1/256 units */
+
+      for (i = 0; i < 3; i++)
+        {
+          avg[i] = ((uint64_t)priv->stat[i] << 16) / priv->statpixels;
+        }
+
+#ifdef CONFIG_STM32_DCMIPP_AE
+      dcmipp_ae(priv, avg);
+#endif
+#ifdef CONFIG_STM32_DCMIPP_AWB
+      dcmipp_awb(priv, avg);
+#endif
+    }
+
+  /* Wait for frames with the new settings */
+
+  priv->skip = CONFIG_STM32_DCMIPP_ISP_INTERVAL;
+  priv->busy = false;
+}
+
+/****************************************************************************
+ * Name: dcmipp_stats
+ *
+ * Description:
+ *   Latch the statistics of the previous frame at the vertical sync and
+ *   defer their processing to the worker.
+ *
+ ****************************************************************************/
+
+static void dcmipp_stats(FAR struct stm32_dcmipp_s *priv)
+{
+  if (priv->skip > 0)
+    {
+      priv->skip--;
+      return;
+    }
+
+  if (priv->busy)
+    {
+      return;
+    }
+
+  priv->stat[0] = getreg32(STM32_DCMIPP_P1ST1SR) & DCMIPP_P1STSR_ACCU_MASK;
+  priv->stat[1] = getreg32(STM32_DCMIPP_P1ST2SR) & DCMIPP_P1STSR_ACCU_MASK;
+  priv->stat[2] = getreg32(STM32_DCMIPP_P1ST3SR) & DCMIPP_P1STSR_ACCU_MASK;
+  priv->busy    = true;
+
+  work_queue(LPWORK, &priv->work, dcmipp_worker, priv, 0);
+}
+
+/****************************************************************************
+ * Name: dcmipp_autostart
+ *
+ * Description:
+ *   Prepare the automatic exposure and white balance for a new capture.
+ *
+ ****************************************************************************/
+
+static void dcmipp_autostart(FAR struct stm32_dcmipp_s *priv)
+{
+#ifdef CONFIG_STM32_DCMIPP_AE
+  imgsensor_supported_value_t val;
+
+  /* Take the exposure time and gain ranges from the sensor */
+
+  priv->ae     = false;
+  priv->aegain = false;
+
+  if (priv->sensor != NULL &&
+      IMGSENSOR_GET_SUPPORTED_VALUE(priv->sensor,
+                                    IMGSENSOR_ID_EXPOSURE_ABSOLUTE,
+                                    &val) >= 0)
+    {
+      priv->expmin = MAX(val.u.range.minimum, 1);
+      priv->expmax = val.u.range.maximum;
+      priv->ae     = priv->expmax > priv->expmin;
+    }
+
+  if (priv->ae && priv->config->gainsteps > 0 &&
+      IMGSENSOR_GET_SUPPORTED_VALUE(priv->sensor, IMGSENSOR_ID_GAIN,
+                                    &val) >= 0)
+    {
+      priv->gainmin = val.u.range.minimum;
+      priv->gainmax = val.u.range.maximum;
+      priv->aegain  = priv->gainmax > priv->gainmin;
+    }
+#endif
+
+  /* The first frames come from the pipe start */
+
+  priv->skip = CONFIG_STM32_DCMIPP_ISP_INTERVAL;
+}
+#endif
 
 /****************************************************************************
  * Name: dcmipp_configscaler
@@ -368,6 +787,13 @@ static int dcmipp_interrupt(int irq, FAR void *context, FAR void *arg)
       priv->callback(0, priv->framesize, &tv, priv->arg);
     }
 
+#ifdef HAVE_DCMIPP_AUTO
+  if ((status & DCMIPP_CMINT_P1VSYNC) != 0 && priv->capturing)
+    {
+      dcmipp_stats(priv);
+    }
+#endif
+
   return OK;
 }
 
@@ -398,6 +824,14 @@ static int dcmipp_init(FAR struct imgdata_s *data)
 
   dcmipp_configisp(cfg);
 
+#ifdef HAVE_DCMIPP_AUTO
+  dcmipp_configstats(priv);
+  priv->gain[0] = cfg->gain[0];
+  priv->gain[1] = cfg->gain[1];
+  priv->gain[2] = cfg->gain[2];
+  priv->busy    = false;
+#endif
+
   /* Start the D-PHY and virtual channel 0 of the CSI-2 host */
 
   ret = stm32_csi_start(cfg->lanes, cfg->bitrate, cfg->bpp);
@@ -420,6 +854,9 @@ static int dcmipp_uninit(FAR struct imgdata_s *data)
 {
   dcmipp_stop_capture(data);
   up_disable_irq(STM32_IRQ_DCMIPP);
+#ifdef HAVE_DCMIPP_AUTO
+  work_cancel_sync(LPWORK, &((FAR struct stm32_dcmipp_s *)data)->work);
+#endif
   stm32_csi_stop();
   return OK;
 }
@@ -527,6 +964,10 @@ static int dcmipp_start_capture(FAR struct imgdata_s *data,
   putreg32(DCMIPP_P1PPCR_FORMAT_RGB565, STM32_DCMIPP_P1PPCR);
   putreg32(fmt->width * 2, STM32_DCMIPP_P1PPM0PR);
 
+#ifdef HAVE_DCMIPP_AUTO
+  dcmipp_autostart(priv);
+#endif
+
   flags = enter_critical_section();
 
   priv->callback  = callback;
@@ -595,7 +1036,8 @@ static int dcmipp_stop_capture(FAR struct imgdata_s *data)
  ****************************************************************************/
 
 FAR struct imgdata_s *
-stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config)
+stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config,
+                        FAR struct imgsensor_s *sensor)
 {
   FAR struct stm32_dcmipp_s *priv = &g_dcmipp;
 
@@ -606,6 +1048,9 @@ stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config)
     }
 
   priv->config = config;
+#ifdef CONFIG_STM32_DCMIPP_AE
+  priv->sensor = sensor;
+#endif
 
   if (irq_attach(STM32_IRQ_DCMIPP, dcmipp_interrupt, priv) < 0)
     {

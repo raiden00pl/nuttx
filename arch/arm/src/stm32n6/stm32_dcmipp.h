@@ -33,6 +33,7 @@
 #include <stdint.h>
 
 #include <nuttx/video/imgdata.h>
+#include <nuttx/video/imgsensor.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -50,7 +51,8 @@
  ****************************************************************************/
 
 /* Description of the raw Bayer CSI-2 sensor attached to the DCMIPP and the
- * fixed image signal processing applied in pipe1.
+ * image signal processing applied in pipe1.  The white balance gains are
+ * the initial ones with CONFIG_STM32_DCMIPP_AWB.
  */
 
 struct stm32_dcmipp_config_s
@@ -65,6 +67,8 @@ struct stm32_dcmipp_config_s
   uint16_t gain[3];        /* R, G, B white balance gains, 128 = 1.0 */
   int16_t  ccm[3][3];      /* Colour correction matrix, 256 = 1.0 */
   bool     gamma;          /* Enable the gamma correction */
+  uint8_t  gainsteps;      /* Sensor gain steps doubling the gain (AE),
+                            * 0: exposure time only */
 };
 
 /****************************************************************************
@@ -82,6 +86,7 @@ struct stm32_dcmipp_config_s
  *
  * Input Parameters:
  *   config - Sensor and image processing description; must stay valid
+ *   sensor - Sensor driven by the automatic exposure, or NULL
  *
  * Returned Value:
  *   Image data instance on success; NULL on failure.
@@ -89,6 +94,7 @@ struct stm32_dcmipp_config_s
  ****************************************************************************/
 
 FAR struct imgdata_s *
-stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config);
+stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config,
+                        FAR struct imgsensor_s *sensor);
 
 #endif /* __ARCH_ARM_SRC_STM32N6_STM32_DCMIPP_H */

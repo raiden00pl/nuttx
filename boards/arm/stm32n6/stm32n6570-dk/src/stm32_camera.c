@@ -93,6 +93,7 @@ static const struct stm32_dcmipp_config_s g_camera_config =
       },
     },
   .gamma      = true,
+  .gainsteps  = 20,
 };
 
 /****************************************************************************
@@ -133,7 +134,7 @@ int stm32_camera_initialize(void)
       return -ENODEV;
     }
 
-  data = stm32_dcmipp_initialize(&g_camera_config);
+  data = stm32_dcmipp_initialize(&g_camera_config, sensor);
   if (data == NULL)
     {
       return -ENODEV;

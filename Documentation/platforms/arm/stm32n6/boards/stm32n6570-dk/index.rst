@@ -284,12 +284,14 @@ is wired to the CSI-2 host (two data lanes) and I2C1 (0x1a).  PD2 enables
 the module and PC8 releases the sensor reset; the module has its own
 24 MHz sensor clock.  The DCMIPP kernel clock is IC17 (300 MHz) and the
 D-PHY configuration clock IC18 (20 MHz).  Pipe1 demosaics the frames and
-scales them to RGB565 with fixed black level, white balance and colour
-matrix (ST values for TL84 light).  Exposure and analog gain are fixed
-(``CONFIG_VIDEO_IMX335_EXPOSURE``, ``CONFIG_VIDEO_IMX335_GAIN``).  The
-board registers the sensor and the DCMIPP; the ``camera`` example creates
-``/dev/video`` and ``camera 0`` shows a continuous 320x240 preview in the
-top left corner of the LCD.
+scales them to RGB565 with the black level measured on the DK and an
+identity colour matrix.  ``CONFIG_STM32_DCMIPP_AE`` adjusts the sensor
+exposure and gain, ``CONFIG_STM32_DCMIPP_AWB`` the white balance gains,
+from the pipe1 statistics; without them they stay at
+``CONFIG_VIDEO_IMX335_EXPOSURE``, ``CONFIG_VIDEO_IMX335_GAIN`` and the
+board values.  The board registers the sensor, the DCMIPP and
+``/dev/video``; ``camera 0`` shows a continuous 320x240 preview in the top
+left corner of the LCD.
 
 Clocking
 ========

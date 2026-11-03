@@ -32,10 +32,11 @@ Cache       Yes      L1 I- and D-cache (``CONFIG_ARMV8M_ICACHE``,
                      ``CONFIG_ARMV8M_DCACHE``).  The USB host driver does
                      not maintain the D-cache yet.
 DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
-                     interface: raw Bayer to RGB565 with a static ISP
-                     (black level, white balance, demosaicing, colour
-                     matrix, gamma) and scaling.  No pipe0/pipe2,
-                     parallel input or automatic exposure.
+                     interface: raw Bayer to RGB565 (black level, white
+                     balance, demosaicing, colour matrix, gamma) and
+                     scaling.  Automatic exposure and grey world white
+                     balance from the pipe1 statistics.  No pipe0/pipe2
+                     or parallel input.
 GPIO        Yes
 I2C         Yes      I2C1-4 through the common I2C v2 driver.
 IWDG        Yes      Through the common driver.
