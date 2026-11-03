@@ -52,6 +52,10 @@ if(CONFIG_STM32_SDMMC2)
   list(APPEND SRCS stm32_sdmmc.c)
 endif()
 
+if(CONFIG_FAT_DMAMEMORY)
+  list(APPEND SRCS stm32_dma_alloc.c)
+endif()
+
 if(CONFIG_STM32_OTGHS AND CONFIG_USBHOST)
   list(APPEND SRCS stm32_usbhost.c)
 endif()

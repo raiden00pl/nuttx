@@ -29,8 +29,8 @@ ADC         Yes      ADC1 and ADC2 through the common ADC v3 driver,
                      interrupt-driven conversions only (no DMA or timer
                      trigger).
 Cache       Yes      L1 I- and D-cache (``CONFIG_ARMV8M_ICACHE``,
-                     ``CONFIG_ARMV8M_DCACHE``).  The USB host driver does
-                     not maintain the D-cache yet.
+                     ``CONFIG_ARMV8M_DCACHE``).  The USB host driver uses
+                     the slave (CPU FIFO) mode and needs no maintenance.
 DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
                      interface: raw Bayer to RGB565 (black level, white
                      balance, demosaicing, colour matrix, gamma) and

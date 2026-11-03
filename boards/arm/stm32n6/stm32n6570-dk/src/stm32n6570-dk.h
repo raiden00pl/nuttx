@@ -215,6 +215,18 @@ void stm32_spiregister(void);
 #endif
 
 /****************************************************************************
+ * Name: stm32_dma_alloc_init
+ *
+ * Description:
+ *   Create the FAT DMA allocator.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_FAT_DMAMEMORY
+int stm32_dma_alloc_init(void);
+#endif
+
+/****************************************************************************
  * Name: stm32_sdio_initialize
  *
  * Description:

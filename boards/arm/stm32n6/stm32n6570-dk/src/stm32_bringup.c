@@ -144,6 +144,16 @@ int stm32_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_FAT_DMAMEMORY
+  /* Create the cache-line aligned FAT sector buffer pool */
+
+  ret = stm32_dma_alloc_init();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_dma_alloc_init() failed: %d\n", ret);
+    }
+#endif
+
 #if defined(CONFIG_STM32_SDMMC2) && defined(CONFIG_MMCSD_SDIO)
   /* Initialize the microSD slot */
 
