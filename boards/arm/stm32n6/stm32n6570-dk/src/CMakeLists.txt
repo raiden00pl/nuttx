@@ -72,6 +72,10 @@ if(CONFIG_AUDIO_WM8904)
   list(APPEND SRCS stm32_wm8904.c)
 endif()
 
+if(CONFIG_STM32_MDF1)
+  list(APPEND SRCS stm32_mdf.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

@@ -205,6 +205,16 @@ int stm32_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_STM32_MDF1
+  /* Register the digital microphone as /dev/audio/pcm_in0 */
+
+  ret = stm32_mdf_setup(0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: stm32_mdf_setup() failed: %d\n", ret);
+    }
+#endif
+
 #if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
   /* Register the IMX335 camera and the V4L2 capture device /dev/video */
 

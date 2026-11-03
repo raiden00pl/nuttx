@@ -234,6 +234,15 @@
 #define STM32_RCC_CCIPR7_SAI1SEL RCC_CCIPR7_SAI1SEL_IC7
 #define STM32_SAI1_FREQUENCY     (STM32_PLL2_FREQUENCY / STM32_IC7_DIV)
 
+/* MDF1 kernel clock: IC8 = PLL2 / 50 = 30.72 MHz, divided to the 2.048 MHz
+ * (8 to 32 kHz) or 3.072 MHz (48 kHz) microphone clock.
+ */
+
+#define STM32_IC8_SRC            RCC_ICCFGR_SEL_PLL2
+#define STM32_IC8_DIV            50
+#define STM32_RCC_CCIPR5_MDF1SEL RCC_CCIPR5_MDF1SEL_IC8
+#define STM32_MDF1_FREQUENCY     (STM32_PLL2_FREQUENCY / STM32_IC8_DIV)
+
 /* LTDC kernel clock: IC16 (25 MHz pixel clock) */
 
 #define STM32_RCC_CCIPR4_LTDCSEL RCC_CCIPR4_LTDCSEL_IC16
@@ -396,6 +405,13 @@
 #define GPIO_SAI1_FS_A    (GPIO_SAI1_FS_A_1 | GPIO_SPEED_50MHZ)
 #define GPIO_SAI1_SD_A    (GPIO_SAI1_SD_A_1 | GPIO_SPEED_50MHZ)
 #define GPIO_SAI1_SD_B    (GPIO_SAI1_SD_B_1 | GPIO_SPEED_50MHZ)
+
+/* MDF GPIOs ****************************************************************/
+
+/* Digital MEMS microphone on MDF1: PE2 CCK0 (clock), PE8 SDI0 (data) */
+
+#define GPIO_MDF1_CCK0    (GPIO_MDF1_CCK0_1 | GPIO_SPEED_50MHZ)
+#define GPIO_MDF1_SDI0    (GPIO_MDF1_SDI0_1 | GPIO_SPEED_50MHZ)
 
 /* LTDC *********************************************************************/
 

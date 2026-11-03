@@ -212,6 +212,21 @@ card::
   nxplayer> volume 50
   nxplayer> play /mnt/test.wav
 
+Microphone
+==========
+
+The digital MEMS microphone is on MDF1 filter 0: PE2 CCK0 (clock) and PE8
+SDI0 (data), AF4.  The MDF1 kernel clock is IC8 = PLL2 / 50 = 30.72 MHz,
+the microphone clock 2.048 MHz (8, 16, 32 kHz) or 3.072 MHz (48 kHz).  The
+device is ``/dev/audio/pcm_in0``: 16-bit mono, or the same sample on both
+channels for stereo.  Record raw PCM to the microSD card::
+
+  nsh> mount -t vfat /dev/mmcsd0 /mnt
+  nsh> nxrecorder
+  nxrecorder> device /dev/audio/pcm_in0
+  nxrecorder> recordraw /mnt/mic.raw 1 16 16000
+  nxrecorder> stop
+
 Ethernet
 ========
 
@@ -345,6 +360,12 @@ audio
 
 ``sdcard`` plus the WM8904 headphone output and ``nxplayer``, see
 `Audio`_.
+
+mic
+---
+
+``audio`` plus the MDF1 digital microphone and ``nxrecorder``, see
+`Microphone`_.
 
 netnsh
 ------

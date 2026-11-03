@@ -303,6 +303,12 @@ config STM32_HAVE_DCMIPP
 config STM32_HAVE_MDF1
 	bool
 
+config STM32_HAVE_MDF_AUDIO
+	bool
+	---help---
+		The MDF driver is an audio capture lower half fed by GPDMA1
+		(STM32N6).
+
 config STM32_HAVE_ADF1
 	bool
 

@@ -43,6 +43,9 @@ LPTIM       Yes      Through the common driver.
 LTDC        Yes      Common LTDC driver (v2 register layout), RGB565,
                      RGB888 and ARGB8888 layers.  The layer bus masters
                      are made Secure and privileged through the RIF.
+MDF         Yes      MDF1 filter 0 as an audio capture device for a PDM
+                     microphone (Sinc4, reshape and high-pass filters,
+                     GPDMA, 16-bit PCM at 8, 16, 32 or 48 kHz).
 EXTI        Yes      GPIO interrupts through the common driver.
 ETH         Yes      ETH1 through the common Ethernet v2 driver, MII, RMII
                      or RGMII up to 1000 Mbps.
