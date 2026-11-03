@@ -120,6 +120,12 @@ void stm32_rifconfig(void)
   rif_setslave_secpriv(RIFSC_PERIPH_SAI1);
 #endif
 
+#ifdef CONFIG_STM32_MDF1
+  /* MDF1 is accessed by the Secure GPDMA */
+
+  rif_setslave_secpriv(RIFSC_PERIPH_MDF1);
+#endif
+
 #ifdef CONFIG_STM32_SDMMC1
   /* The SDMMC IDMA reads and writes buffers in Secure AXISRAM */
 

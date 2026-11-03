@@ -53,6 +53,10 @@ if(CONFIG_STM32_DCMIPP)
   list(APPEND SRCS stm32_csi.c stm32_dcmipp.c)
 endif()
 
+if(CONFIG_STM32_MDF1)
+  list(APPEND SRCS stm32_mdf.c)
+endif()
+
 # Chip-specific RCC
 
 if(CONFIG_STM32_STM32N6XXXX)

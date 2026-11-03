@@ -181,6 +181,7 @@
 /* AHB2 peripherals *********************************************************/
 
 #define STM32_RAMCFG_BASE     0x52023000    /* RAMCFG (AHB2, Secure) */
+#define STM32_MDF1_BASE       0x52025000    /* MDF1 (AHB2, Secure) */
 
 /* AHB5 peripherals *********************************************************/
 

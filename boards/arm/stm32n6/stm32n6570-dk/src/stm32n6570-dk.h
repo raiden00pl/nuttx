@@ -286,5 +286,18 @@ int stm32_camera_initialize(void);
 int stm32_wm8904_initialize(int minor);
 #endif
 
+/****************************************************************************
+ * Name: stm32_mdf_setup
+ *
+ * Description:
+ *   Register the digital microphone on MDF1 (PE2 CCK0, PE8 SDI0) as
+ *   /dev/audio/pcm_in<minor>.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_STM32_MDF1
+int stm32_mdf_setup(int minor);
+#endif
+
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_STM32N6_STM32N6570_DK_SRC_STM32N6570_DK_H */

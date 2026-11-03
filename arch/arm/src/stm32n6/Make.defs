@@ -51,6 +51,10 @@ ifeq ($(CONFIG_STM32_DCMIPP),y)
 CHIP_CSRCS += stm32_csi.c stm32_dcmipp.c
 endif
 
+ifeq ($(CONFIG_STM32_MDF1),y)
+CHIP_CSRCS += stm32_mdf.c
+endif
+
 # Chip-specific RCC
 
 CHIP_CSRCS += stm32n6xx_rcc.c

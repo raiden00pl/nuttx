@@ -483,6 +483,12 @@ config STM32_MDF1
 	depends on STM32_HAVE_MDF1
 	bool "MDF1"
 	default n
+	select AUDIO if ARCH_CHIP_STM32N6
+	select SCHED_HPWORK if ARCH_CHIP_STM32N6
+	select STM32_DMA1 if ARCH_CHIP_STM32N6
+	---help---
+		On STM32N6: audio capture lower half for a PDM microphone on
+		filter 0 (MDF1_CCK0 clock, MDF1_SDI0 data) with GPDMA1.
 
 config STM32_ADF1
 	depends on STM32_HAVE_ADF1
