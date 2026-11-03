@@ -293,6 +293,12 @@ board values.  The board registers the sensor, the DCMIPP and
 ``/dev/video``; ``camera 0`` shows a continuous 320x240 preview in the top
 left corner of the LCD.
 
+The module also carries an ISM330DLC IMU (I2C1 0x6a) and a VL53L5CX
+time-of-flight sensor (I2C1 0x29).  The IMU is register compatible with
+the LSM6DS3TR-C and uses its uORB driver (``CONFIG_SENSORS_LSM6DS3TRC``)
+in polling mode as ``/dev/uorb/sensor_accel0`` and
+``/dev/uorb/sensor_gyro0``.  The VL53L5CX is not supported.
+
 Clocking
 ========
 
@@ -334,6 +340,15 @@ camera
 
 ``fb`` plus the IMX335 camera, the DCMIPP, NX and the ``camera`` example
 with LCD output, see `Camera`_.  Run ``camera 0``.
+
+sensors
+-------
+
+``nsh`` plus the camera module IMU and ``sensortest``.  The board powers
+the module and keeps the IMX335 in reset::
+
+  nsh> sensortest -n 10 accel0
+  nsh> sensortest -n 10 -i 10000 gyro0
 
 sdcard
 ------

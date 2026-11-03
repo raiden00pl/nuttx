@@ -119,6 +119,13 @@
                         GPIO_OUTPUT_CLEAR | GPIO_PORTD | GPIO_PIN2)
 #define CAMERA_I2C_BUS 1
 
+/* ISM330DLC IMU on the camera module, I2C1 (0x6a), polled.  It is
+ * register compatible with the LSM6DS3TR-C and uses that driver.
+ */
+
+#define IMU_I2C_BUS    1
+#define IMU_I2C_ADDR   0x6a
+
 #define SDIO_SLOTNO    0
 #define SDIO_MINOR     0
 
@@ -255,6 +262,18 @@ int stm32_psram_initialize(void);
 
 #ifdef CONFIG_STM32N6570_DK_NOR
 int stm32_nor_initialize(void);
+#endif
+
+/****************************************************************************
+ * Name: stm32_camera_power
+ *
+ * Description:
+ *   Power the camera module with the IMX335 held in reset.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_STM32_DCMIPP) || defined(CONFIG_SENSORS_LSM6DS3TRC)
+void stm32_camera_power(void);
 #endif
 
 /****************************************************************************

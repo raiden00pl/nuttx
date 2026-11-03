@@ -45,6 +45,10 @@
 #  include "stm32_gt9xx.h"
 #endif
 
+#ifdef CONFIG_SENSORS_LSM6DS3TRC
+#  include "stm32_lsm6ds3trc.h"
+#endif
+
 #include <arch/board/board.h>
 
 /****************************************************************************
@@ -222,6 +226,23 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_camera_initialize() failed: %d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_LSM6DS3TRC
+  /* Power the camera module for its sensors */
+
+  stm32_camera_power();
+
+  /* Register the camera module IMU as /dev/uorb/sensor_accel0 and
+   * /dev/uorb/sensor_gyro0.
+   */
+
+  ret = board_lsm6ds3trc_initialize(0, IMU_I2C_BUS, IMU_I2C_ADDR);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_lsm6ds3trc_initialize() failed: %d\n",
+             ret);
     }
 #endif
 

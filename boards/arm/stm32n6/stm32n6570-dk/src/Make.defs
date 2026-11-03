@@ -67,7 +67,7 @@ ifeq ($(CONFIG_STM32N6570_DK_NOR),y)
 CSRCS += stm32_mx66uw1g45g.c
 endif
 
-ifeq ($(CONFIG_STM32_DCMIPP),y)
+ifneq ($(CONFIG_STM32_DCMIPP)$(CONFIG_SENSORS_LSM6DS3TRC),)
 CSRCS += stm32_camera.c
 endif
 

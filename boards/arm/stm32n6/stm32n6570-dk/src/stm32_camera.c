@@ -26,6 +26,7 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <errno.h>
 #include <debug.h>
 
@@ -41,11 +42,23 @@
 #include "stm32_dcmipp.h"
 #include "stm32n6570-dk.h"
 
-#if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
-
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#if defined(CONFIG_STM32_DCMIPP) && defined(CONFIG_VIDEO_IMX335)
+#  define HAVE_IMX335 1
+#endif
+
+/* Module supply settling time after enable, with the sensor in reset */
+
+#define CAMERA_POWER_DELAY  10000
+
+/* IMX335 reset release to the first I2C access (T4 in the Zephyr imx335
+ * driver).
+ */
+
+#define CAMERA_RESET_DELAY  600
 
 /* The MB1854 module has its own 24 MHz oscillator for the IMX335 */
 
@@ -58,6 +71,8 @@
 /****************************************************************************
  * Private Data
  ****************************************************************************/
+
+#ifdef HAVE_IMX335
 
 /* IMX335: 2592x1944 RAW10 RGGB on two CSI-2 lanes.  The D-PHY receives the
  * sensor without errors when set to 800 to 1600 Mbit/s per lane (measured on
@@ -96,9 +111,31 @@ static const struct stm32_dcmipp_config_s g_camera_config =
   .gainsteps  = 20,
 };
 
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: stm32_camera_power
+ ****************************************************************************/
+
+void stm32_camera_power(void)
+{
+  static bool powered;
+
+  if (!powered)
+    {
+      stm32_configgpio(GPIO_CAM_NRST);
+      stm32_configgpio(GPIO_CAM_EN);
+      stm32_gpiowrite(GPIO_CAM_EN, true);
+      nxsig_usleep(CAMERA_POWER_DELAY);
+      powered = true;
+    }
+}
+
+#ifdef HAVE_IMX335
 
 /****************************************************************************
  * Name: stm32_camera_initialize
@@ -111,16 +148,11 @@ int stm32_camera_initialize(void)
   FAR struct imgdata_s *data;
   int ret;
 
-  /* Power the module with the sensor held in reset, then release it */
+  /* Power the module, then release the sensor reset */
 
-  stm32_configgpio(GPIO_CAM_NRST);
-  stm32_configgpio(GPIO_CAM_EN);
-  nxsig_usleep(100000);
-
-  stm32_gpiowrite(GPIO_CAM_EN, true);
-  nxsig_usleep(10000);
+  stm32_camera_power();
   stm32_gpiowrite(GPIO_CAM_NRST, true);
-  nxsig_usleep(20000);
+  nxsig_usleep(CAMERA_RESET_DELAY);
 
   i2c = stm32_i2cbus_initialize(CAMERA_I2C_BUS);
   if (i2c == NULL)
@@ -152,4 +184,4 @@ int stm32_camera_initialize(void)
   return capture_initialize(CAMERA_DEVPATH);
 }
 
-#endif /* CONFIG_STM32_DCMIPP && CONFIG_VIDEO_IMX335 */
+#endif /* HAVE_IMX335 */

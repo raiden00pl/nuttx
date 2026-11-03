@@ -82,6 +82,10 @@ ifeq ($(CONFIG_INPUT_GT9XX),y)
   CSRCS += stm32_gt9xx.c
 endif
 
+ifeq ($(CONFIG_SENSORS_LSM6DS3TRC),y)
+  CSRCS += stm32_lsm6ds3trc.c
+endif
+
 ifeq ($(CONFIG_WL_NRF24L01),y)
   CSRCS += stm32_nrf24l01.c
 endif
