@@ -50,6 +50,7 @@
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/signal.h>
 #include <nuttx/i2c/i2c_master.h>
 #include <nuttx/video/imgsensor.h>
@@ -111,6 +112,7 @@ struct imx335_dev_s
 {
   struct imgsensor_s sensor;          /* Must be first */
   FAR struct i2c_master_s *i2c;       /* I2C bus */
+  mutex_t lock;                       /* Serializes the sensor access */
   FAR const struct imx335_inck_s *inck;
   uint32_t exposure;                  /* Exposure time in 100 us units */
   uint32_t gain;                      /* Gain in 0.3 dB steps */
@@ -606,21 +608,22 @@ static bool imx335_is_available(FAR struct imgsensor_s *sensor)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
   uint8_t vmax[3];
+  int ret = OK;
   int i;
 
   /* There is no ID register; VMAX keeps its reset value of 4500 lines as
    * the driver never changes it.
    */
 
-  for (i = 0; i < 3; i++)
+  nxmutex_lock(&priv->lock);
+  for (i = 0; i < 3 && ret >= 0; i++)
     {
-      if (imx335_getreg(priv, IMX335_REG_VMAX + i, &vmax[i]) < 0)
-        {
-          return false;
-        }
+      ret = imx335_getreg(priv, IMX335_REG_VMAX + i, &vmax[i]);
     }
 
-  return (vmax[0] | (vmax[1] << 8) | ((uint32_t)vmax[2] << 16)) ==
+  nxmutex_unlock(&priv->lock);
+  return ret >= 0 &&
+         (vmax[0] | (vmax[1] << 8) | ((uint32_t)vmax[2] << 16)) ==
          IMX335_VMAX;
 }
 
@@ -633,6 +636,7 @@ static int imx335_init(FAR struct imgsensor_s *sensor)
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
   int ret;
 
+  nxmutex_lock(&priv->lock);
   ret = imx335_putreglist(priv, g_imx335_init_regs,
                           nitems(g_imx335_init_regs));
   if (ret >= 0)
@@ -663,6 +667,7 @@ static int imx335_init(FAR struct imgsensor_s *sensor)
     }
 
   priv->streaming = false;
+  nxmutex_unlock(&priv->lock);
   return ret;
 }
 
@@ -673,9 +678,13 @@ static int imx335_init(FAR struct imgsensor_s *sensor)
 static int imx335_uninit(FAR struct imgsensor_s *sensor)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
+  int ret;
 
+  nxmutex_lock(&priv->lock);
   priv->streaming = false;
-  return imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_STANDBY, 1);
+  ret = imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_STANDBY, 1);
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 /****************************************************************************
@@ -731,24 +740,25 @@ static int imx335_start_capture(FAR struct imgsensor_s *sensor,
                                 FAR imgsensor_interval_t *interval)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
-  int ret;
+  int ret = OK;
 
-  if (priv->streaming)
+  nxmutex_lock(&priv->lock);
+  if (!priv->streaming)
     {
-      return OK;
+      ret = imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_OPERATING, 1);
+      if (ret >= 0)
+        {
+          /* Settling time after leaving standby, as in the Zephyr
+           * driver.
+           */
+
+          nxsig_usleep(20);
+          priv->streaming = true;
+        }
     }
 
-  ret = imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_OPERATING, 1);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /* Settling time after leaving standby, as in the Zephyr driver */
-
-  nxsig_usleep(20);
-  priv->streaming = true;
-  return OK;
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 /****************************************************************************
@@ -759,19 +769,27 @@ static int imx335_stop_capture(FAR struct imgsensor_s *sensor,
                                imgsensor_stream_type_t type)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
+  int ret = OK;
 
   /* The capture framework may stop the stream from the frame interrupt
    * when it runs out of buffers.  I2C is not possible there; keep the
    * sensor running, the capture interface drops the frames.
    */
 
-  if (up_interrupt_context() || !priv->streaming)
+  if (up_interrupt_context())
     {
       return OK;
     }
 
-  priv->streaming = false;
-  return imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_STANDBY, 1);
+  nxmutex_lock(&priv->lock);
+  if (priv->streaming)
+    {
+      priv->streaming = false;
+      ret = imx335_putreg(priv, IMX335_REG_STANDBY, IMX335_STANDBY, 1);
+    }
+
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 /****************************************************************************
@@ -827,20 +845,26 @@ static int imx335_get_value(FAR struct imgsensor_s *sensor,
                             FAR imgsensor_value_t *value)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
+  int ret = OK;
 
+  nxmutex_lock(&priv->lock);
   switch (id)
     {
       case IMGSENSOR_ID_EXPOSURE_ABSOLUTE:
         value->value32 = priv->exposure;
-        return OK;
+        break;
 
       case IMGSENSOR_ID_GAIN:
         value->value32 = priv->gain;
-        return OK;
+        break;
 
       default:
-        return -EINVAL;
+        ret = -EINVAL;
+        break;
     }
+
+  nxmutex_unlock(&priv->lock);
+  return ret;
 }
 
 /****************************************************************************
@@ -852,6 +876,7 @@ static int imx335_set_value(FAR struct imgsensor_s *sensor,
                             imgsensor_value_t value)
 {
   FAR struct imx335_dev_s *priv = (FAR struct imx335_dev_s *)sensor;
+  int ret;
 
   switch (id)
     {
@@ -861,7 +886,10 @@ static int imx335_set_value(FAR struct imgsensor_s *sensor,
             return -EINVAL;
           }
 
-        return imx335_setexposure(priv, value.value32);
+        nxmutex_lock(&priv->lock);
+        ret = imx335_setexposure(priv, value.value32);
+        nxmutex_unlock(&priv->lock);
+        return ret;
 
       case IMGSENSOR_ID_GAIN:
         if (value.value32 < 0 || value.value32 > IMX335_GAIN_MAX)
@@ -869,7 +897,10 @@ static int imx335_set_value(FAR struct imgsensor_s *sensor,
             return -EINVAL;
           }
 
-        return imx335_setgain(priv, value.value32);
+        nxmutex_lock(&priv->lock);
+        ret = imx335_setgain(priv, value.value32);
+        nxmutex_unlock(&priv->lock);
+        return ret;
 
       default:
         return -EINVAL;
@@ -918,6 +949,7 @@ FAR struct imgsensor_s *imx335_initialize(FAR struct i2c_master_s *i2c,
     }
 
   priv->i2c      = i2c;
+  nxmutex_init(&priv->lock);
   priv->exposure = CONFIG_VIDEO_IMX335_EXPOSURE;
   priv->gain     = CONFIG_VIDEO_IMX335_GAIN;
 
