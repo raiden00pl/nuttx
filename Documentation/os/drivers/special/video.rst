@@ -82,4 +82,5 @@ the ``imgsensor`` and ``imgdata`` ops and registers its own device with
 ``capture_register()``, so it does not affect the cameras.  The frame is
 ``V4L2_PIX_FMT_Z16``: one little-endian 16-bit distance in millimetres
 per pixel, 0 when the pixel has no valid target.  The resolutions and
-the frame rates are V4L2 frame sizes and frame intervals.
+the frame rates are V4L2 frame sizes and frame intervals; an interval
+entry that sets a size or a format only applies to it.
