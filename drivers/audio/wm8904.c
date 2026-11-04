@@ -480,7 +480,9 @@ static void wm8904_setvolume(FAR struct wm8904_dev_s *priv, uint16_t volume,
 
   wm8904_writereg(priv, WM8904_ANA_LEFT_OUT1, regval);
 
-  regval = WM8904_HPOUTZC | WM8904_HPOUT_VOL(rightlevel);
+  /* HPOUT_VU applies the left and right levels together */
+
+  regval = WM8904_HPOUT_VU | WM8904_HPOUTZC | WM8904_HPOUT_VOL(rightlevel);
   if (mute)
     {
       regval |= WM8904_HPOUT_MUTE;
