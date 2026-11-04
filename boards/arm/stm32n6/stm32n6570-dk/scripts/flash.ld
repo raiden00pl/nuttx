@@ -25,12 +25,22 @@
  * the vector table and payload start at 0x34180400.  The ROM download
  * buffer ends at 0x34200000, limiting the payload to 511 KiB.
  * After boot, the remaining contiguous AXISRAM is available for data
- * and the heap through 0x34400000.
+ * and the heap through CONFIG_RAM_END (at most 0x34400000).
  */
+
+#include <nuttx/config.h>
+
+#if CONFIG_RAM_START != 0x34180400
+#  error "The boot ROM starts the payload at 0x34180400"
+#endif
+
+#if CONFIG_RAM_END > 0x34400000
+#  error "CONFIG_RAM_SIZE exceeds AXISRAM"
+#endif
 
 MEMORY
 {
-    sram (rwx) : ORIGIN = 0x34180400, LENGTH = 2620416
+    sram (rwx) : ORIGIN = CONFIG_RAM_START, LENGTH = CONFIG_RAM_SIZE
 }
 
 OUTPUT_ARCH(arm)
