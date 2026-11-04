@@ -41,6 +41,10 @@
 #include "stm32n6570-dk.h"
 #include "board_common.h"
 
+#ifdef CONFIG_PWM
+#  include "board_pwm.h"
+#endif
+
 #ifdef CONFIG_INPUT_GT9XX
 #  include "stm32_gt9xx.h"
 #endif
