@@ -115,6 +115,10 @@
 #  include <arch/chip/cisif.h>
 #endif
 
+#ifdef CONFIG_VIDEO_STREAM
+#  include <nuttx/video/v4l2_cap.h>
+#endif
+
 #include "spresense.h"
 
 /****************************************************************************
@@ -408,6 +412,18 @@ int cxd56_bringup(void)
       _err("ERROR: Failed to initialize CISIF. %d\n", errno);
       ret = ERROR;
     }
+#  ifdef CONFIG_VIDEO_STREAM
+  else
+    {
+      /* Create /dev/video for the connected image sensor */
+
+      ret = capture_initialize("/dev/video");
+      if (ret < 0)
+        {
+          _err("ERROR: Failed to register /dev/video. %d\n", ret);
+        }
+    }
+#  endif
 #endif /* CONFIG_CXD56_CISIF */
 #endif /* CONFIG_CXD56_CAMERA_LATE_INITIALIZE */
 
@@ -468,6 +484,7 @@ int cxd56_bringup(void)
 
 #if defined(CONFIG_RNDIS) && !defined(CONFIG_RNDIS_COMPOSITE)
   uint8_t mac[6];
+
   mac[0] = 0xa0; /* TODO */
   mac[1] = (CONFIG_NETINIT_MACADDR_2 >> (8 * 0)) & 0xff;
   mac[2] = (CONFIG_NETINIT_MACADDR_1 >> (8 * 3)) & 0xff;
