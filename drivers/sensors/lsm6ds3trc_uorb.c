@@ -775,12 +775,9 @@ static int gyro_thread(int argc, char **argv)
             }
         }
 
-      err = push_gyro(dev);
-      if (err < 0)
-        {
-          continue;
-        }
+      /* Sleep even when the read fails, not to spin on a bus error */
 
+      push_gyro(dev);
       nxsched_usleep(ODR_INTERVAL[dev->gyro.odr]);
     }
 
@@ -813,12 +810,9 @@ static int accel_thread(int argc, char **argv)
             }
         }
 
-      err = push_accel(dev);
-      if (err < 0)
-        {
-          continue;
-        }
+      /* Sleep even when the read fails, not to spin on a bus error */
 
+      push_accel(dev);
       nxsched_usleep(ODR_INTERVAL[dev->accel.odr]);
     }
 
