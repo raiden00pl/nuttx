@@ -508,6 +508,12 @@ if(CONFIG_SENSORS)
     list(APPEND SRCS vl53l1x.c)
   endif()
 
+  # ST VL53L5CX
+
+  if(CONFIG_SENSORS_VL53L5CX)
+    list(APPEND SRCS vl53l5cx.c)
+  endif()
+
   # Sensixs XEN1210
 
   if(CONFIG_SENSORS_XEN1210)

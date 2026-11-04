@@ -2282,6 +2282,55 @@ config SENSORS_VL53L1X
 	---help---
 		Enable driver support for the VL53L1X Time Of Flight sensor.
 
+config SENSORS_VL53L5CX
+	bool "ST VL53L5CX multizone ToF sensor"
+	default n
+	depends on VIDEO_STREAM
+	select I2C
+	select SCHED_LPWORK
+	---help---
+		Enable the ST VL53L5CX 8x8 multizone time-of-flight sensor as a
+		V4L2 depth capture device (V4L2_PIX_FMT_Z16).  The sensor
+		firmware and configuration are loaded from files at run time.
+
+if SENSORS_VL53L5CX
+
+config VL53L5CX_DEVPATH
+	string "Capture device path"
+	default "/dev/video1"
+
+config VL53L5CX_I2C_FREQUENCY
+	int "I2C frequency"
+	default 400000
+	range 100000 1000000
+
+config VL53L5CX_FIRMWARE_PATH
+	string "Firmware file"
+	default "/mnt/vl53l5cx_fw.bin"
+	---help---
+		Sensor firmware image, 86016 bytes.
+
+config VL53L5CX_CONFIG_PATH
+	string "Default configuration file"
+	default "/mnt/vl53l5cx_cfg.bin"
+	---help---
+		Default configuration, 972 bytes, from the same release as the
+		firmware.
+
+config VL53L5CX_XTALK_PATH
+	string "Crosstalk file"
+	default "/mnt/vl53l5cx_xtalk.bin"
+	---help---
+		Default or calibrated crosstalk record, 776 bytes.
+
+config VL53L5CX_NVMREQ_PATH
+	string "NVM read request file"
+	default "/mnt/vl53l5cx_nvm.bin"
+	---help---
+		NVM read request command, 40 bytes.
+
+endif # SENSORS_VL53L5CX
+
 config SENSORS_XEN1210
 	bool "Sensixs XEN1210 Magnetometer"
 	default n

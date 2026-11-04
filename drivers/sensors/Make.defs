@@ -506,6 +506,12 @@ ifeq ($(CONFIG_SENSORS_VL53L1X),y)
   CSRCS += vl53l1x.c
 endif
 
+# ST VL53L5CX
+
+ifeq ($(CONFIG_SENSORS_VL53L5CX),y)
+  CSRCS += vl53l5cx.c
+endif
+
 # Sensixs XEN1210
 
 ifeq ($(CONFIG_SENSORS_XEN1210),y)

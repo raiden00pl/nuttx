@@ -112,3 +112,5 @@ the ``imgsensor`` and ``imgdata`` ops and registers its own device with
 per pixel, 0 when the pixel has no valid target.  The resolutions and
 the frame rates are V4L2 frame sizes and frame intervals; an interval
 entry that sets a size or a format only applies to it.
+
+Driver: :doc:`sensors/vl53l5cx`.
