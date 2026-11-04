@@ -40,6 +40,16 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* The LTDC framebuffer must not overlap the image and the heap */
+
+#ifdef CONFIG_STM32_LTDC
+#  if CONFIG_STM32_LTDC_FB_BASE < CONFIG_RAM_END && \
+      CONFIG_STM32_LTDC_FB_BASE + CONFIG_STM32_LTDC_FB_SIZE > \
+      CONFIG_RAM_START
+#    error "The LTDC framebuffer overlaps the heap"
+#  endif
+#endif
+
 /* The LTDC reads the framebuffer from memory, so with the D-cache it must
  * not be cacheable.
  */
@@ -49,6 +59,18 @@
 #    error "The LTDC framebuffer with the D-cache needs CONFIG_ARM_MPU"
 #  endif
 #  define HAVE_FB_MPU 1
+#endif
+
+/* The DMA2D overlays are placed above the heap (CONFIG_RAM_END) and are
+ * also accessed by bus masters, so they are not cacheable either.
+ */
+
+#ifdef CONFIG_STM32_DMA2D
+#  if CONFIG_STM32_DMA2D_FB_BASE < CONFIG_RAM_END && \
+      CONFIG_STM32_DMA2D_FB_BASE + CONFIG_STM32_DMA2D_FB_SIZE > \
+      CONFIG_RAM_START
+#    error "The DMA2D overlays overlap the heap, lower CONFIG_RAM_SIZE"
+#  endif
 #endif
 
 /****************************************************************************
@@ -76,6 +98,14 @@ void stm32_board_initialize(void)
   mpu_configure_region(CONFIG_STM32_LTDC_FB_BASE, CONFIG_STM32_LTDC_FB_SIZE,
                        MPU_RBAR_XN | MPU_RBAR_AP_RWRW | MPU_RBAR_SH_NO,
                        MPU_RLAR_NONCACHEABLE);
+#  ifdef CONFIG_STM32_DMA2D
+  /* The same for the DMA2D overlays */
+
+  mpu_configure_region(CONFIG_STM32_DMA2D_FB_BASE,
+                       CONFIG_STM32_DMA2D_FB_SIZE,
+                       MPU_RBAR_XN | MPU_RBAR_AP_RWRW | MPU_RBAR_SH_NO,
+                       MPU_RLAR_NONCACHEABLE);
+#  endif
   mpu_control(true, false, true);
 #endif
 

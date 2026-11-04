@@ -166,6 +166,13 @@ framebuffer is placed in AXISRAM1/2 at 0x34080000 (768000 bytes), below
 the image, so the heap is not affected.  Run ``fb`` to draw the test
 pattern.
 
+``CONFIG_STM32_DMA2D`` adds ``CONFIG_STM32_DMA2D_NLAYERS`` DMA2D overlays to
+``/dev/fb0`` after the LTDC layers for fill, blit and blend
+(``CONFIG_FB_OVERLAY_BLIT``).  Their memory (``CONFIG_STM32_DMA2D_FB_BASE``,
+``CONFIG_STM32_DMA2D_FB_SIZE``) must be outside the heap: lower
+``CONFIG_RAM_SIZE`` to reserve it at the top of AXISRAM.  The board maps it
+non-cacheable like the LTDC framebuffer.
+
 The GT911 touch controller on I2C2 (interrupt on PQ4) is reset at bring-up
 with PQ4 held low, which selects address 0x5d, and registered as
 ``/dev/input0``; ``tc`` prints the touch coordinates.
@@ -340,6 +347,24 @@ camera
 
 ``fb`` plus the IMX335 camera, the DCMIPP, NX and the ``camera`` example
 with LCD output, see `Camera`_.  Run ``camera 0``.
+
+lvglcam
+-------
+
+``lvgl`` plus the camera, the IMU, microSD, Ethernet and the ``lvglcam``
+dashboard.  Start it with ``lvglcam &``, stop it with ``kill``.  LVGL draws
+to LTDC layer 1 (overlay 0).  The camera captures 512x384 RGB565 frames into
+three DMA2D overlays, which are blitted into LTDC layer 2 (overlay 1), placed
+over the view with ``FBIOSET_DESTAREA``:
+
+=========================  ==========================================
+0x34000000-0x340bb7ff      LTDC layer 1 (overlay 0)
+0x340bb800-0x34176fff      LTDC layer 2 (overlay 1)
+0x34180000-0x341803ff      image header
+0x34180400-0x342dffff      image, idle stack and heap
+0x342e0000-0x343fffff      DMA2D overlays 2-4 (``CONFIG_RAM_SIZE`` ends
+                           the heap below them)
+=========================  ==========================================
 
 sensors
 -------
