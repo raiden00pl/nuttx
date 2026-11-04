@@ -26,12 +26,12 @@
  * (drivers/video/imx335.c, Apache-2.0): all-pixel scan, 2 data lanes,
  * 10 bits, 30 frames per second with the default VMAX of 4500 lines.
  *
- * The sensor only outputs raw Bayer data.  The capture interface it is
- * paired with (for example the STM32N6 DCMIPP) must demosaic and scale the
- * frames, so the formats and sizes reported here are the ones produced by
- * that image pipeline.  There is no automatic exposure in the sensor; the
- * exposure time and the gain can be changed with V4L2_CID_EXPOSURE_ABSOLUTE
- * and V4L2_CID_GAIN.
+ * The sensor only outputs the full 2592x1944 RAW10 frame
+ * (V4L2_PIX_FMT_SRGGB10P).  A capture interface with an image signal
+ * processor (for example the STM32N6 DCMIPP) demosaics and scales it and
+ * registers its own image sensor in front of this one.  There is no
+ * automatic exposure in the sensor; the exposure time and the gain can be
+ * changed with V4L2_CID_EXPOSURE_ABSOLUTE and V4L2_CID_GAIN.
  */
 
 /****************************************************************************
@@ -388,38 +388,16 @@ static const struct imgsensor_ops_s g_imx335_ops =
   .set_value              = imx335_set_value,
 };
 
-/* Format produced from the RAW10 stream by the host image pipeline */
-
 static const struct v4l2_fmtdesc g_imx335_fmtdescs[] =
 {
   {
-    .pixelformat = V4L2_PIX_FMT_RGB565,
-    .description = "RGB565",
+    .pixelformat = V4L2_PIX_FMT_SRGGB10P,
+    .description = "RAW10 RGGB",
   },
 };
 
-/* Common sizes; any size up to 2592x1944 is accepted.  The first entry is
- * the default format.
- */
-
 static const struct v4l2_frmsizeenum g_imx335_frmsizes[] =
 {
-  {
-    .type = V4L2_FRMSIZE_TYPE_DISCRETE,
-    .discrete =
-      {
-        .width  = VIDEO_HSIZE_QVGA,
-        .height = VIDEO_VSIZE_QVGA,
-      },
-  },
-  {
-    .type = V4L2_FRMSIZE_TYPE_DISCRETE,
-    .discrete =
-      {
-        .width  = VIDEO_HSIZE_VGA,
-        .height = VIDEO_VSIZE_VGA,
-      },
-  },
   {
     .type = V4L2_FRMSIZE_TYPE_DISCRETE,
     .discrete =
@@ -715,13 +693,8 @@ static int imx335_validate_frame_setting(FAR struct imgsensor_s *sensor,
     }
 
   fmt = &datafmts[IMGSENSOR_FMT_MAIN];
-  if (fmt->pixelformat != IMGSENSOR_PIX_FMT_RGB565)
-    {
-      return -EINVAL;
-    }
-
-  if (fmt->width == 0 || fmt->width > IMX335_WIDTH ||
-      fmt->height == 0 || fmt->height > IMX335_HEIGHT)
+  if (fmt->pixelformat != IMGSENSOR_PIX_FMT_SRGGB10P ||
+      fmt->width != IMX335_WIDTH || fmt->height != IMX335_HEIGHT)
     {
       return -EINVAL;
     }

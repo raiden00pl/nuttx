@@ -59,6 +59,7 @@ struct stm32_dcmipp_config_s
 {
   uint16_t width;          /* Sensor frame width in pixels */
   uint16_t height;         /* Sensor frame height in lines */
+  uint32_t pixelformat;    /* Sensor format, IMGSENSOR_PIX_FMT_xxx */
   uint8_t  lanes;          /* CSI-2 data lanes (1 or 2) */
   uint16_t bitrate;        /* CSI-2 bit rate per lane in Mbit/s */
   uint8_t  bpp;            /* Raw bits per pixel (8, 10, 12 or 14) */
@@ -81,20 +82,20 @@ struct stm32_dcmipp_config_s
  * Description:
  *   Initialize the DCMIPP and CSI-2 host capture interface.  Pipe1
  *   demosaics the raw stream and outputs RGB565 frames scaled to the
- *   requested size.  Register the returned instance with
- *   imgdata_register().
+ *   requested size.  The DCMIPP registers itself as the image data and,
+ *   in front of the raw sensor, as the image sensor of the capture
+ *   framework; do not register the raw sensor.
  *
  * Input Parameters:
  *   config - Sensor and image processing description; must stay valid
- *   sensor - Sensor driven by the automatic exposure, or NULL
+ *   sensor - Raw sensor
  *
  * Returned Value:
- *   Image data instance on success; NULL on failure.
+ *   Zero on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-FAR struct imgdata_s *
-stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config,
-                        FAR struct imgsensor_s *sensor);
+int stm32_dcmipp_initialize(FAR const struct stm32_dcmipp_config_s *config,
+                            FAR struct imgsensor_s *sensor);
 
 #endif /* __ARCH_ARM_SRC_STM32N6_STM32_DCMIPP_H */

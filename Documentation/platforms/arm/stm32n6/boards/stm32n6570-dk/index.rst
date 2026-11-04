@@ -293,12 +293,16 @@ the module and PC8 releases the sensor reset; the module has its own
 D-PHY configuration clock IC18 (20 MHz).  Pipe1 demosaics the frames and
 scales them to RGB565 with the black level measured on the DK and an
 identity colour matrix.  ``CONFIG_STM32_DCMIPP_AE`` adjusts the sensor
-exposure and gain, ``CONFIG_STM32_DCMIPP_AWB`` the white balance gains,
-from the pipe1 statistics; without them they stay at
-``CONFIG_VIDEO_IMX335_EXPOSURE``, ``CONFIG_VIDEO_IMX335_GAIN`` and the
-board values.  The board registers the sensor, the DCMIPP and
-``/dev/video``; ``camera 0`` shows a continuous 320x240 preview in the top
-left corner of the LCD.
+exposure and gain towards ``CONFIG_STM32_DCMIPP_AE_TARGET``,
+``CONFIG_STM32_DCMIPP_AWB`` the white balance gains, from the pipe1
+statistics every ``CONFIG_STM32_DCMIPP_ISP_INTERVAL`` frames.  They are
+switched with ``V4L2_CID_EXPOSURE_AUTO`` and
+``V4L2_CID_AUTO_WHITE_BALANCE``; in manual mode the exposure time and the
+gain are set with ``V4L2_CID_EXPOSURE_ABSOLUTE`` and ``V4L2_CID_GAIN``
+(initially ``CONFIG_VIDEO_IMX335_EXPOSURE`` and
+``CONFIG_VIDEO_IMX335_GAIN``).  The board registers the sensor, the DCMIPP
+in front of it and ``/dev/video``, which reports RGB565; ``camera 0``
+shows a continuous 320x240 preview in the top left corner of the LCD.
 
 The module also carries an ISM330DLC IMU (I2C1 0x6a) and a VL53L5CX
 time-of-flight sensor (I2C1 0x29).  The IMU is register compatible with

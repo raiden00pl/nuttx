@@ -32,7 +32,6 @@
 
 #include <nuttx/signal.h>
 #include <nuttx/i2c/i2c_master.h>
-#include <nuttx/video/imgdata.h>
 #include <nuttx/video/imgsensor.h>
 #include <nuttx/video/imx335.h>
 #include <nuttx/video/v4l2_cap.h>
@@ -79,23 +78,24 @@
  * the DK); 1200 is the middle of that range.  The black level of 12 (8-bit
  * scale) is the dark level measured with the lens covered at the minimum
  * gain and exposure.  Unity white balance gains and an identity colour
- * matrix.
+ * matrix.  The sensor gain has 0.3 dB steps: 20 steps double it.
  */
 
 static const struct stm32_dcmipp_config_s g_camera_config =
 {
-  .width      = 2592,
-  .height     = 1944,
-  .lanes      = 2,
-  .bitrate    = 1200,
-  .bpp        = 10,
-  .bayer      = STM32_DCMIPP_BAYER_RGGB,
-  .blacklevel = 12,
-  .gain       =
+  .width       = 2592,
+  .height      = 1944,
+  .pixelformat = IMGSENSOR_PIX_FMT_SRGGB10P,
+  .lanes       = 2,
+  .bitrate     = 1200,
+  .bpp         = 10,
+  .bayer       = STM32_DCMIPP_BAYER_RGGB,
+  .blacklevel  = 12,
+  .gain        =
     {
       128, 128, 128
     },
-  .ccm        =
+  .ccm         =
     {
       {
         256, 0, 0
@@ -107,8 +107,8 @@ static const struct stm32_dcmipp_config_s g_camera_config =
         0, 0, 256
       },
     },
-  .gamma      = true,
-  .gainsteps  = 20,
+  .gamma       = true,
+  .gainsteps   = 20,
 };
 
 #endif
@@ -145,7 +145,6 @@ int stm32_camera_initialize(void)
 {
   FAR struct i2c_master_s *i2c;
   FAR struct imgsensor_s *sensor;
-  FAR struct imgdata_s *data;
   int ret;
 
   /* Power the module, then release the sensor reset */
@@ -166,14 +165,9 @@ int stm32_camera_initialize(void)
       return -ENODEV;
     }
 
-  data = stm32_dcmipp_initialize(&g_camera_config, sensor);
-  if (data == NULL)
-    {
-      return -ENODEV;
-    }
+  /* The DCMIPP registers itself in front of the raw sensor */
 
-  imgdata_register(data);
-  ret = imgsensor_register(sensor);
+  ret = stm32_dcmipp_initialize(&g_camera_config, sensor);
   if (ret < 0)
     {
       return ret;

@@ -35,8 +35,12 @@ DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
                      interface: raw Bayer to RGB565 (black level, white
                      balance, demosaicing, colour matrix, gamma) and
                      scaling.  Automatic exposure and grey world white
-                     balance from the pipe1 statistics.  No pipe0/pipe2
-                     or parallel input.
+                     balance from the pipe1 statistics
+                     (``CONFIG_STM32_DCMIPP_AE``,
+                     ``CONFIG_STM32_DCMIPP_AWB``), switched with
+                     ``V4L2_CID_EXPOSURE_AUTO`` and
+                     ``V4L2_CID_AUTO_WHITE_BALANCE``.  No pipe0/pipe2 or
+                     parallel input.
 DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
                      The channels are Secure and privileged.
 DMA2D       Yes      Common DMA2D driver as LTDC framebuffer overlays
