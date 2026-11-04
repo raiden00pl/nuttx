@@ -693,7 +693,8 @@ static int stm32_ltdc_reload(uint8_t value, bool waitvblank);
 /* Helper for layer register configuration */
 
 static void stm32_ltdc_lpixelformat(struct stm32_ltdc_s *layer);
-static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer);
+static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer,
+                                    const struct fb_area_s *area);
 static void stm32_ltdc_lenable(struct stm32_ltdc_s *layer, bool enable);
 static void stm32_ltdc_ldefaultcolor(struct stm32_ltdc_s *layer,
                                      uint32_t rgb);
@@ -769,6 +770,8 @@ static int stm32_setblank(struct fb_vtable_s *vtable,
                           const struct fb_overlayinfo_s *oinfo);
 static int stm32_setarea(struct fb_vtable_s *vtable,
                          const struct fb_overlayinfo_s *oinfo);
+static int stm32_setdestarea(struct fb_vtable_s *vtable,
+                             const struct fb_overlayinfo_s *oinfo);
 
 /* The following is provided only if the video hardware supports blit and
  * blend operation
@@ -862,7 +865,8 @@ static struct stm32_ltdcdev_s g_vtable =
       .setchromakey    = stm32_setchromakey,
       .setcolor        = stm32_setcolor,
       .setblank        = stm32_setblank,
-      .setarea         = stm32_setarea
+      .setarea         = stm32_setarea,
+      .setdestarea     = stm32_setdestarea
 #  ifdef CONFIG_FB_OVERLAY_BLIT
       ,
       .blit            = stm32_blit,
@@ -950,6 +954,13 @@ static struct stm32_ltdcdev_s g_vtable =
               .w            = STM32_LTDC_WIDTH,
               .h            = STM32_LTDC_HEIGHT
             },
+          .darea =
+            {
+              .x            = 0,
+              .y            = 0,
+              .w            = STM32_LTDC_WIDTH,
+              .h            = STM32_LTDC_HEIGHT
+            },
           .accl             = LTDC_L1_ACCL
         },
 #endif
@@ -988,6 +999,13 @@ static struct stm32_ltdcdev_s g_vtable =
               .transp_mode  = FB_CONST_ALPHA
             },
           .sarea =
+            {
+              .x            = 0,
+              .y            = 0,
+              .w            = STM32_LTDC_WIDTH,
+              .h            = STM32_LTDC_HEIGHT
+            },
+          .darea =
             {
               .x            = 0,
               .y            = 0,
@@ -1754,16 +1772,19 @@ static void stm32_ltdc_lpixelformat(struct stm32_ltdc_s *layer)
  * Name: stm32_ltdc_lframebuffer
  *
  * Description:
- *   Configure layer framebuffer of the entire window.
+ *   Configure the layer window and its framebuffer.  The window shows the
+ *   framebuffer from its origin.
  *   Note! This changes have no effect until the shadow register reload has
  *   been done.
  *
  * Input Parameters:
- *   Reference to the layer control structure
+ *   layer - Reference to the layer control structure
+ *   area  - Window on the display
  *
  ****************************************************************************/
 
-static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
+static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer,
+                                    const struct fb_area_s *area)
 {
   uint32_t cfblr;
   uint32_t rxpos;
@@ -1773,23 +1794,23 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
   uint8_t  layerno = layer->layerno;
 
   DEBUGASSERT(layer->layerno < LTDC_NLAYERS);
-  reginfo("xpos = %d, ypos = %d, xres = %d, yres = %d\n", 0, 0,
-          stm32_width_layer_t[layerno], stm32_height_layer_t[layerno]);
+  reginfo("xpos = %d, ypos = %d, xres = %d, yres = %d\n", area->x, area->y,
+          area->w, area->h);
 
   /* Calculate register position */
 
-  rxpos = STM32_LTDC_LXWHPCR_WHSTPOS + 1;
-  rypos = STM32_LTDC_LXWVPCR_WVSTPOS + 1;
+  rxpos = STM32_LTDC_LXWHPCR_WHSTPOS + 1 + area->x;
+  rypos = STM32_LTDC_LXWVPCR_WVSTPOS + 1 + area->y;
 
   /* Accumulate horizontal position */
 
   whpcr =  LTDC_LXWHPCR_WHSTPOS(rxpos);
-  whpcr |= LTDC_LXWHPCR_WHSPPOS(rxpos + stm32_width_layer_t[layerno] - 1);
+  whpcr |= LTDC_LXWHPCR_WHSPPOS(rxpos + area->w - 1);
 
   /* Accumulate vertical position */
 
   wvpcr =  LTDC_LXWVPCR_WVSTPOS(rypos);
-  wvpcr |= LTDC_LXWVPCR_WVSPPOS(rypos + stm32_height_layer_t[layerno] - 1);
+  wvpcr |= LTDC_LXWVPCR_WVSPPOS(rypos + area->h - 1);
 
   /* Configure LxWHPCR / LxWVPCR register */
 
@@ -1809,7 +1830,7 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
   /* Calculate line length */
 
   cfblr = LTDC_LXCFBLR_CFBP(stm32_stride_layer_t[layerno]) |
-          LTDC_LXCFBLR_CFBLL(stm32_width_layer_t[layerno] *
+          LTDC_LXCFBLR_CFBLL(area->w *
           STM32_LTDC_LX_BYPP(stm32_bpp_layer_t[layerno]) +
           LTDC_LXCFBLR_CFBLL_EXTRA);
 
@@ -1819,8 +1840,8 @@ static void stm32_ltdc_lframebuffer(struct stm32_ltdc_s *layer)
   /* Configure LxCFBLNR register */
 
   reginfo("set LTDC_L%dCFBLNR=%08" PRIx32 "\n", layerno + 1,
-          stm32_height_layer_t[layerno]);
-  putreg32(stm32_height_layer_t[layerno], stm32_cfblnr_layer_t[layerno]);
+          (uint32_t)area->h);
+  putreg32(area->h, stm32_cfblnr_layer_t[layerno]);
 
   /* Reload shadow register */
 
@@ -2215,6 +2236,7 @@ static void stm32_ltdc_linit(uint8_t overlay)
 
   struct stm32_ltdcdev_s *dev = &g_vtable;
   struct stm32_ltdc_s *layer = &dev->layer[overlay];
+  struct fb_area_s area;
 
   /* Disable layer */
 
@@ -2224,9 +2246,13 @@ static void stm32_ltdc_linit(uint8_t overlay)
 
   stm32_ltdc_lclear(overlay);
 
-  /* Set layers framebuffer */
+  /* Set layers framebuffer, the window covers the whole display */
 
-  stm32_ltdc_lframebuffer(layer);
+  area.x = 0;
+  area.y = 0;
+  area.w = stm32_width_layer_t[overlay];
+  area.h = stm32_height_layer_t[overlay];
+  stm32_ltdc_lframebuffer(layer, &area);
 
   /* Set layers pixel input format */
 
@@ -2842,6 +2868,60 @@ static int stm32_setarea(struct fb_vtable_s *vtable,
       nxmutex_unlock(layer->lock);
 
       return OK;
+    }
+#  endif
+
+  lcderr("ERROR: Returning EINVAL\n");
+  return -EINVAL;
+}
+
+/****************************************************************************
+ * Name: stm32_setdestarea
+ * Description:
+ *   Entrypoint ioctl FBIOSET_DESTAREA
+ ****************************************************************************/
+
+static int stm32_setdestarea(struct fb_vtable_s *vtable,
+                             const struct fb_overlayinfo_s *oinfo)
+{
+  struct stm32_ltdcdev_s *priv = (struct stm32_ltdcdev_s *)vtable;
+
+  DEBUGASSERT(vtable != NULL && priv == &g_vtable && oinfo != NULL);
+  lcdinfo("vtable=%p, overlay=%d, x=%d, y=%d, w=%d, h=%d\n", vtable,
+          oinfo->overlay, oinfo->darea.x, oinfo->darea.y, oinfo->darea.w,
+          oinfo->darea.h);
+
+  if (oinfo->overlay < LTDC_NLAYERS)
+    {
+      struct stm32_ltdc_s *layer = &priv->layer[oinfo->overlay];
+      const struct fb_area_s *darea = &oinfo->darea;
+
+      /* The LTDC does not scale, the window shows the overlay from its
+       * origin.
+       */
+
+      if (darea->w == 0 || darea->h == 0 ||
+          darea->x + darea->w > STM32_LTDC_WIDTH ||
+          darea->y + darea->h > STM32_LTDC_HEIGHT)
+        {
+          lcderr("ERROR: Returning EINVAL\n");
+          return -EINVAL;
+        }
+
+      nxmutex_lock(layer->lock);
+      memcpy(&layer->oinfo.darea, darea, sizeof(struct fb_area_s));
+      stm32_ltdc_lframebuffer(layer, &layer->oinfo.darea);
+      nxmutex_unlock(layer->lock);
+
+      return OK;
+    }
+
+#  ifdef CONFIG_STM32_DMA2D
+  if (oinfo->overlay < LTDC_NOVERLAYS)
+    {
+      /* DMA2D overlays are not visible */
+
+      return -ENOSYS;
     }
 #  endif
 
