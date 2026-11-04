@@ -40,6 +40,10 @@
 #include "stm32n6570-dk.h"
 #include "board_common.h"
 
+#ifdef CONFIG_PWM
+#  include "board_pwm.h"
+#endif
+
 #include <arch/board/board.h>
 
 /****************************************************************************
