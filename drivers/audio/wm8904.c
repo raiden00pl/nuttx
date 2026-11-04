@@ -2356,9 +2356,11 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
 
   /* Analogue OUT1 Left */
 
-  /* Analogue OUT1 Right */
+  /* Analogue OUT1 Right.  Scale the initial volume {0..1000} to the 6-bit
+   * HPOUT_VOL range {0..63} as AUDIO_FU_VOLUME does.
+   */
 
-  wm8904_setvolume(priv, CONFIG_WM8904_INITVOLUME, true);
+  wm8904_setvolume(priv, 63 * CONFIG_WM8904_INITVOLUME / 1000, true);
 
   /* DC Servo 0 */
 

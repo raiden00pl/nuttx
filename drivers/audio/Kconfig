@@ -471,6 +471,9 @@ if AUDIO_WM8904
 config WM8904_INITVOLUME
 	int "WM8904 initial volume setting"
 	default 250
+	range 0 1000
+	---help---
+		Initial headphone volume in the AUDIO_FU_VOLUME scale {0..1000}.
 
 config WM8904_INFLIGHT
 	int "WM8904 maximum in-flight audio buffers"
