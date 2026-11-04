@@ -58,6 +58,18 @@
 #define CSI_LANE0                1
 #define CSI_LANE1                2
 
+/* Receive errors corrupting a frame (a corrected ECC error does not) */
+
+#define CSI_ERR0                 (CSI_INT0_CRCERR | CSI_INT0_ECCERR | \
+                                  CSI_INT0_IDERR | CSI_INT0_SPKTERR | \
+                                  CSI_INT0_WDERR | CSI_INT0_SYNCERR)
+#define CSI_ERR1                 (CSI_INT1_ESOTDL(0) | \
+                                  CSI_INT1_ESOTSYNCDL(0) | \
+                                  CSI_INT1_ECTRLDL(0) | \
+                                  CSI_INT1_ESOTDL(1) | \
+                                  CSI_INT1_ESOTSYNCDL(1) | \
+                                  CSI_INT1_ECTRLDL(1))
+
 /* Timeout waiting for the virtual channel state, in milliseconds */
 
 #define CSI_VC_TIMEOUT           100
@@ -288,6 +300,20 @@ int stm32_csi_start(unsigned int lanes, unsigned int bitrate,
     }
 
   return ret;
+}
+
+/****************************************************************************
+ * Name: stm32_csi_errors
+ ****************************************************************************/
+
+bool stm32_csi_errors(void)
+{
+  uint32_t err0 = getreg32(STM32_CSI_SR0) & CSI_ERR0;
+  uint32_t err1 = getreg32(STM32_CSI_SR1) & CSI_ERR1;
+
+  putreg32(err0, STM32_CSI_FCR0);
+  putreg32(err1, STM32_CSI_FCR1);
+  return err0 != 0 || err1 != 0;
 }
 
 /****************************************************************************

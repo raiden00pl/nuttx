@@ -85,15 +85,13 @@
 #  define HAVE_DCMIPP_AUTO
 #endif
 
-/* Pipe1 interrupts; the statistics are read at the vertical sync */
+/* Pipe1 interrupts: the frame start (vertical sync), the frame end and
+ * the errors.
+ */
 
-#ifdef HAVE_DCMIPP_AUTO
-#  define DCMIPP_P1_INTS         (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1FRAME | \
-                                  DCMIPP_CMINT_P1OVR | DCMIPP_CMINT_P1VSYNC)
-#else
-#  define DCMIPP_P1_INTS         (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1FRAME | \
-                                  DCMIPP_CMINT_P1OVR)
-#endif
+#define DCMIPP_P1_ERRS           (DCMIPP_CMINT_ATXERR | DCMIPP_CMINT_P1OVR)
+#define DCMIPP_P1_INTS           (DCMIPP_P1_ERRS | DCMIPP_CMINT_P1FRAME | \
+                                  DCMIPP_CMINT_P1VSYNC)
 
 /* Automatic exposure: dead band around the target (8-bit luminance) and
  * limits of the exposure change in one step (Q8).  The gain table holds
@@ -129,9 +127,12 @@ struct stm32_dcmipp_s
   FAR const struct stm32_dcmipp_config_s *config;
   imgdata_capture_t callback;         /* Frame completion callback */
   FAR void *arg;                      /* Callback argument */
-  uintptr_t buf;                      /* Buffer receiving the frame */
+  uintptr_t buf;                      /* Buffer for the next frame or 0 */
   uint32_t framesize;                 /* Bytes in one output frame */
   bool capturing;
+  bool armed;                         /* Capture requested into buf */
+  bool active;                        /* Frame being written into buf */
+  bool frameerr;                      /* Error during the active frame */
 #ifdef HAVE_DCMIPP_AUTO
   struct work_s work;                 /* Statistics processing */
   uint32_t stat[3];                   /* R, G, B sums / 256 */
@@ -694,9 +695,14 @@ static void dcmipp_configscaler(FAR const struct stm32_dcmipp_config_s *cfg,
   uint32_t hdiv;
   uint32_t vdiv;
 
-  /* The whole sensor frame is used, no crop */
+  /* Crop to the sensor frame, so that extra lines or columns sent by the
+   * sensor never reach the memory.
+   */
 
-  putreg32(0, STM32_DCMIPP_P1CRSZR);
+  putreg32(0, STM32_DCMIPP_P1CRSTR);
+  putreg32((inw << DCMIPP_P1CRSZR_HSIZE_SHIFT) |
+           (inh << DCMIPP_P1CRSZR_VSIZE_SHIFT) | DCMIPP_P1CRSZR_ENABLE,
+           STM32_DCMIPP_P1CRSZR);
 
   while (width * DCMIPP_DSIZE_MAX < inw && hdec < 3)
     {
@@ -743,56 +749,163 @@ static void dcmipp_configscaler(FAR const struct stm32_dcmipp_config_s *cfg,
 }
 
 /****************************************************************************
+ * Name: dcmipp_disablepipe
+ *
+ * Description:
+ *   Let the frame being captured end, then disable pipe1.
+ *
+ ****************************************************************************/
+
+static void dcmipp_disablepipe(void)
+{
+  int i;
+
+  for (i = 0; i < DCMIPP_STOP_TIMEOUT; i++)
+    {
+      if ((getreg32(STM32_DCMIPP_CMSR1) & DCMIPP_CMSR1_P1CPTACT) == 0)
+        {
+          break;
+        }
+
+      nxsig_usleep(1000);
+    }
+
+  modifyreg32(STM32_DCMIPP_P1FSCR, DCMIPP_P1FSCR_PIPEN, 0);
+}
+
+/****************************************************************************
+ * Name: dcmipp_arm
+ *
+ * Description:
+ *   Request the capture of the next frame into priv->buf.  The pipe takes
+ *   the address and the request at the frame start.
+ *
+ ****************************************************************************/
+
+static void dcmipp_arm(FAR struct stm32_dcmipp_s *priv)
+{
+  putreg32(priv->buf, STM32_DCMIPP_P1PPM0AR1);
+  modifyreg32(STM32_DCMIPP_P1FCTCR, 0, DCMIPP_P1FCTCR_CPTREQ);
+  priv->armed = true;
+}
+
+/****************************************************************************
+ * Name: dcmipp_done
+ *
+ * Description:
+ *   Hand the frame in priv->buf to the capture framework.  Its callback
+ *   gives the next buffer with set_buf() or stops the capture.
+ *
+ ****************************************************************************/
+
+static void dcmipp_done(FAR struct stm32_dcmipp_s *priv, bool err)
+{
+  struct timespec ts;
+  struct timeval tv;
+
+  priv->buf = 0;
+  if (!priv->capturing || priv->callback == NULL)
+    {
+      return;
+    }
+
+  /* One clean and invalidate of the whole data cache drops the lines the
+   * CPU may have fetched from this buffer during the transfer and writes
+   * back any dirty line of the next one before the DCMIPP writes it.  Its
+   * cost is bounded by the cache size, not by the frame size.
+   */
+
+  up_flush_dcache_all();
+
+  clock_systime_timespec(&ts);
+  tv.tv_sec  = ts.tv_sec;
+  tv.tv_usec = ts.tv_nsec / 1000;
+
+  priv->callback(err ? EIO : 0, err ? 0 : priv->framesize, &tv, priv->arg);
+}
+
+/****************************************************************************
  * Name: dcmipp_interrupt
+ *
+ * Description:
+ *   Each buffer gets one frame: the capture request is withdrawn at the
+ *   frame start (vertical sync), where the pipe takes it with the address,
+ *   and is renewed by set_buf() with the next buffer.  A frame starting
+ *   before that is not captured, so the DCMIPP never writes a buffer
+ *   handed back to the application.  This is how the Zephyr DCMIPP driver
+ *   pauses a pipe without a buffer.
+ *
  ****************************************************************************/
 
 static int dcmipp_interrupt(int irq, FAR void *context, FAR void *arg)
 {
   FAR struct stm32_dcmipp_s *priv = arg;
-  struct timespec ts;
-  struct timeval tv;
+  bool armed = priv->armed;
   uint32_t status;
+
+  /* A frame start in this status precedes a request made while handling
+   * it, so only a request made before counts (armed).
+   */
 
   status = getreg32(STM32_DCMIPP_CMSR2) & getreg32(STM32_DCMIPP_CMIER);
   putreg32(status, STM32_DCMIPP_CMFCR);
 
-  if ((status & DCMIPP_CMINT_ATXERR) != 0)
+  if ((status & DCMIPP_P1_ERRS) != 0)
     {
-      verr("ERROR: DCMIPP AXI transfer error\n");
+      priv->frameerr = true;
+      verr("ERROR: DCMIPP %s\n", (status & DCMIPP_CMINT_ATXERR) != 0 ?
+           "AXI transfer error" : "pipe1 overrun");
     }
 
-  if ((status & DCMIPP_CMINT_P1OVR) != 0)
+  if ((status & DCMIPP_CMINT_P1FRAME) != 0)
     {
-      /* Report the first overrun only; it is re-armed by the next start */
+      if (priv->active)
+        {
+          if (stm32_csi_errors())
+            {
+              priv->frameerr = true;
+            }
 
-      modifyreg32(STM32_DCMIPP_CMIER, DCMIPP_CMINT_P1OVR, 0);
-      verr("ERROR: DCMIPP pipe1 overrun\n");
+          priv->active = false;
+          dcmipp_done(priv, priv->frameerr);
+        }
+      else if (priv->armed)
+        {
+          /* The frame start was missed: the pipe may already write the
+           * next frame into the same buffer.
+           */
+
+          modifyreg32(STM32_DCMIPP_P1FCTCR, DCMIPP_P1FCTCR_CPTREQ, 0);
+          priv->armed = false;
+          dcmipp_done(priv, true);
+        }
     }
 
-  if ((status & DCMIPP_CMINT_P1FRAME) != 0 && priv->capturing &&
-      priv->callback != NULL)
-    {
-      /* The frame was written by the DCMIPP behind the data cache */
-
-      up_invalidate_dcache(priv->buf, priv->buf + priv->framesize);
-
-      clock_systime_timespec(&ts);
-      tv.tv_sec  = ts.tv_sec;
-      tv.tv_usec = ts.tv_nsec / 1000;
-
-      /* The callback hands in the next buffer with set_buf() or stops the
-       * capture.
-       */
-
-      priv->callback(0, priv->framesize, &tv, priv->arg);
-    }
-
-#ifdef HAVE_DCMIPP_AUTO
   if ((status & DCMIPP_CMINT_P1VSYNC) != 0 && priv->capturing)
     {
+#ifdef HAVE_DCMIPP_AUTO
       dcmipp_stats(priv);
-    }
 #endif
+
+      /* A frame without frame end until the next start is lost */
+
+      if (priv->active)
+        {
+          priv->active = false;
+          dcmipp_done(priv, true);
+        }
+      else if (armed && priv->armed)
+        {
+          modifyreg32(STM32_DCMIPP_P1FCTCR, DCMIPP_P1FCTCR_CPTREQ, 0);
+          priv->armed    = false;
+          priv->active   = true;
+          priv->frameerr = false;
+
+          /* Drop the CSI-2 errors seen before this frame */
+
+          stm32_csi_errors();
+        }
+    }
 
   return OK;
 }
@@ -841,6 +954,9 @@ static int dcmipp_init(FAR struct imgdata_s *data)
     }
 
   priv->capturing = false;
+  priv->armed     = false;
+  priv->active    = false;
+  priv->buf       = 0;
   priv->callback  = NULL;
   up_enable_irq(STM32_IRQ_DCMIPP);
   return OK;
@@ -854,9 +970,6 @@ static int dcmipp_uninit(FAR struct imgdata_s *data)
 {
   dcmipp_stop_capture(data);
   up_disable_irq(STM32_IRQ_DCMIPP);
-#ifdef HAVE_DCMIPP_AUTO
-  work_cancel_sync(LPWORK, &((FAR struct stm32_dcmipp_s *)data)->work);
-#endif
   stm32_csi_stop();
   return OK;
 }
@@ -872,29 +985,41 @@ static int dcmipp_set_buf(FAR struct imgdata_s *data,
 {
   FAR struct stm32_dcmipp_s *priv = (FAR struct stm32_dcmipp_s *)data;
   uint32_t framesize;
+  irqstate_t flags;
 
   framesize = datafmts[IMGDATA_FMT_MAIN].width *
               datafmts[IMGDATA_FMT_MAIN].height * 2;
 
-  /* The buffer must be cache-line aligned so that invalidating it cannot
-   * discard unrelated data.
+  /* The buffer must be cache-line aligned so that the cache maintenance
+   * cannot touch unrelated data.
    */
 
-  if (((uintptr_t)addr & (ARMV8M_DCACHE_LINESIZE - 1)) != 0 ||
+  if (addr == NULL ||
+      ((uintptr_t)addr & (ARMV8M_DCACHE_LINESIZE - 1)) != 0 ||
       size < framesize)
     {
       return -EINVAL;
     }
 
-  priv->buf       = (uintptr_t)addr;
-  priv->framesize = framesize;
-
-  /* Drop any cached lines before the DCMIPP writes the buffer.  The
-   * address is taken at the start of the next frame.
+  /* No dirty line may be evicted over the frame.  From the frame interrupt
+   * dcmipp_done() has already cleaned the whole cache.
    */
 
-  up_invalidate_dcache(priv->buf, priv->buf + framesize);
-  putreg32(priv->buf, STM32_DCMIPP_P1PPM0AR1);
+  if (!up_interrupt_context())
+    {
+      up_flush_dcache((uintptr_t)addr, (uintptr_t)addr + framesize);
+    }
+
+  flags = enter_critical_section();
+
+  priv->buf       = (uintptr_t)addr;
+  priv->framesize = framesize;
+  if (priv->capturing)
+    {
+      dcmipp_arm(priv);
+    }
+
+  leave_critical_section(flags);
   return OK;
 }
 
@@ -933,6 +1058,15 @@ static int dcmipp_validate_frame_setting(FAR struct imgdata_s *data,
       return -EINVAL;
     }
 
+  /* Frames are whole cache lines, so that consecutive buffers never share
+   * one.
+   */
+
+  if ((fmt->width * fmt->height * 2) % ARMV8M_DCACHE_LINESIZE != 0)
+    {
+      return -EINVAL;
+    }
+
   return OK;
 }
 
@@ -959,6 +1093,18 @@ static int dcmipp_start_capture(FAR struct imgdata_s *data,
       return ret;
     }
 
+  if (priv->buf == 0 || priv->framesize != fmt->width * fmt->height * 2)
+    {
+      return -EINVAL;
+    }
+
+  /* A stop from the frame interrupt leaves the pipe enabled */
+
+  if ((getreg32(STM32_DCMIPP_P1FSCR) & DCMIPP_P1FSCR_PIPEN) != 0)
+    {
+      dcmipp_disablepipe();
+    }
+
   dcmipp_configscaler(priv->config, fmt->width, fmt->height);
 
   putreg32(DCMIPP_P1PPCR_FORMAT_RGB565, STM32_DCMIPP_P1PPCR);
@@ -973,14 +1119,15 @@ static int dcmipp_start_capture(FAR struct imgdata_s *data,
   priv->callback  = callback;
   priv->arg       = arg;
   priv->capturing = true;
+  priv->active    = false;
 
-  /* Continuous capture of every frame */
+  /* Continuous mode, one frame per buffer (see dcmipp_interrupt()) */
 
   putreg32(0, STM32_DCMIPP_P1FCTCR);
   putreg32(DCMIPP_P1_INTS, STM32_DCMIPP_CMFCR);
   modifyreg32(STM32_DCMIPP_CMIER, 0, DCMIPP_P1_INTS);
   modifyreg32(STM32_DCMIPP_P1FSCR, 0, DCMIPP_P1FSCR_PIPEN);
-  modifyreg32(STM32_DCMIPP_P1FCTCR, 0, DCMIPP_P1FCTCR_CPTREQ);
+  dcmipp_arm(priv);
 
   leave_critical_section(flags);
   return OK;
@@ -994,11 +1141,13 @@ static int dcmipp_stop_capture(FAR struct imgdata_s *data)
 {
   FAR struct stm32_dcmipp_s *priv = (FAR struct stm32_dcmipp_s *)data;
   irqstate_t flags;
-  int i;
 
   flags = enter_critical_section();
 
   priv->capturing = false;
+  priv->armed     = false;
+  priv->active    = false;
+  priv->buf       = 0;
   modifyreg32(STM32_DCMIPP_P1FCTCR, DCMIPP_P1FCTCR_CPTREQ, 0);
   modifyreg32(STM32_DCMIPP_CMIER, DCMIPP_P1_INTS, 0);
   putreg32(DCMIPP_P1_INTS, STM32_DCMIPP_CMFCR);
@@ -1006,22 +1155,24 @@ static int dcmipp_stop_capture(FAR struct imgdata_s *data)
   leave_critical_section(flags);
 
   /* The capture ends with the current frame.  The capture framework may
-   * stop from the frame interrupt, where it is already over.
+   * stop from the frame interrupt; dcmipp_start_capture() then disables
+   * the pipe.
    */
 
-  if (!up_interrupt_context())
+  if (up_interrupt_context())
     {
-      for (i = 0; i < DCMIPP_STOP_TIMEOUT; i++)
-        {
-          if ((getreg32(STM32_DCMIPP_CMSR1) & DCMIPP_CMSR1_P1CPTACT) == 0)
-            {
-              break;
-            }
-
-          nxsig_usleep(1000);
-        }
-
-      modifyreg32(STM32_DCMIPP_P1FSCR, DCMIPP_P1FSCR_PIPEN, 0);
+#ifdef HAVE_DCMIPP_AUTO
+      work_cancel(LPWORK, &priv->work);
+      priv->busy = false;
+#endif
+    }
+  else
+    {
+#ifdef HAVE_DCMIPP_AUTO
+      work_cancel_sync(LPWORK, &priv->work);
+      priv->busy = false;
+#endif
+      dcmipp_disablepipe();
     }
 
   return OK;

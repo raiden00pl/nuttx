@@ -29,6 +29,7 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /****************************************************************************
@@ -55,6 +56,17 @@
 
 int stm32_csi_start(unsigned int lanes, unsigned int bitrate,
                     unsigned int bpp);
+
+/****************************************************************************
+ * Name: stm32_csi_errors
+ *
+ * Description:
+ *   Return and clear the receive errors (packet and D-PHY lane errors)
+ *   seen since the last call.
+ *
+ ****************************************************************************/
+
+bool stm32_csi_errors(void);
 
 /****************************************************************************
  * Name: stm32_csi_stop
