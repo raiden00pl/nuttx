@@ -1622,7 +1622,12 @@ static void sai_portinitialize(struct stm32_sai_s *priv)
   sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, SAI_CR1_SYNCEN_MASK,
                 priv->syncen);
 
-  sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0, SAI_CR1_OUTDRIV);
+  /* The frame below is I2S: drive the data on the falling edge of SCK and
+   * sample it on the rising edge (CKSTR = 1), for transmit and receive.
+   */
+
+  sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, 0,
+                SAI_CR1_OUTDRIV | SAI_CR1_CKSTR);
 
 #ifdef CONFIG_STM32_HAVE_IP_SAI_V2
   /* The master clock is only output when enabled */
