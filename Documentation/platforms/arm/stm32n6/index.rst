@@ -37,6 +37,14 @@ DCMIPP      Yes      Pipe1 with the CSI-2 host as a V4L2 capture
                      scaling.  Automatic exposure and grey world white
                      balance from the pipe1 statistics.  No pipe0/pipe2
                      or parallel input.
+DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
+                     The channels are Secure and privileged.
+DMA2D       Yes      Common DMA2D driver as LTDC framebuffer overlays
+                     (fill, blit, blend).  The bus master is made Secure
+                     and privileged through the RIF.
+ETH         Yes      ETH1 through the common Ethernet v2 driver, MII, RMII
+                     or RGMII up to 1000 Mbps.
+EXTI        Yes      GPIO interrupts through the common driver.
 GPIO        Yes
 I2C         Yes      I2C1-4 through the common I2C v2 driver.
 IWDG        Yes      Through the common driver.
@@ -47,14 +55,8 @@ LTDC        Yes      Common LTDC driver (v2 register layout), RGB565,
 MDF         Yes      MDF1 filter 0 as an audio capture device for a PDM
                      microphone (Sinc4, reshape and high-pass filters,
                      GPDMA, 16-bit PCM at 8, 16, 32 or 48 kHz).
-EXTI        Yes      GPIO interrupts through the common driver.
-ETH         Yes      ETH1 through the common Ethernet v2 driver, MII, RMII
-                     or RGMII up to 1000 Mbps.
-DMA         Yes      GPDMA1 and HPDMA1 through the common GPDMA driver.
-                     The channels are Secure and privileged.
-DMA2D       Yes      Common DMA2D driver as LTDC framebuffer overlays
-                     (fill, blit, blend).  The bus master is made Secure
-                     and privileged through the RIF.
+MPU         Yes      Armv8-M MPU (``CONFIG_ARM_MPU``).  The STM32N6570-DK
+                     maps its framebuffers non-cacheable with it.
 PWR         Yes      Supply configuration, VOS, I/O supply validity.
 RCC         Yes      HSI/HSE, PLL1-4, IC1-20, bus prescalers and kernel
                      clock selection from board.h.
@@ -76,7 +78,6 @@ XSPI        Yes      XSPI1-2 and the XSPIM through the common XSPI v1
                      driver: indirect polled transfers (up to 16 data
                      lines, DTR, DQS) and memory-mapped mode.
 
-MPU         No
 NPU         No
 USB device  No
 ==========  =======  ===================================================

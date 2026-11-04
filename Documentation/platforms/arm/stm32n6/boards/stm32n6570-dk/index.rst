@@ -94,9 +94,9 @@ stored in flash instead.  The SRAM image is lost on power-off.
 To inspect an already running image, attach with its matching ELF and omit
 the reset, load and register-setting commands.
 
-NSH enables ``CONFIG_STM32N6_DEBUG`` to reopen debug access after ROM boot
-and includes debug symbols.  These debugging steps require an installed
-image that enables debug access.  Stop GDB and OpenOCD before running either
+All configurations enable ``CONFIG_STM32N6_DEBUG`` to reopen debug access
+after ROM boot and include debug symbols.  These debugging steps require an
+installed image that enables debug access.  Stop GDB and OpenOCD before running either
 flash target.
 
 LEDs and buttons
