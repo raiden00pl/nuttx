@@ -308,7 +308,10 @@ The module also carries an ISM330DLC IMU (I2C1 0x6a) and a VL53L5CX
 time-of-flight sensor (I2C1 0x29).  The IMU is register compatible with
 the LSM6DS3TR-C and uses its uORB driver (``CONFIG_SENSORS_LSM6DS3TRC``)
 in polling mode as ``/dev/uorb/sensor_accel0`` and
-``/dev/uorb/sensor_gyro0``.  The VL53L5CX is not supported.
+``/dev/uorb/sensor_gyro0``.  The VL53L5CX (``CONFIG_SENSORS_VL53L5CX``)
+is the V4L2 depth camera ``/dev/video1`` (Z16, 8x8 or 4x4).  It needs
+the ST firmware and configuration files at the ``CONFIG_VL53L5CX_*_PATH``
+paths, see :doc:`/os/drivers/special/sensors/vl53l5cx`.
 
 Clocking
 ========
@@ -355,11 +358,12 @@ with LCD output, see `Camera`_.  Run ``camera 0``.
 lvglcam
 -------
 
-``lvgl`` plus the camera, the IMU, microSD, Ethernet and the ``lvglcam``
-dashboard.  Start it with ``lvglcam &``, stop it with ``kill``.  LVGL draws
-to LTDC layer 1 (overlay 0).  The camera captures 512x384 RGB565 frames into
-three DMA2D overlays, which are blitted into LTDC layer 2 (overlay 1), placed
-over the view with ``FBIOSET_DESTAREA``:
+``lvgl`` plus the camera, the IMU, the time-of-flight sensor, microSD,
+Ethernet and the ``lvglcam`` dashboard.  Start it with ``lvglcam &``, stop
+it with ``kill``.  LVGL draws to LTDC layer 1 (overlay 0).  The camera
+captures 512x384 RGB565 frames into three DMA2D overlays, which are blitted
+into LTDC layer 2 (overlay 1), placed over the view with
+``FBIOSET_DESTAREA``:
 
 =========================  ==========================================
 0x34000000-0x340bb7ff      LTDC layer 1 (overlay 0)
@@ -373,8 +377,9 @@ over the view with ``FBIOSET_DESTAREA``:
 sensors
 -------
 
-``nsh`` plus the camera module IMU and ``sensortest``.  The board powers
-the module and keeps the IMX335 in reset::
+``nsh`` plus the camera module IMU, the time-of-flight sensor and
+``sensortest``.  The board powers the module and keeps the IMX335 in
+reset::
 
   nsh> sensortest -n 10 accel0
   nsh> sensortest -n 10 -i 10000 gyro0

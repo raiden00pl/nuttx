@@ -27,6 +27,7 @@
 #include <nuttx/config.h>
 
 #include <sys/types.h>
+#include <errno.h>
 #include <syslog.h>
 #include <debug.h>
 
@@ -53,6 +54,11 @@
 #  include "stm32_lsm6ds3trc.h"
 #endif
 
+#ifdef CONFIG_SENSORS_VL53L5CX
+#  include <nuttx/sensors/vl53l5cx.h>
+#  include "stm32_i2c.h"
+#endif
+
 #include <arch/board/board.h>
 
 /****************************************************************************
@@ -75,6 +81,9 @@
 
 int stm32_bringup(void)
 {
+#ifdef CONFIG_SENSORS_VL53L5CX
+  FAR struct i2c_master_s *i2c;
+#endif
   int ret;
 
 #ifdef CONFIG_STM32N6570_DK_PSRAM
@@ -257,6 +266,26 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR, "ERROR: board_lsm6ds3trc_initialize() failed: %d\n",
              ret);
+    }
+#endif
+
+#ifdef CONFIG_SENSORS_VL53L5CX
+  /* Power the camera module and register its time-of-flight sensor as a
+   * V4L2 depth camera.
+   */
+
+  stm32_camera_power();
+
+  ret = -ENODEV;
+  i2c = stm32_i2cbus_initialize(TOF_I2C_BUS);
+  if (i2c != NULL)
+    {
+      ret = vl53l5cx_register(CONFIG_VL53L5CX_DEVPATH, i2c, TOF_I2C_ADDR);
+    }
+
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: vl53l5cx_register() failed: %d\n", ret);
     }
 #endif
 

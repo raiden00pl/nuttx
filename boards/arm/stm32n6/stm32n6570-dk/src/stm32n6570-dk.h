@@ -126,6 +126,11 @@
 #define IMU_I2C_BUS    1
 #define IMU_I2C_ADDR   0x6a
 
+/* VL53L5CX time-of-flight sensor on the camera module, I2C1 (0x29) */
+
+#define TOF_I2C_BUS    1
+#define TOF_I2C_ADDR   0x29
+
 #define SDIO_SLOTNO    0
 #define SDIO_MINOR     0
 
@@ -272,7 +277,8 @@ int stm32_nor_initialize(void);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STM32_DCMIPP) || defined(CONFIG_SENSORS_LSM6DS3TRC)
+#if defined(CONFIG_STM32_DCMIPP) || defined(CONFIG_SENSORS_LSM6DS3TRC) || \
+    defined(CONFIG_SENSORS_VL53L5CX)
 void stm32_camera_power(void);
 #endif
 
