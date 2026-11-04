@@ -1768,4 +1768,49 @@ err:
   return NULL;
 }
 
+/****************************************************************************
+ * Name: stm32_sai_uninitialize
+ *
+ * Description:
+ *   Stop the SAI block and release what stm32_sai_initialize() set up: the
+ *   DMA channel and the master clock output.  No transfer may be queued.
+ *
+ * Input Parameters:
+ *   dev - Device structure returned by stm32_sai_initialize()
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+void stm32_sai_uninitialize(struct i2s_dev_s *dev)
+{
+  struct stm32_sai_s *priv = (struct stm32_sai_s *)dev;
+  uint32_t clrbits = SAI_CR1_DMAEN;
+  bool enabled;
+
+  DEBUGASSERT(priv && sq_empty(&priv->pend) && sq_empty(&priv->act));
+
+  wd_cancel(&priv->dog);
+  sai_disable(priv, &enabled);
+
+#ifdef CONFIG_STM32_HAVE_IP_SAI_V2
+  clrbits |= SAI_CR1_MCKEN;
+#endif
+
+  sai_modifyreg(priv, STM32_SAI_CR1_OFFSET, clrbits, 0);
+
+#ifdef CONFIG_STM32_SAI_DMA
+  if (priv->dma != NULL)
+    {
+      stm32_dmastop(priv->dma);
+      stm32_dmafree(priv->dma);
+      priv->dma = NULL;
+    }
+#endif
+
+  priv->txenab = false;
+  priv->rxenab = false;
+}
+
 #endif

@@ -87,6 +87,20 @@ typedef uint32_t (*stm32_sai_sampleratecb_t)(struct i2s_dev_s *dev,
 struct i2s_dev_s *stm32_sai_initialize(int intf,
                   stm32_sai_sampleratecb_t sampleratecb);
 
+/****************************************************************************
+ * Name: stm32_sai_uninitialize
+ *
+ * Description:
+ *   Stop the SAI block and release its DMA channel and master clock output.
+ *   No transfer may be queued.
+ *
+ * Input Parameters:
+ *   dev - Device structure returned by stm32_sai_initialize()
+ *
+ ****************************************************************************/
+
+void stm32_sai_uninitialize(struct i2s_dev_s *dev);
+
 #ifdef __cplusplus
 }
 #endif
