@@ -403,6 +403,7 @@
 
 /* 0x19 Audio Interface 1 */
 
+#define WM8904_AIF_BIT14             (1 << 14) /* Bit 14: Undocumented */
 #define WM8904_AIFDAC_TDM            (1 << 13) /* Bit 13: DAC TDM enable */
 #define WM8904_AIFDAC_TDM_CHAN       (1 << 12) /* Bit 12: DACDAT TDM channel select */
 #define WM8904_AIFADC_TDM            (1 << 11) /* Bit 11: ADC TDM enable */

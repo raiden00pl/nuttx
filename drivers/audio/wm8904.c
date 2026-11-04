@@ -92,6 +92,7 @@ static void     wm8904_settreble(FAR struct wm8904_dev_s *priv,
 #endif
 
 static void     wm8904_setdatawidth(FAR struct wm8904_dev_s *priv);
+static void     wm8904_setslaverate(FAR struct wm8904_dev_s *priv);
 static void     wm8904_setbitrate(FAR struct wm8904_dev_s *priv);
 
 /* Audio lower half methods (and close friends) */
@@ -572,6 +573,51 @@ static void wm8904_setdatawidth(FAR struct wm8904_dev_s *priv)
 }
 
 /****************************************************************************
+ * Name: wm8904_setslaverate
+ *
+ * Description:
+ *   Clock the WM8904 as I2S slave: program the I2S master for the stream
+ *   and run SYSCLK from MCLK at 256 x Fs.
+ *
+ ****************************************************************************/
+
+static void wm8904_setslaverate(FAR struct wm8904_dev_s *priv)
+{
+  uint16_t regval;
+
+  I2S_TXDATAWIDTH(priv->i2s, priv->bpsamp);
+  I2S_TXSAMPLERATE(priv->i2s, priv->samprate);
+
+  if (priv->samprate <= 8000)
+    {
+      regval = WM8904_SAMPLE_RATE_8KHZ;
+    }
+  else if (priv->samprate <= 12000)
+    {
+      regval = WM8904_SAMPLE_RATE_12KHZ;
+    }
+  else if (priv->samprate <= 16000)
+    {
+      regval = WM8904_SAMPLE_RATE_16KHZ;
+    }
+  else if (priv->samprate <= 24000)
+    {
+      regval = WM8904_SAMPLE_RATE_24KHZ;
+    }
+  else if (priv->samprate <= 32000)
+    {
+      regval = WM8904_SAMPLE_RATE_32KHZ;
+    }
+  else
+    {
+      regval = WM8904_SAMPLE_RATE_48KHZ;
+    }
+
+  wm8904_writereg(priv, WM8904_CLKRATE1,
+                  WM8904_CLK_SYS_RATE_DIV256 | regval);
+}
+
+/****************************************************************************
  * Name: wm8904_setbitrate
  *
  * Description:
@@ -641,6 +687,12 @@ static void wm8904_setbitrate(FAR struct wm8904_dev_s *priv)
 #endif
 
   DEBUGASSERT(priv && priv->lower);
+
+  if (priv->lower->slave)
+    {
+      wm8904_setslaverate(priv);
+      return;
+    }
 
   /* First calculate the desired bitrate (fout).  This is based on
    *
@@ -2274,7 +2326,7 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
    * Contains various controls.  Some that are controlled here include:
    *
    *   WM8904_MCLK_INV=0    : MCLK is not inverted
-   *   WM8904_SYSCLK_SRC=1  : SYSCLK source is FLL
+   *   WM8904_SYSCLK_SRC=1  : SYSCLK source is FLL (MCLK as slave)
    *   WM8904_TOCLK_RATE=0  :
    *   WM8904_OPCLK_ENA=0   :
    *   WM8904_CLK_SYS_ENA=1 : SYSCLK is enabled
@@ -2282,7 +2334,12 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
    *   WM8904_TOCLK_ENA=0   :
    */
 
-  regval = WM8904_SYSCLK_SRCFLL | WM8904_CLK_SYS_ENA | WM8904_CLK_DSP_ENA;
+  regval = WM8904_CLK_SYS_ENA | WM8904_CLK_DSP_ENA;
+  if (!priv->lower->slave)
+    {
+      regval |= WM8904_SYSCLK_SRCFLL;
+    }
+
   wm8904_writereg(priv, WM8904_CLKRATE2, regval);
 
   /* Audio Interface 0.
@@ -2316,8 +2373,18 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
    *   Bit 14:                             : Undocumented
    */
 
-  regval = WM8904_AIF_FMT_I2S | WM8904_AIF_WL_24BITS | WM8904_BCLK_DIR |
-           0x4000;
+  regval = WM8904_AIF_FMT_I2S | WM8904_AIF_BIT14;
+  if (priv->lower->slave)
+    {
+      /* BCLK is an input and the 16-bit samples fill the I2S slots */
+
+      regval |= WM8904_AIF_WL_16BITS;
+    }
+  else
+    {
+      regval |= WM8904_AIF_WL_24BITS | WM8904_BCLK_DIR;
+    }
+
   wm8904_writereg(priv, WM8904_AIF1, regval);
 
   /* Audio Interface 2.
@@ -2334,7 +2401,12 @@ static void wm8904_audio_output(FAR struct wm8904_dev_s *priv)
    * means that each audio frame is WM8904_FRAMELENn bits in length.
    */
 
-  regval = WM8904_LRCLK_DIR | WM8904_LRCLK_RATE(2*WM8904_FRAMELEN16);
+  regval = WM8904_LRCLK_RATE(2*WM8904_FRAMELEN16);
+  if (!priv->lower->slave)
+    {
+      regval |= WM8904_LRCLK_DIR;
+    }
+
   wm8904_writereg(priv, WM8904_AIF3, regval);
 
   /* DAC Digital 1 */
