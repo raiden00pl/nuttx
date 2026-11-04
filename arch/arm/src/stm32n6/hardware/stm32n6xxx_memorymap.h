@@ -192,6 +192,7 @@
 
 #define STM32_DMA1_BASE       STM32_GPDMA1_BASE
 #define STM32_DMA2_BASE       STM32_HPDMA1_BASE
+#define STM32_DMA2D_BASE      0x58021000    /* DMA2D (AHB5, Secure) */
 #define STM32_XSPI1_R_BASE    0x58025000    /* XSPI1 controller (AHB5, Secure) */
 #define STM32_SDMMC2_BASE     0x58026800    /* SDMMC2 (AHB5, Secure) */
 #define STM32_SDMMC1_BASE     0x58027000    /* SDMMC1 (AHB5, Secure) */

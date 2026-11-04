@@ -29,7 +29,8 @@
 
 #include <nuttx/config.h>
 
-#if defined(CONFIG_STM32_COMMON_LEGACY)
+#if defined(CONFIG_STM32_COMMON_LEGACY) || \
+    defined(CONFIG_STM32_HAVE_COMMON_DMA2D)
 #  include "stm32_dma2d_m3m4_v1.h"
 #else
 #  error "Unsupported STM32 stm32_dma2d"
