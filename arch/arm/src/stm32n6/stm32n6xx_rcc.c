@@ -63,6 +63,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <nuttx/arch.h>
 #include <arch/stm32n6/chip.h>
 #include <arch/board/board.h>
 
@@ -178,12 +179,21 @@
 #  define STM32_PLL4_P2           1
 #endif
 
-/* Helper to program one PLL from its board.h macros */
+/* Helper to program one PLL from its board.h macros.  Returns from the
+ * caller if the PLL does not lock.
+ */
 
 #define RCC_CONFIG_PLL(n) \
-  rcc_configpll(n, STM32_PLL##n##_SRC, STM32_PLL##n##_M, \
-                STM32_PLL##n##_N, STM32_PLL##n##_FRACN, \
-                STM32_PLL##n##_P1, STM32_PLL##n##_P2)
+  do \
+    { \
+      if (!rcc_configpll(n, STM32_PLL##n##_SRC, STM32_PLL##n##_M, \
+                         STM32_PLL##n##_N, STM32_PLL##n##_FRACN, \
+                         STM32_PLL##n##_P1, STM32_PLL##n##_P2)) \
+        { \
+          return; \
+        } \
+    } \
+  while (0)
 
 /* Helper to program one IC divider from its board.h macros */
 
@@ -211,6 +221,31 @@
  ****************************************************************************/
 
 /****************************************************************************
+ * Name: rcc_waitfield
+ *
+ * Description:
+ *   Spin until the bits in mask of the register at addr equal value.
+ *   Returns false on timeout.
+ *
+ ****************************************************************************/
+
+static bool rcc_waitfield(uint32_t addr, uint32_t mask, uint32_t value,
+                          int32_t timeout)
+{
+  volatile int32_t count;
+
+  for (count = timeout; count > 0; count--)
+    {
+      if ((getreg32(addr) & mask) == value)
+        {
+          return true;
+        }
+    }
+
+  return false;
+}
+
+/****************************************************************************
  * Name: rcc_waitflag
  *
  * Description:
@@ -221,19 +256,7 @@
 
 static bool rcc_waitflag(uint32_t addr, uint32_t mask, bool set)
 {
-  volatile int32_t timeout;
-
-  for (timeout = CLKRDY_TIMEOUT; timeout > 0; timeout--)
-    {
-      uint32_t regval = getreg32(addr) & mask;
-
-      if ((set && regval == mask) || (!set && regval == 0))
-        {
-          return true;
-        }
-    }
-
-  return false;
+  return rcc_waitfield(addr, mask, set ? mask : 0, CLKRDY_TIMEOUT);
 }
 
 /****************************************************************************
@@ -367,7 +390,7 @@ static inline void rcc_enableapb2(void)
  ****************************************************************************/
 
 #ifdef STM32_BOARD_USEHSE
-static void rcc_enablehse(void)
+static bool rcc_enablehse(void)
 {
   uint32_t regval;
 
@@ -383,7 +406,7 @@ static void rcc_enablehse(void)
   putreg32(regval, STM32_RCC_HSECFGR);
 
   putreg32(RCC_CR_HSEON, STM32_RCC_CSR);
-  rcc_waitflag(STM32_RCC_SR, RCC_SR_HSERDY, true);
+  return rcc_waitflag(STM32_RCC_SR, RCC_SR_HSERDY, true);
 }
 #endif
 
@@ -395,11 +418,12 @@ static void rcc_enablehse(void)
  *   CPU clocks above 600 MHz and requires the board SMPS to deliver the
  *   higher VDDCORE voltage, which the board may select through a GPIO.
  *   Called while running from HSI, so the frequency is low in both
- *   directions of the transition.
+ *   directions of the transition.  Returns false if the regulator does not
+ *   become ready.
  *
  ****************************************************************************/
 
-static void rcc_setvos(void)
+static bool rcc_setvos(void)
 {
   /* Select the VDDCORE supply configuration.  This must be written once
    * after power-on, before VOS or the system clock frequency change.
@@ -411,19 +435,18 @@ static void rcc_setvos(void)
   modifyreg32(STM32_PWR_CR1, PWR_CR1_SDEN, 0);
 #endif
 
-  rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_ACTVOSRDY, true);
+  if (!rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_ACTVOSRDY, true))
+    {
+      return false;
+    }
 
 #ifdef STM32_BOARD_VOS_HIGH
 #  ifdef BOARD_VDDCORE_OVERDRIVE_GPIO
-  volatile int32_t timeout;
-
   stm32_configgpio(BOARD_VDDCORE_OVERDRIVE_GPIO);
 
   /* Give the external regulator time to settle at the new voltage */
 
-  for (timeout = CONFIG_BOARD_LOOPSPERMSEC; timeout > 0; timeout--)
-    {
-    }
+  up_mdelay(1);
 #  endif
 
   modifyreg32(STM32_PWR_VOSCR, 0, PWR_VOSCR_VOS);
@@ -431,8 +454,8 @@ static void rcc_setvos(void)
   modifyreg32(STM32_PWR_VOSCR, PWR_VOSCR_VOS, 0);
 #endif
 
-  rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_VOSRDY, true);
-  rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_ACTVOSRDY, true);
+  return rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_VOSRDY, true) &&
+         rcc_waitflag(STM32_PWR_VOSCR, PWR_VOSCR_ACTVOSRDY, true);
 }
 
 /****************************************************************************
@@ -445,7 +468,7 @@ static void rcc_setvos(void)
  *
  ****************************************************************************/
 
-static void rcc_configpll(unsigned int n, uint32_t src, uint32_t divm,
+static bool rcc_configpll(unsigned int n, uint32_t src, uint32_t divm,
                           uint32_t divn, uint32_t fracn, uint32_t p1,
                           uint32_t p2)
 {
@@ -456,7 +479,10 @@ static void rcc_configpll(unsigned int n, uint32_t src, uint32_t divm,
   /* Stop the PLL and wait until it is really off */
 
   putreg32(RCC_CR_PLLON(n), STM32_RCC_CCR);
-  rcc_waitflag(STM32_RCC_SR, RCC_SR_PLLRDY(n), false);
+  if (!rcc_waitflag(STM32_RCC_SR, RCC_SR_PLLRDY(n), false))
+    {
+      return false;
+    }
 
   /* Disable spread spectrum modulation */
 
@@ -501,7 +527,7 @@ static void rcc_configpll(unsigned int n, uint32_t src, uint32_t divm,
   /* Start the PLL */
 
   putreg32(RCC_CR_PLLON(n), STM32_RCC_CSR);
-  rcc_waitflag(STM32_RCC_SR, RCC_SR_PLLRDY(n), true);
+  return rcc_waitflag(STM32_RCC_SR, RCC_SR_PLLRDY(n), true);
 }
 
 /****************************************************************************
@@ -737,7 +763,9 @@ void stm32_rcc_enableperipherals(void)
  *   the CPU/system clock switches.
  *
  *   The CPU and system clocks are moved to HSI first, since the boot ROM
- *   may already be using PLL1 with a different configuration.
+ *   may already be using PLL1 with a different configuration.  If an
+ *   oscillator, the regulator or a PLL does not become ready, they are left
+ *   on HSI.
  *
  ****************************************************************************/
 
@@ -755,7 +783,10 @@ void stm32_stdclockconfig(void)
   /* Keep HSI running while the clock tree is reconfigured. */
 
   putreg32(RCC_CR_HSION, STM32_RCC_CSR);
-  rcc_waitflag(STM32_RCC_SR, RCC_SR_HSIRDY, true);
+  if (!rcc_waitflag(STM32_RCC_SR, RCC_SR_HSIRDY, true))
+    {
+      return;
+    }
 
   /* The flash boot ROM leaves CPUCLK at 400 MHz.  Move both CPU and
    * system clocks off PLL1 before touching it, then establish the board
@@ -763,15 +794,24 @@ void stm32_stdclockconfig(void)
    */
 
   modifyreg32(STM32_RCC_CFGR1, RCC_CFGR1_SW_MASK, 0);
-  rcc_waitflag(STM32_RCC_CFGR1, RCC_CFGR1_SWS_MASK, false);
+  if (!rcc_waitflag(STM32_RCC_CFGR1, RCC_CFGR1_SWS_MASK, false))
+    {
+      return;
+    }
 
 #ifdef STM32_BOARD_USEHSE
-  rcc_enablehse();
+  if (!rcc_enablehse())
+    {
+      return;
+    }
 #endif
 
   /* Select the VDDCORE range before raising the frequency */
 
-  rcc_setvos();
+  if (!rcc_setvos())
+    {
+      return;
+    }
 
   /* PLLs */
 
@@ -876,7 +916,7 @@ void stm32_stdclockconfig(void)
   putreg32(RCC_MEMENR_ALLAXISRAM | RCC_MEMENR_CACHEAXIRAMEN,
            STM32_RCC_MEMENSR);
 
-  rcc_waitflag(STM32_RCC_CFGR1,
-               RCC_CFGR1_SW2SWS(STM32_RCC_CFGR1_CPUSW |
-                                STM32_RCC_CFGR1_SYSSW), true);
+  rcc_waitfield(STM32_RCC_CFGR1, RCC_CFGR1_SWS_MASK,
+                RCC_CFGR1_SW2SWS(STM32_RCC_CFGR1_CPUSW |
+                                 STM32_RCC_CFGR1_SYSSW), CLKRDY_TIMEOUT);
 }
