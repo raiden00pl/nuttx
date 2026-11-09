@@ -39,10 +39,10 @@
 /* Clocking *****************************************************************/
 
 /* Two clock trees are provided.  The default runs the CPU at 800 MHz from
- * the 48 MHz HSE crystal with VDDCORE overdrive, matching the ST reference
- * configuration.  CONFIG_STM32N6570_DK_CLOCK_HSI selects a conservative
- * 200 MHz tree from the internal HSI that needs neither the HSE nor
- * overdrive.  See arch/arm/src/stm32n6/stm32n6xx_rcc.c for the macros.
+ * the 48 MHz HSE crystal with VDDCORE overdrive.
+ * CONFIG_STM32N6570_DK_CLOCK_HSI selects a conservative 200 MHz tree from
+ * the internal HSI that needs neither the HSE nor overdrive.  See
+ * arch/arm/src/stm32n6/stm32n6xx_rcc.c for the macros.
  */
 
 #define STM32_HSI_FREQUENCY     64000000ul
@@ -58,8 +58,6 @@
  *     IC6  /8 = 300 MHz   > SYSCLK components (SYSSW IC2_IC6_IC11)
  *     IC11 /6 = 400 MHz  /
  *   PLL2 = HSI / 2 * 48  = 1536 MHz   (audio and SDMMC kernel clocks)
- *   PLL3 = HSE / 3 * 125 = 2000 MHz   (LTDC)
- *   PLL4 = HSI / 4 * 75  = 1200 MHz   (I2C, LTDC)
  *   HPRE /2   = 200 MHz -> HCLK
  *   PPREx /1  = 200 MHz -> PCLK1/2/4/5
  *   TIMPRE /2 = 200 MHz -> timer kernel clock
@@ -84,16 +82,6 @@
 #define STM32_PLL2_M            2
 #define STM32_PLL2_N            48
 #define STM32_PLL2_FREQUENCY    1536000000ul
-
-#define STM32_PLL3_SRC          RCC_PLL1CFGR1_SEL_HSE
-#define STM32_PLL3_M            3
-#define STM32_PLL3_N            125
-#define STM32_PLL3_FREQUENCY    2000000000ul
-
-#define STM32_PLL4_SRC          RCC_PLL1CFGR1_SEL_HSI
-#define STM32_PLL4_M            4
-#define STM32_PLL4_N            75
-#define STM32_PLL4_FREQUENCY    1200000000ul
 
 #define STM32_IC1_SRC           RCC_ICCFGR_SEL_PLL1
 #define STM32_IC1_DIV           3
