@@ -1605,13 +1605,16 @@ static ssize_t u16550_sendbuf(struct uart_dev_s *dev,
 {
   size_t i;
 
-  for (i = 0; i < size; i++)
+  /* Send only what the transmitter accepts now; the caller sends the
+   * rest when it is ready again.
+   */
+
+  for (i = 0; i < size && u16550_txready(dev); i++)
     {
-      while (!u16550_txready(dev));
       u16550_send(dev, ((const unsigned char *)buffer)[i]);
     }
 
-  return (ssize_t)size;
+  return (ssize_t)i;
 }
 
 /****************************************************************************
