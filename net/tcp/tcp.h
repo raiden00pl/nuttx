@@ -101,7 +101,7 @@
 #define TCP_SEQ_SUB(a, b)   ((uint32_t)((a) - (b)))
 
 /* The error of a send on a TCP socket that is not connected: -EPIPE if the
- * connection was closed (POSIX: the socket is no longer connected), else
+ * connection was lost (POSIX: the socket is no longer connected), else
  * -ENOTCONN.
  */
 

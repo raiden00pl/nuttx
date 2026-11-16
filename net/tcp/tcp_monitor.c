@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <assert.h>
+#include <errno.h>
 #include <nuttx/debug.h>
 
 #include <nuttx/net/tcp.h>
@@ -72,43 +73,71 @@ static uint32_t tcp_monitor_event(FAR struct net_driver_s *dev,
 
 static void tcp_close_connection(FAR struct tcp_conn_s *conn, uint32_t flags)
 {
+  int err;
+
   /* These loss-of-connection events may be reported:
    *
    *   TCP_ABORT: The remote host has aborted the connection
    *   TCP_TIMEDOUT: Connection aborted due to too many retransmissions.
    *   NETDEV_DOWN: The network device went down
    *
-   * And we need to set these two socket status bits appropriately:
-   *
-   *  _SF_CONNECTED==1 && _SF_CLOSED==0 - the socket is connected
-   *  _SF_CONNECTED==0 && _SF_CLOSED==1 - the socket was gracefully
-   *                                       disconnected
-   *  _SF_CONNECTED==0 && _SF_CLOSED==0 - the socket was rudely disconnected
+   * The loss becomes the pending error of the socket, reported by the next
+   * recv(), send() or getsockopt(SO_ERROR).  The event may get here more
+   * than once, so record it only for a connected socket or, for a
+   * non-blocking connect in progress, while no error is pending.
    */
 
-  /* The loss of connection was less than graceful.  This will
-   * (eventually) be reported as an ENOTCONN error.
-   */
-
-  if ((flags & TCP_ABORT) != 0)
+  if ((flags & TCP_DISCONN_EVENTS) == 0)
     {
-      /* The peer gracefully closed the connection.  Marking the
-       * connection as disconnected will suppress some subsequent
-       * ENOTCONN errors from receive.  A graceful disconnection is
-       * not handle as an error but as an "end-of-file"
-       */
+      return;
+    }
+
+  if (_SS_ISCONNECTED(conn->sconn.s_flags))
+    {
+      if ((flags & TCP_ABORT) != 0)
+        {
+          err = ECONNRESET;
+        }
+      else if ((flags & NETDEV_DOWN) != 0)
+        {
+          err = ENETDOWN;
+        }
+      else if (conn->tx_unacked == 0 &&
+               (conn->shutdown & SHUT_RDWR) == SHUT_RDWR)
+        {
+          /* TIME_WAIT ended a connection closed in both directions */
+
+          err = OK;
+        }
+      else
+        {
+          err = ETIMEDOUT;
+        }
 
       conn->sconn.s_flags &= ~_SF_CONNECTED;
       conn->sconn.s_flags |= _SF_CLOSED;
     }
-  else if ((flags & (TCP_TIMEDOUT | NETDEV_DOWN)) != 0)
+  else if (!_SS_ISCLOSED(conn->sconn.s_flags) && conn->sconn.s_error == 0)
     {
-      /* The loss of connection was less than graceful.  This will
-       * (eventually) be reported as an ENOTCONN error.
-       */
-
-      conn->sconn.s_flags &= ~(_SF_CONNECTED | _SF_CLOSED);
+      if ((flags & TCP_ABORT) != 0)
+        {
+          err = ECONNREFUSED;
+        }
+      else if ((flags & NETDEV_DOWN) != 0)
+        {
+          err = ENETUNREACH;
+        }
+      else
+        {
+          err = ETIMEDOUT;
+        }
     }
+  else
+    {
+      return;
+    }
+
+  _SO_CONN_SETERRNO(conn, err);
 }
 
 /****************************************************************************

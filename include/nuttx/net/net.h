@@ -60,14 +60,15 @@
 #define _SF_BOUND           0x20  /* Bit 5: SOCK_STREAM is bound to an address */
                                   /* Bits 6-7: Connection state */
 #define _SF_CONNECTED       0x40  /* Bit 6: SOCK_STREAM/SOCK_DGRAM is connected */
-#define _SF_CLOSED          0x80  /* Bit 7: SOCK_STREAM was gracefully disconnected */
+#define _SF_CLOSED          0x80  /* Bit 7: SOCK_STREAM connection was lost */
 
 /* Connection state encoding:
  *
  *  _SF_CONNECTED==1 && _SF_CLOSED==0 - the socket is connected
- *  _SF_CONNECTED==0 && _SF_CLOSED==1 - the socket was gracefully
- *                                      disconnected
- *  _SF_CONNECTED==0 && _SF_CLOSED==0 - the socket was rudely disconnected
+ *  _SF_CONNECTED==0 && _SF_CLOSED==1 - the connection was lost; s_error
+ *                                      holds the pending error until it
+ *                                      is reported
+ *  _SF_CONNECTED==0 && _SF_CLOSED==0 - the socket is not connected
  */
 
 /* Macro to manage the socket state and flags */
@@ -215,10 +216,11 @@ struct socket_conn_s
 
   rmutex_t      s_lock;      /* Protect the connection structure */
 
+  int16_t       s_error;     /* Pending error of this socket */
+
   /* Socket options */
 
 #ifdef CONFIG_NET_SOCKOPTS
-  int16_t       s_error;     /* Last error that occurred on this socket */
   sockopt_t     s_options;   /* Selected socket options */
   socktimeo_t   s_rcvtimeo;  /* Receive timeout value (in deciseconds) */
   socktimeo_t   s_sndtimeo;  /* Send timeout value (in deciseconds) */

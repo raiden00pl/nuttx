@@ -372,6 +372,27 @@ static inline void tcp_sender(FAR struct net_driver_s *dev,
 }
 
 /****************************************************************************
+ * Name: tcp_recvfrom_lost
+ *
+ * Description:
+ *   Get the error to report for a receive on a lost connection: the pending
+ *   error of the socket or, if none is pending, ENOTCONN.  The caller
+ *   clears the pending error once it has been reported.
+ *
+ * Input Parameters:
+ *   conn     The TCP connection of interest
+ *
+ * Returned Value:
+ *   The negated errno value to report.
+ *
+ ****************************************************************************/
+
+static int tcp_recvfrom_lost(FAR struct tcp_conn_s *conn)
+{
+  return conn->sconn.s_error != 0 ? -conn->sconn.s_error : -ENOTCONN;
+}
+
+/****************************************************************************
  * Name: tcp_recvhandler
  *
  * Description:
@@ -505,12 +526,9 @@ static uint32_t tcp_recvhandler(FAR struct net_driver_s *dev,
               tcp_lost_connection(conn, pstate->ir_cb, flags);
             }
 
-          /* Report a timed out connection (too many retransmissions or
-           * unanswered keep-alive probes) as ETIMEDOUT.
-           */
+          /* Report the pending error recorded for the loss */
 
-          pstate->ir_result = (flags & TCP_TIMEDOUT) != 0 ? -ETIMEDOUT :
-                                                            -ENOTCONN;
+          pstate->ir_result = tcp_recvfrom_lost(conn);
 
           /* Wake up the waiting thread */
 
@@ -726,20 +744,20 @@ static ssize_t tcp_recvfrom_one(FAR struct tcp_conn_s *conn, FAR void *buf,
        * time that recvfrom() is called.
        *
        * If no data was received (i.e.,  ret == 0  -- it will not be
-       * negative) and the connection was gracefully closed by the remote
-       * peer, then return success.  If ir_recvlen is zero, the caller of
+       * negative) and the remote peer closed its side of the connection,
+       * then return success.  If ir_recvlen is zero, the caller of
        * recvfrom() will get an end-of-file indication.
        */
 
-      if (ret <= 0 && !_SS_ISCLOSED(conn->sconn.s_flags) &&
-          (conn->shutdown & SHUT_RD) == 0)
+      if (ret <= 0 && (conn->shutdown & SHUT_RD) == 0)
         {
           /* Nothing was previously received from the read-ahead buffers.
-           * The SOCK_STREAM must be (re-)connected in order to receive
-           * any additional data.
+           * Report the pending error of the lost connection, if any.  The
+           * SOCK_STREAM must be (re-)connected in order to receive any
+           * additional data.
            */
 
-          ret = -ENOTCONN;
+          ret = tcp_recvfrom_lost(conn);
         }
     }
 
@@ -909,6 +927,13 @@ ssize_t psock_tcp_recvfrom(FAR struct socket *psock, FAR struct msghdr *msg,
         {
           break;
         }
+    }
+
+  if (nrecv == 0 && ret < 0 && ret == -conn->sconn.s_error)
+    {
+      /* The pending error was reported, clear it */
+
+      conn->sconn.s_error = 0;
     }
 
   conn_dev_unlock(&conn->sconn, conn->dev);
