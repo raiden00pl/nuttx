@@ -38,6 +38,7 @@
 #include <nuttx/net/netdev.h>
 
 #include "ipfrag/ipfrag.h"
+#include "netforward/netforward.h"
 #include "netdev/netdev.h"
 #include "netlink/netlink.h"
 #include "arp/arp.h"
@@ -95,6 +96,7 @@ void netdev_carrier_off(FAR struct net_driver_s *dev)
       /* Notify clients that the network has been taken down */
 
       devif_dev_event(dev, NETDEV_DOWN);
+      netfwd_cleanup(dev, false);
       arp_cleanup(dev);
     }
 }

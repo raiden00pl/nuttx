@@ -30,6 +30,7 @@
 #include <nuttx/config.h>
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #undef HAVE_FWDALLOC
@@ -54,31 +55,24 @@ static_assert(CONFIG_IOB_NBUFFERS > CONFIG_NET_FORWARD_NSTRUCT,
               "net forward may consume all the IOB and break netdev logic");
 #endif
 
-/* Allocate a new IP forwarding data callback */
-
-#define netfwd_callback_alloc(dev)   devif_callback_alloc(dev, \
-                                                          &(dev)->d_conncb, \
-                                                          &(dev)->d_conncb_tail)
-#define netfwd_callback_free(dev,cb) devif_dev_callback_free(dev, cb)
-
 /****************************************************************************
  * Public Types
  ****************************************************************************/
 
-/* This is the send state structure */
+/* This is the send state structure, queued in the d_fwdq of the
+ * forwarding device.
+ */
 
-struct devif_callback_s; /* Forward reference */
 struct net_driver_s;     /* Forward reference */
 struct iob_s;            /* Forward reference */
 
 struct forward_s
 {
-  FAR struct forward_s        *f_flink;   /* Supports a singly linked list */
-  FAR struct net_driver_s     *f_dev;     /* Forwarding device */
-  FAR struct iob_s            *f_iob;     /* IOB chain containing the packet */
-  FAR struct devif_callback_s *f_cb;      /* Reference to callback instance */
-  uint8_t                      f_domain;  /* Domain: PF_INET or PF_INET6
-                                           * or PF_CAN */
+  FAR struct forward_s    *f_flink;   /* Supports a singly linked list */
+  FAR struct net_driver_s *f_dev;     /* Forwarding device */
+  FAR struct iob_s        *f_iob;     /* IOB chain containing the packet */
+  uint8_t                  f_domain;  /* Domain: PF_INET or PF_INET6
+                                       * or PF_CAN */
 };
 
 /****************************************************************************
@@ -206,12 +200,13 @@ void devif_forward(FAR struct forward_s *fwd);
  *   Called by the IP forwarding logic when a packet is received on one
  *   network device, but must be forwarded on another network device.
  *
- *   Set up to forward the packet on the specified device.  This function
- *   will set up a send event handler that will perform the actual send
- *   asynchronously and must return without waiting for the send to
- *   complete.
+ *   Queue the packet on the forwarding device and notify its driver.  The
+ *   forwarding device sends the packet asynchronously from its own poll,
+ *   so this function returns without waiting for the send to complete.
+ *   The caller must not access fwd after a successful return.
  *
  * Input Parameters:
+ *   dev - The device on which the packet was received.
  *   fwd - An initialized instance of the common forwarding structure that
  *         includes everything needed to perform the forwarding operation.
  *
@@ -228,15 +223,34 @@ int netfwd_forward(FAR struct net_driver_s *dev, FAR struct forward_s *fwd);
  * Name: netfwd_poll
  *
  * Description:
- *   Poll all pending transfer for ARP requests to send.
+ *   Move the next packet queued for forwarding on the device into the
+ *   device buffer.
+ *
+ * Returned Value:
+ *   True if a packet was dequeued, false if the queue is empty.
  *
  * Assumptions:
  *   This function is called from the MAC device driver indirectly through
- *   devif_poll().
+ *   devif_poll() with the device locked.
  *
  ****************************************************************************/
 
-void netfwd_poll(FAR struct net_driver_s *dev);
+bool netfwd_poll(FAR struct net_driver_s *dev);
+
+/****************************************************************************
+ * Name: netfwd_cleanup
+ *
+ * Description:
+ *   Drop all packets queued for forwarding on the device, which is going
+ *   down or being unregistered.
+ *
+ * Input Parameters:
+ *   dev    - The network device
+ *   closed - The device is unregistered, queue nothing more on it
+ *
+ ****************************************************************************/
+
+void netfwd_cleanup(FAR struct net_driver_s *dev, bool closed);
 
 /****************************************************************************
  * Name: netfwd_dropstats
@@ -387,5 +401,7 @@ void ipv4_dropstats(FAR struct ipv4_hdr_s *ipv4);
 #  define ipv4_dropstats(ipv4)
 #endif
 
+#else
+#  define netfwd_cleanup(dev, closed)
 #endif /* CONFIG_NET_IPFORWARD */
 #endif /* __NET_IPFORWARD_IPFORWARD_H */

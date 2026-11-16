@@ -26,11 +26,16 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <nuttx/debug.h>
 
+#include <nuttx/mm/iob.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/net.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/udp.h>
 
 #include "devif/devif.h"
 #include "sixlowpan/sixlowpan.h"
@@ -39,6 +44,81 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: netfwd_dequeue
+ *
+ * Description:
+ *   Remove the oldest packet queued for forwarding on the device.
+ *
+ ****************************************************************************/
+
+static FAR struct forward_s *netfwd_dequeue(FAR struct net_driver_s *dev)
+{
+  FAR struct forward_s *fwd;
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(&dev->d_fwdlock);
+  fwd = (FAR struct forward_s *)sq_remfirst(&dev->d_fwdq);
+  if (fwd != NULL)
+    {
+      dev->d_fwdcount--;
+    }
+
+  spin_unlock_irqrestore(&dev->d_fwdlock, flags);
+
+  return fwd;
+}
+
+/****************************************************************************
+ * Name: forward_ipselect
+ *
+ * Description:
+ *   If both IPv4 and IPv6 support are enabled, then we will need to select
+ *   which one to use when generating the outgoing packet.  If only one
+ *   domain is selected, then the setup is already in place and we need do
+ *   nothing.
+ *
+ * Input Parameters:
+ *   fwd - The forwarding state structure
+ *
+ * Returned Value:
+ *   None
+ *
+ * Assumptions:
+ *   The device is locked.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
+static inline void forward_ipselect(FAR struct forward_s *fwd)
+{
+  FAR struct net_driver_s *dev = fwd->f_dev;
+
+  /* Select IPv4 or IPv6 */
+
+  if (fwd->f_domain == PF_INET)
+    {
+      /* Clear a bit in the d_flags to distinguish this from an IPv6 packet */
+
+      IFF_SET_IPv4(dev->d_flags);
+
+      /* Set the offset to the beginning of the UDP data payload */
+
+      dev->d_appdata = IPBUF(IPv4UDP_HDRLEN);
+    }
+  else if (fwd->f_domain == PF_INET6)
+    {
+      /* Set a bit in the d_flags to distinguish this from an IPv6 packet */
+
+      IFF_SET_IPv6(dev->d_flags);
+
+      /* Set the offset to the beginning of the UDP data payload */
+
+      dev->d_appdata = IPBUF(IPv6UDP_HDRLEN);
+    }
+}
+#endif
 
 /****************************************************************************
  * Name: ipfwd_packet_proto
@@ -148,45 +228,102 @@ static void ipfwd_packet_conversion(FAR struct net_driver_s *dev, int proto)
  * Name: netfwd_poll
  *
  * Description:
- *   Poll all pending transfer for ARP requests to send.
+ *   Move the next packet queued for forwarding on the device into the
+ *   device buffer.
+ *
+ * Returned Value:
+ *   True if a packet was dequeued, false if the queue is empty.
  *
  * Assumptions:
  *   This function is called from the MAC device driver indirectly through
- *   devif_poll().
+ *   devif_poll() with the device locked.
  *
  ****************************************************************************/
 
-void netfwd_poll(FAR struct net_driver_s *dev)
+bool netfwd_poll(FAR struct net_driver_s *dev)
 {
-  uint32_t flags;
+  FAR struct forward_s *fwd;
+#ifdef CONFIG_NET_6LOWPAN
+  int proto;
+#endif
 
-  /* Setup for the callback (most of these do not apply) */
+  fwd = netfwd_dequeue(dev);
+  if (fwd == NULL)
+    {
+      return false;
+    }
+
+  DEBUGASSERT(fwd->f_dev == dev && fwd->f_iob != NULL);
+
+  /* Setup for the send (most of these do not apply) */
 
   dev->d_appdata = NULL;
   dev->d_len     = 0;
   dev->d_sndlen  = 0;
 
-  /* Perform the forwarding callbacks.  Returns the new set of flags.  If
-   * the packet was forwarded, then the new set will be zero.
+  /* Move the IOB chain of the packet into the device buffer */
+
+  devif_forward(fwd);
+
+#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
+  /* If both IPv4 and IPv6 support are enabled, then we will need to
+   * select which one to use when generating the outgoing packet.
+   * If only one domain is selected, then the setup is already in
+   * place and we need do nothing.
    */
 
-  flags = devif_conn_event(dev, IPFWD_POLL, dev->d_conncb);
+  forward_ipselect(fwd);
+#endif
+
+  /* And release the forwarding state structure */
+
+  netfwd_free(fwd);
 
 #ifdef CONFIG_NET_6LOWPAN
-  if ((flags & IPFWD_POLL) == 0)
+  /* Get the L2 protocol of packet in the device's d_buf */
+
+  proto = ipfwd_packet_proto(dev);
+  if (proto >= 0)
     {
-      /* Get the L2 protocol of packet in the device's d_buf */
+      /* Perform any necessary conversions on the forwarded packet */
 
-      int proto = ipfwd_packet_proto(dev);
-
-      if (proto >= 0)
-        {
-          /* Perform any necessary conversions on the forwarded packet */
-
-          ipfwd_packet_conversion(dev, proto);
-        }
+      ipfwd_packet_conversion(dev, proto);
     }
-#else
-  UNUSED(flags);
 #endif
+
+  return true;
+}
+
+/****************************************************************************
+ * Name: netfwd_cleanup
+ *
+ * Description:
+ *   Drop all packets queued for forwarding on the device, which is going
+ *   down or being unregistered.
+ *
+ * Input Parameters:
+ *   dev    - The network device
+ *   closed - The device is unregistered, queue nothing more on it
+ *
+ ****************************************************************************/
+
+void netfwd_cleanup(FAR struct net_driver_s *dev, bool closed)
+{
+  FAR struct forward_s *fwd;
+  irqstate_t flags;
+
+  if (closed)
+    {
+      flags = spin_lock_irqsave(&dev->d_fwdlock);
+      dev->d_fwdclosed = true;
+      spin_unlock_irqrestore(&dev->d_fwdlock, flags);
+    }
+
+  while ((fwd = netfwd_dequeue(dev)) != NULL)
+    {
+      nwarn("WARNING: Network is down... Dropping\n");
+      netfwd_dropstats(fwd);
+      iob_free_chain(fwd->f_iob);
+      netfwd_free(fwd);
+    }
 }

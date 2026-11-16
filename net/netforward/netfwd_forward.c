@@ -32,174 +32,11 @@
 
 #include <net/if.h>
 
-#include <nuttx/mm/iob.h>
+#include <nuttx/spinlock.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
-#include <nuttx/net/ip.h>
-#include <nuttx/net/netstats.h>
 
-#include "devif/devif.h"
-#include "netdev/netdev.h"
-#include "arp/arp.h"
-#include "neighbor/neighbor.h"
 #include "netforward/netforward.h"
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: forward_ipselect
- *
- * Description:
- *   If both IPv4 and IPv6 support are enabled, then we will need to select
- *   which one to use when generating the outgoing packet.  If only one
- *   domain is selected, then the setup is already in place and we need do
- *   nothing.
- *
- * Input Parameters:
- *   fwd - The forwarding state structure
- *
- * Returned Value:
- *   None
- *
- * Assumptions:
- *   The network is locked.
- *
- ****************************************************************************/
-
-#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-static inline void forward_ipselect(FAR struct forward_s *fwd)
-{
-  FAR struct net_driver_s *dev = fwd->f_dev;
-
-  /* Select IPv4 or IPv6 */
-
-  if (fwd->f_domain == PF_INET)
-    {
-      /* Clear a bit in the d_flags to distinguish this from an IPv6 packet */
-
-      IFF_SET_IPv4(dev->d_flags);
-
-      /* Set the offset to the beginning of the UDP data payload */
-
-      dev->d_appdata = IPBUF(IPv4UDP_HDRLEN);
-    }
-  else if (fwd->f_domain == PF_INET6)
-    {
-      /* Set a bit in the d_flags to distinguish this from an IPv6 packet */
-
-      IFF_SET_IPv6(dev->d_flags);
-
-      /* Set the offset to the beginning of the UDP data payload */
-
-      dev->d_appdata = IPBUF(IPv6UDP_HDRLEN);
-    }
-}
-#endif
-
-/****************************************************************************
- * Name: ipfwd_eventhandler
- *
- * Description:
- *   This function is called with the network locked to perform the actual
- *   send operation when polled by the lower, device interfacing layer.
- *
- * Input Parameters:
- *   dev        The structure of the network driver that generated the
- *              event
- *   pvpriv     An instance of struct forward_s cast to (void *)
- *   flags      Set of events describing why the callback was invoked
- *
- * Returned Value:
- *   Modified value of the input flags
- *
- * Assumptions:
- *   The network is locked
- *
- ****************************************************************************/
-
-static uint32_t netfwd_eventhandler(FAR struct net_driver_s *dev,
-                                   FAR void *pvpriv, uint32_t flags)
-{
-  FAR struct forward_s *fwd = pvpriv;
-
-  ninfo("flags: %" PRIx32 "\n", flags);
-  DEBUGASSERT(fwd != NULL && fwd->f_iob != NULL && fwd->f_dev != NULL);
-
-  /* Make sure that this is from the forwarding device */
-
-  if (dev == fwd->f_dev)
-    {
-      /* If the network device has gone down, then we will have terminate
-       * the wait now with an error.
-       */
-
-      if ((flags & NETDEV_DOWN) != 0)
-        {
-          /* Terminate the transfer with an error. */
-
-          nwarn("WARNING: Network is down... Dropping\n");
-          netfwd_dropstats(fwd);
-        }
-
-      /* Check if the outgoing packet is available.  It may have been claimed
-       * by a sendto event handler serving a different thread -OR- if the
-       * output buffer currently contains unprocessed incoming data.  In
-       * these cases we will just have to wait for the next polling cycle.
-       */
-
-      else if (dev->d_sndlen > 0 || (flags & IPFWD_NEWDATA) != 0)
-        {
-          /* Another thread has beat us sending data or the buffer is busy,
-           * Wait for the next polling cycle and check again.
-           */
-
-          return flags;
-        }
-
-      /* It looks like we are good to forward the data */
-
-      else
-        {
-          /* Copy the user data into d_appdata and send it. */
-
-          devif_forward(fwd);
-          flags &= ~IPFWD_POLL;
-
-#if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
-          /* If both IPv4 and IPv6 support are enabled, then we will need to
-           * select which one to use when generating the outgoing packet.
-           * If only one domain is selected, then the setup is already in
-           * place and we need do nothing.
-           */
-
-          forward_ipselect(fwd);
-#endif
-        }
-
-      /* Free the allocated callback structure */
-
-      fwd->f_cb->flags = 0;
-      fwd->f_cb->priv  = NULL;
-      fwd->f_cb->event = NULL;
-
-      netfwd_callback_free(dev, fwd->f_cb);
-
-      /* Free any IOBs */
-
-      if (fwd->f_iob != NULL)
-        {
-          iob_free_chain(fwd->f_iob);
-        }
-
-      /* And release the forwarding state structure */
-
-      netfwd_free(fwd);
-    }
-
-  return flags;
-}
 
 /****************************************************************************
  * Public Functions
@@ -212,12 +49,13 @@ static uint32_t netfwd_eventhandler(FAR struct net_driver_s *dev,
  *   Called by the IP forwarding logic when a packet is received on one
  *   network device, but must be forwarded on another network device.
  *
- *   Set up to forward the packet on the specified device.  This function
- *   will set up a send  event handler that will perform the actual send
- *   asynchronously and must return without waiting for the send to
- *   complete.
+ *   Queue the packet on the forwarding device and notify its driver.  The
+ *   forwarding device sends the packet asynchronously from its own poll,
+ *   so this function returns without waiting for the send to complete.
+ *   The caller must not access fwd after a successful return.
  *
  * Input Parameters:
+ *   dev - The device on which the packet was received.
  *   fwd - An initialized instance of the common forwarding structure that
  *         includes everything needed to perform the forwarding operation.
  *
@@ -230,39 +68,63 @@ static uint32_t netfwd_eventhandler(FAR struct net_driver_s *dev,
 
 int netfwd_forward(FAR struct net_driver_s *dev, FAR struct forward_s *fwd)
 {
+  FAR struct net_driver_s *fwddev;
+  FAR struct iob_s *iob;
+  FAR uint8_t *buf;
+  irqstate_t flags;
+  int len;
+
   DEBUGASSERT(fwd != NULL && fwd->f_iob != NULL && fwd->f_dev != NULL);
+  fwddev = fwd->f_dev;
 
-  /* Set up the callback in the connection */
+  /* Queue the packet on the forwarding device.  Its own poll sends the
+   * packet with its own lock held, see netfwd_poll().  A device that is
+   * not running or is unregistered gets nothing queued, see
+   * netfwd_cleanup().  The queue is bounded, so that packets waiting for a
+   * slower device do not take all IOBs.
+   */
 
-  fwd->f_cb = netfwd_callback_alloc(fwd->f_dev);
-  if (fwd->f_cb != NULL)
+  flags = spin_lock_irqsave(&fwddev->d_fwdlock);
+  if (fwddev->d_fwdclosed || !IFF_IS_RUNNING(fwddev->d_flags))
     {
-      FAR struct iob_s *iob = dev->d_iob;
-      FAR uint8_t *buf = dev->d_buf;
-      int len = dev->d_len;
-
-      fwd->f_cb->flags   = (IPFWD_POLL | NETDEV_DOWN);
-      fwd->f_cb->priv    = (FAR void *)fwd;
-      fwd->f_cb->event   = netfwd_eventhandler;
-
-      /* Save the current state of the device, avoid damaging the current
-       * d_iob and other resources when forwarding recursion
-       */
-
-      dev->d_iob = NULL;
-      dev->d_buf = NULL;
-      dev->d_len = 0;
-
-      /* Notify the device driver of the availability of TX data */
-
-      netdev_txnotify_dev(fwd->f_dev, IPFWD_POLL);
-
-      dev->d_iob = iob;
-      dev->d_buf = buf;
-      dev->d_len = len;
-
-      return OK;
+      spin_unlock_irqrestore(&fwddev->d_fwdlock, flags);
+      return -ENETDOWN;
     }
 
-  return -EBUSY;
+  if (fwddev->d_fwdcount >= CONFIG_NET_FORWARD_NSTRUCT)
+    {
+      spin_unlock_irqrestore(&fwddev->d_fwdlock, flags);
+      return -EBUSY;
+    }
+
+  sq_addlast((FAR sq_entry_t *)fwd, &fwddev->d_fwdq);
+  fwddev->d_fwdcount++;
+  spin_unlock_irqrestore(&fwddev->d_fwdlock, flags);
+
+  /* Save the current state of the device, avoid damaging the current
+   * d_iob and other resources when forwarding recursion
+   */
+
+  iob = dev->d_iob;
+  buf = dev->d_buf;
+  len = dev->d_len;
+
+  dev->d_iob = NULL;
+  dev->d_buf = NULL;
+  dev->d_len = 0;
+
+  /* Notify the device driver of the availability of TX data.  fwd may
+   * already be sent and freed by the forwarding device.
+   */
+
+  if (fwddev->d_txavail != NULL)
+    {
+      fwddev->d_txavail(fwddev);
+    }
+
+  dev->d_iob = iob;
+  dev->d_buf = buf;
+  dev->d_len = len;
+
+  return OK;
 }

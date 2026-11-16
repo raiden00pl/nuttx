@@ -161,13 +161,6 @@
  *                        the appdata pointer is set differently.
  *                   OUT: Not used
  *
- *   IPFWD_POLL       IN: Used for polling for forwarded packets layer.  This
- *                        is provided periodically from the drivers to
- *                        support to check if there is a packet waiting to be
- *                        forward on the device.  This is a device oriented
- *                        event, not associated with a socket.  The appdata
- *                        pointer is not used in this case.
- *                   OUT: Not used
  *   IGMP_POLL        IN: Used for polling the socket layer.  This is
  *                        provided periodically from the drivers to support
  *                        (1) timed operations, and (2) to check if the IGMP
@@ -199,7 +192,6 @@
 #define PKT_NEWDATA        TCP_NEWDATA
 #define CAN_NEWDATA        TCP_NEWDATA
 #define WPAN_NEWDATA       TCP_NEWDATA
-#define IPFWD_NEWDATA      TCP_NEWDATA
 #define TCP_SNDACK         (1 << 2)
 #define TCP_REXMIT         (1 << 3)
 #define TCP_POLL           (1 << 4)
@@ -220,7 +212,7 @@
 
 #define NETDEV_DOWN        (1 << 17)
 
-/* Bits 18-24: device specific poll events.  Unlike connection
+/* Bits 18-23: device specific poll events.  Unlike connection
  * oriented poll events, device related poll events must distinguish
  * between what is being polled for since the callbacks all reside in
  * the same list in the network device structure.
@@ -232,7 +224,6 @@
 #define MLD_POLL           (1 << 21)
 #define ICMP_POLL          (1 << 22)
 #define ICMPv6_POLL        (1 << 23)
-#define IPFWD_POLL         (1 << 24)
 
 /* The set of events that and implications to the TCP connection state */
 

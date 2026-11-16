@@ -38,6 +38,7 @@
 #include <nuttx/net/netdev.h>
 
 #include "mld/mld.h"
+#include "netforward/netforward.h"
 #include "utils/utils.h"
 #include "netdev/netdev.h"
 
@@ -165,6 +166,12 @@ int netdev_unregister(FAR struct net_driver_s *dev)
           mld_grpfree_all(dev);
         }
 #endif
+
+      /* Queue nothing more for forwarding on the device and drop what is
+       * still queued.
+       */
+
+      netfwd_cleanup(dev, true);
 
       nxrmutex_destroy(&dev->d_lock);
 

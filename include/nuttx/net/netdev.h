@@ -50,6 +50,7 @@
 #include <stdbool.h>
 
 #include <nuttx/queue.h>
+#include <nuttx/spinlock_type.h>
 
 #include <net/if.h>
 #include <net/ethernet.h>
@@ -551,7 +552,6 @@ struct net_driver_s
    *
    *        ICMP data receipt:     ICMP_NEWDATA, ICMPv6_NEWDATA
    *        Driver Tx poll events: ARP_POLL, ICMP_POLL. ICMPv6_POLL
-   *        IP Forwarding:         IPFWD_POLL
    *
    *   2) d_devcb - For non-data, device related events that apply to all
    *      transfers or connections involving this device:
@@ -562,6 +562,20 @@ struct net_driver_s
   FAR struct devif_callback_s *d_conncb;      /* This is the list head */
   FAR struct devif_callback_s *d_conncb_tail; /* This is the list tail */
   FAR struct devif_callback_s *d_devcb;
+
+#ifdef CONFIG_NET_FORWARD
+  /* Packets received on other devices waiting to be forwarded on this
+   * device (struct forward_s), at most CONFIG_NET_FORWARD_NSTRUCT.  The
+   * receiving device adds them without this device's d_lock, so the queue
+   * is guarded by d_fwdlock.  d_fwdclosed is set when the device is
+   * unregistered.
+   */
+
+  sq_queue_t   d_fwdq;
+  unsigned int d_fwdcount;
+  spinlock_t   d_fwdlock;
+  bool         d_fwdclosed;
+#endif
 
   /* Driver callbacks */
 

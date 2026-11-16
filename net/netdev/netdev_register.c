@@ -32,6 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <nuttx/debug.h>
+#include <nuttx/spinlock.h>
 
 #include <net/if.h>
 #include <net/ethernet.h>
@@ -427,6 +428,13 @@ int netdev_register(FAR struct net_driver_s *dev, enum net_lltype_e lltype)
       dev->d_devcb = NULL;
 
       dev->d_polltype = 0;
+
+#ifdef CONFIG_NET_FORWARD
+      sq_init(&dev->d_fwdq);
+      dev->d_fwdcount = 0;
+      spin_lock_init(&dev->d_fwdlock);
+      dev->d_fwdclosed = false;
+#endif
 
       nxrmutex_init(&dev->d_lock);
 

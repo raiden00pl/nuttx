@@ -86,6 +86,7 @@
 #include "devif/devif.h"
 #include "igmp/igmp.h"
 #include "icmpv6/icmpv6.h"
+#include "netforward/netforward.h"
 #include "route/route.h"
 #include "netlink/netlink.h"
 #include "utils/utils.h"
@@ -2184,6 +2185,7 @@ int netdev_ifdown(FAR struct net_driver_s *dev)
               /* Notify clients that the network has been taken down */
 
               devif_dev_event(dev, NETDEV_DOWN);
+              netfwd_cleanup(dev, false);
 
 #ifdef CONFIG_NETDOWN_NOTIFIER
               /* Provide signal notifications to threads that want to be

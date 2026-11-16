@@ -581,7 +581,8 @@ static inline_function int devif_poll_icmpv6(FAR struct net_driver_s *dev,
  * Name: devif_poll_forward
  *
  * Description:
- *   Poll the device event to see if any task is waiting to forward a packet.
+ *   Send the packets that other devices queued for forwarding on this
+ *   device.
  *
  ****************************************************************************/
 
@@ -589,20 +590,23 @@ static inline_function int devif_poll_icmpv6(FAR struct net_driver_s *dev,
 static inline_function int devif_poll_forward(FAR struct net_driver_s *dev,
                                               devif_poll_callback_t callback)
 {
-  /* Perform the forwarding poll */
-
-  netfwd_poll(dev);
+  int bstop = false;
 
   /* NOTE: that 6LoWPAN packet conversions are handled differently for
    * forwarded packets.  That is because we don't know what the packet
    * type is at this point; not within peeking into the device's d_buf.
    */
 
-  /* Call back into the driver */
+  while (!bstop && netfwd_poll(dev))
+    {
+      /* Call back into the driver */
 
-  return devif_poll_out(dev, callback);
+      bstop = devif_poll_out(dev, callback);
+    }
+
+  return bstop;
 }
-#endif /* CONFIG_NET_ICMPv6_SOCKET || CONFIG_NET_ICMPv6_NEIGHBOR*/
+#endif /* CONFIG_NET_FORWARD */
 
 /****************************************************************************
  * Name: devif_poll_igmp
@@ -1060,16 +1064,6 @@ static int devif_poll_connections(FAR struct net_driver_s *dev,
             bstop = devif_poll_icmpv6(dev, callback);
             break;
 #endif
-#ifdef CONFIG_NET_FORWARD
-
-          /* Traverse all of the tasks waiting to forward a packet to this
-           * device.
-           */
-
-          case IPFWD_POLL:
-            bstop = devif_poll_forward(dev, callback);
-            break;
-#endif
           default:
             nerr("ERROR: Unhandled poll type: %d\n", i - 1);
             break;
@@ -1080,6 +1074,17 @@ static int devif_poll_connections(FAR struct net_driver_s *dev,
           dev->d_polltype &= ~(1 << (i - 1));
         }
     }
+
+#ifdef CONFIG_NET_FORWARD
+  /* Send the packets queued for forwarding on this device.  The queue is
+   * checked on every poll, other devices do not set d_polltype.
+   */
+
+  if (!bstop)
+    {
+      bstop = devif_poll_forward(dev, callback);
+    }
+#endif
 
   return bstop;
 }
