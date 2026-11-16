@@ -1091,6 +1091,10 @@ static ssize_t uart_readv(FAR struct file *filep, FAR struct uio *uio)
   unsigned int nbuffered;
   unsigned int watermark;
 #endif
+#ifdef CONFIG_SERIAL_TERMIOS
+  clock_t start = 0;
+  ssize_t armed = -1;
+#endif
   irqstate_t flags;
   ssize_t recvd = 0;
   ssize_t buflen;
@@ -1430,7 +1434,13 @@ static ssize_t uart_readv(FAR struct file *filep, FAR struct uio *uio)
                * anything to the caller?
                */
 
+#  ifdef CONFIG_SERIAL_TERMIOS
+              else if (recvd > 0 && !(dev->termios.lflag & ICANON) &&
+                       (recvd >= dev->minread ||
+                        (filep->f_oflags & O_NONBLOCK) != 0))
+#  else
               else if (recvd > 0 && !(dev->termios.lflag & ICANON))
+#  endif
                 {
                   /* Yes.. break out of the loop and return the number
                    * of bytes received up to the wait condition.
@@ -1464,6 +1474,17 @@ static ssize_t uart_readv(FAR struct file *filep, FAR struct uio *uio)
                   uart_spinunlock(dev, false, flags);
                   break;
                 }
+
+#  ifdef CONFIG_SERIAL_TERMIOS
+              /* MIN=0, TIME=0: return what is available without waiting */
+
+              else if (!(dev->termios.lflag & ICANON) &&
+                       dev->minread == 0 && dev->timeout == 0)
+                {
+                  uart_spinunlock(dev, false, flags);
+                  break;
+                }
+#  endif
 #endif
 
 #ifdef CONFIG_SERIAL_REMOVABLE
@@ -1498,14 +1519,51 @@ static ssize_t uart_readv(FAR struct file *filep, FAR struct uio *uio)
                   else
                     {
 #ifdef CONFIG_SERIAL_TERMIOS
-                      dev->minrecv = MIN(buflen - recvd,
+                      clock_t ticks = DSEC2TICK(dev->timeout);
+                      clock_t elapsed;
+
+                      /* TIME runs from the read() call if MIN=0 and from
+                       * the last byte received if MIN>0.  Wake up for
+                       * each byte while TIME is set, it restarts the timer.
+                       */
+
+                      if (dev->timeout > 0 &&
+                          (recvd > 0 || dev->minread == 0))
+                        {
+                          if (recvd != armed)
+                            {
+                              armed = recvd;
+                              start = clock_systime_ticks();
+                            }
+
+                          elapsed = clock_systime_ticks() - start;
+                          if (elapsed >= ticks)
+                            {
+                              uart_spinunlock(dev, false, flags);
+                              break;
+                            }
+
+                          ticks -= elapsed;
+                        }
+                      else
+                        {
+                          ticks = 0;
+                        }
+
+                      dev->minrecv = dev->timeout > 0 ? 1 :
+                                     MIN(buflen - recvd,
                                          dev->minread - recvd);
-                      if (dev->timeout)
+                      if (ticks > 0)
                         {
                           uart_spinunlock(dev, false, flags);
                           nxmutex_unlock(&dev->recv.lock);
-                          ret = nxsem_tickwait(&dev->recvsem,
-                                               DSEC2TICK(dev->timeout));
+                          ret = nxsem_tickwait(&dev->recvsem, ticks);
+                          if (ret == -ETIMEDOUT)
+                            {
+                              /* The next pass returns the bytes received */
+
+                              ret = OK;
+                            }
                         }
                       else
 #endif
