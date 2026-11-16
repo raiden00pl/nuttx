@@ -609,14 +609,19 @@ static void netdev_console_poll(FAR struct pollfd_s *fds)
       if (priv->rxint)
         {
           /* Do not pull here.  This callback runs inside the network RX
-           * path before the datagram is buffered to the socket read-ahead
-           * (the UDP layer dispatches poll notifications in the step that
-           * precedes read-ahead buffering), so a synchronous psock_recv()
-           * would read nothing and the datagram would stay stranded until
-           * the next one arrives.  Wake the reader instead; the serial
-           * read path pulls on demand in the reader thread, after the RX
-           * path has committed the data to the read-ahead buffer.
+           * path before the datagram is buffered to the socket read-ahead.
+           * Queue the RX work instead: its psock_recv() takes the
+           * connection lock, which the RX path holds until the datagram
+           * is buffered, so it sees the data even if no reader is
+           * waiting.  That lets the serial upper half see special
+           * characters such as Ctrl-C without a pending read().
            */
+
+          if (work_available(&priv->rxwork))
+            {
+              work_queue(LPWORK, &priv->rxwork, netdev_console_rxwork,
+                         priv, 0);
+            }
 
           uart_datareceived(&priv->dev);
         }
