@@ -308,9 +308,9 @@ static uint32_t sendfile_eventhandler(FAR struct net_driver_s *dev,
           tcp_lost_connection(conn, pstate->snd_cb, flags);
         }
 
-      /* Report not connected */
+      /* Report the loss of the connection */
 
-      pstate->snd_sent = TCP_NOTCONN_ERROR(conn);
+      pstate->snd_sent = tcp_send_lost(conn, false);
       goto end_wait;
     }
 
@@ -425,14 +425,23 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
   conn = psock->s_conn;
   DEBUGASSERT(conn != NULL);
 
-  /* If this is an un-connected socket, then return ENOTCONN (EPIPE after
-   * the connection was closed).
+  if (psock->s_type != SOCK_STREAM)
+    {
+      nerr("ERROR: Not a stream socket\n");
+      return -ENOTCONN;
+    }
+
+  /* If this is an un-connected socket, then return the pending error,
+   * EPIPE after the connection was lost or ENOTCONN.
    */
 
-  if (psock->s_type != SOCK_STREAM || !_SS_ISCONNECTED(conn->sconn.s_flags))
+  if (!_SS_ISCONNECTED(conn->sconn.s_flags))
     {
       nerr("ERROR: Not connected\n");
-      return TCP_NOTCONN_ERROR(conn);
+      conn_dev_lock(&conn->sconn, conn->dev);
+      ret = tcp_send_lost(conn, true);
+      conn_dev_unlock(&conn->sconn, conn->dev);
+      return ret;
     }
 
   /* Make sure that we have the IP address mapping */
@@ -543,6 +552,14 @@ ssize_t tcp_sendfile(FAR struct socket *psock, FAR struct file *infile,
 
   conn_dev_lock(&conn->sconn, conn->dev);
   tcp_callback_free(conn, state.snd_cb);
+
+  /* Clear the pending error that is reported now */
+
+  if (ret >= 0 && state.snd_sent < 0 &&
+      state.snd_sent == -conn->sconn.s_error)
+    {
+      conn->sconn.s_error = 0;
+    }
 
 errout_locked:
   nxsem_destroy(&state.snd_sem);

@@ -1362,8 +1362,9 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
   if (!_SS_ISCONNECTED(conn->sconn.s_flags))
     {
       nerr("ERROR: Not connected\n");
-      ret = TCP_NOTCONN_ERROR(conn);
-      goto errout;
+      conn_dev_lock(&conn->sconn, conn->dev);
+      ret = tcp_send_lost(conn, true);
+      goto errout_with_lock;
     }
 
   if ((conn->shutdown & SHUT_WR) != 0)
@@ -1429,8 +1430,12 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
 
       if (!_SS_ISCONNECTED(conn->sconn.s_flags))
         {
+          /* If part of the data was queued, that count is returned and the
+           * error stays pending.
+           */
+
           nerr("ERROR: No longer connected\n");
-          ret = TCP_NOTCONN_ERROR(conn);
+          ret = tcp_send_lost(conn, result == 0);
           goto errout_with_lock;
         }
 

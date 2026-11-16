@@ -387,6 +387,42 @@ void tcp_stop_monitor(FAR struct tcp_conn_s *conn, uint32_t flags)
 }
 
 /****************************************************************************
+ * Name: tcp_send_lost
+ *
+ * Description:
+ *   Get the error of a send on a socket that is not connected: the pending
+ *   error of a lost connection, else TCP_NOTCONN_ERROR().
+ *
+ * Input Parameters:
+ *   conn  - The TCP connection of interest
+ *   clear - Clear the pending error, it is reported now
+ *
+ * Returned Value:
+ *   The negated errno value to report.
+ *
+ * Assumptions:
+ *   The caller holds conn_dev_lock() (the device lock in an event
+ *   handler).
+ *
+ ****************************************************************************/
+
+int tcp_send_lost(FAR struct tcp_conn_s *conn, bool clear)
+{
+  int ret = TCP_NOTCONN_ERROR(conn);
+
+  if (conn->sconn.s_error != 0)
+    {
+      ret = -conn->sconn.s_error;
+      if (clear)
+        {
+          conn->sconn.s_error = 0;
+        }
+    }
+
+  return ret;
+}
+
+/****************************************************************************
  * Name: tcp_lost_connection
  *
  * Description:
