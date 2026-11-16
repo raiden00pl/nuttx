@@ -1913,6 +1913,14 @@ static int uart_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
   /* Handle TTY-level IOCTLs here */
 
+  /* TCFLSH supports only TCIFLUSH, TCOFLUSH and TCIOFLUSH */
+
+  if (cmd == TCFLSH && arg != TCIFLUSH && arg != TCOFLUSH &&
+      arg != TCIOFLUSH)
+    {
+      return -EINVAL;
+    }
+
   /* Let low-level driver handle the call first,
    * but skip TCSETS if no hardware change.
    */
