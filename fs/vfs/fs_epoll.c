@@ -37,6 +37,7 @@
 #include <nuttx/debug.h>
 
 #include <nuttx/nuttx.h>
+#include <nuttx/cancelpt.h>
 #include <nuttx/clock.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
@@ -1001,15 +1002,21 @@ int epoll_pwait(int epfd, FAR struct epoll_event *evs,
 #endif
   int ret;
 
+  /* epoll_pwait() is a cancellation point */
+
+  enter_cancellation_point();
+
   if (maxevents <= 0)
     {
       set_errno(EINVAL);
+      leave_cancellation_point();
       return ERROR;
     }
 
   if (evs == NULL)
     {
       set_errno(EFAULT);
+      leave_cancellation_point();
       return ERROR;
     }
 
@@ -1065,7 +1072,7 @@ retry:
     }
 
   epoll_filep_close(filep);
-
+  leave_cancellation_point();
   return ret;
 
 err:
@@ -1073,6 +1080,7 @@ err:
   set_errno(-ret);
 out:
   ferr("epoll wait failed:%d, timeout:%d\n", errno, timeout);
+  leave_cancellation_point();
   return ERROR;
 }
 
@@ -1094,15 +1102,21 @@ int epoll_wait(int epfd, FAR struct epoll_event *evs,
   FAR epoll_head_t *eph;
   int ret;
 
+  /* epoll_wait() is a cancellation point */
+
+  enter_cancellation_point();
+
   if (maxevents <= 0)
     {
       set_errno(EINVAL);
+      leave_cancellation_point();
       return ERROR;
     }
 
   if (evs == NULL)
     {
       set_errno(EFAULT);
+      leave_cancellation_point();
       return ERROR;
     }
 
@@ -1151,7 +1165,7 @@ retry:
     }
 
   epoll_filep_close(filep);
-
+  leave_cancellation_point();
   return ret;
 
 err:
@@ -1159,5 +1173,6 @@ err:
   set_errno(-ret);
 out:
   ferr("epoll wait failed:%d, timeout:%d\n", errno, timeout);
+  leave_cancellation_point();
   return ERROR;
 }
