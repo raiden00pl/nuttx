@@ -37,6 +37,7 @@
 #include <netinet/in.h>
 
 #include <nuttx/signal.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/net/net.h>
 #include <nuttx/serial/serial.h>
 
@@ -60,6 +61,8 @@ struct netdev_consol_s
   uint8_t           rxdgram[CONFIG_CONSOLE_NETDEV_RXBUFSIZE];
   bool              rxint;
   struct pollfd_s   fds;
+  struct work_s     txwork;
+  struct work_s     rxwork;
 };
 
 /****************************************************************************
@@ -87,6 +90,8 @@ static void netdev_console_dmasend(FAR struct uart_dev_s *dev);
 static void netdev_console_dmareceive(FAR struct uart_dev_s *dev);
 static void netdev_console_dmarxfree(FAR struct uart_dev_s *dev);
 static void netdev_console_dmatxavail(FAR struct uart_dev_s *dev);
+static void netdev_console_txwork(FAR void *arg);
+static void netdev_console_rxwork(FAR void *arg);
 static void netdev_console_send(FAR struct uart_dev_s *dev, int ch);
 static void netdev_console_txint(FAR struct uart_dev_s *dev, bool enable);
 static bool netdev_console_txready(FAR struct uart_dev_s *dev);
@@ -321,6 +326,8 @@ static void netdev_console_detach(FAR struct uart_dev_s *dev)
 {
   FAR struct netdev_consol_s *priv = (FAR struct netdev_consol_s *)dev;
 
+  work_cancel(LPWORK, &priv->txwork);
+  work_cancel(LPWORK, &priv->rxwork);
   priv->rxdgram_off = 0;
   priv->rxdgram_len = 0;
   psock_poll(&priv->psock, &priv->fds, false);
@@ -351,13 +358,22 @@ static bool netdev_console_rxflowcontrol(FAR struct uart_dev_s *dev,
 #endif
 
 /****************************************************************************
- * Name: netdev_console_dmasend
+ * Name: netdev_console_txwork
+ *
+ * Description:
+ *   Send the TX DMA window set up by uart_xmitchars_dma().  The socket send
+ *   may sleep, so it runs here without the serial lock.  On completion the
+ *   transfer is finished under the serial lock, as a DMA completion
+ *   interrupt would do, and the next window is started.
+ *
  ****************************************************************************/
 
-static void netdev_console_dmasend(FAR struct uart_dev_s *dev)
+static void netdev_console_txwork(FAR void *arg)
 {
-  FAR struct netdev_consol_s *priv  = (FAR struct netdev_consol_s *)dev;
+  FAR struct netdev_consol_s *priv  = arg;
+  FAR struct uart_dev_s      *dev   = &priv->dev;
   int                         retry = 3;
+  irqstate_t                  flags;
   ssize_t                     ret;
 
   do
@@ -374,52 +390,101 @@ static void netdev_console_dmasend(FAR struct uart_dev_s *dev)
     }
   while (ret < 0 && retry--);
 
+  flags = uart_spinlock(dev, true);
   dev->dmatx.nbytes = ret > 0 ? ret : 0;
   uart_xmitchars_done(dev);
+
+  /* Continue with the data that is still buffered.  After a failed send,
+   * the next dmatxavail() retries.
+   */
+
+  if (ret > 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
+
+  uart_spinunlock(dev, true, flags);
+}
+
+/****************************************************************************
+ * Name: netdev_console_rxwork
+ *
+ * Description:
+ *   Receive datagrams into the staging buffer without the serial lock (the
+ *   socket receive may block on the connection lock), then move them to the
+ *   RX ring buffer under the serial lock through uart_recvchars_dma().
+ *
+ ****************************************************************************/
+
+static void netdev_console_rxwork(FAR void *arg)
+{
+  FAR struct netdev_consol_s *priv = arg;
+  FAR struct uart_dev_s      *dev  = &priv->dev;
+  irqstate_t                  flags;
+  ssize_t                     ret;
+
+  for (; ; )
+    {
+      /* Console expects a continuous byte stream.  UDP/ISO-TP recv returns
+       * one datagram, and any bytes that do not fit in the RX ring buffer
+       * are lost.  Keep one datagram here and drain it over multiple DMA
+       * windows.
+       */
+
+      if (priv->rxdgram_off >= priv->rxdgram_len)
+        {
+          ret = psock_recv(&priv->psock, priv->rxdgram,
+                           sizeof(priv->rxdgram), MSG_DONTWAIT);
+          if (ret <= 0)
+            {
+              return;
+            }
+
+          priv->rxdgram_off = 0;
+          priv->rxdgram_len = ret;
+        }
+
+      flags = uart_spinlock(dev, true);
+      uart_recvchars_dma(dev);
+      uart_spinunlock(dev, true, flags);
+
+      /* The RX ring buffer is full, the next dmarxfree() continues */
+
+      if (priv->rxdgram_off < priv->rxdgram_len)
+        {
+          return;
+        }
+    }
+}
+
+/****************************************************************************
+ * Name: netdev_console_dmasend
+ ****************************************************************************/
+
+static void netdev_console_dmasend(FAR struct uart_dev_s *dev)
+{
+  FAR struct netdev_consol_s *priv = (FAR struct netdev_consol_s *)dev;
+
+  work_queue(LPWORK, &priv->txwork, netdev_console_txwork, priv, 0);
 }
 
 /****************************************************************************
  * Name: netdev_console_dmareceive
+ *
+ * Description:
+ *   Copy the staged datagram into the RX DMA window.  Called with the
+ *   serial lock held from netdev_console_rxwork() only.
+ *
  ****************************************************************************/
 
 static void netdev_console_dmareceive(FAR struct uart_dev_s *dev)
 {
   FAR struct netdev_consol_s *priv = (FAR struct netdev_consol_s *)dev;
-  uint16_t                    space;
   uint16_t                    copylen;
   uint16_t                    first;
   uint16_t                    second;
-  ssize_t                     ret;
 
-  space = dev->dmarx.length + dev->dmarx.nlength;
-  if (space == 0)
-    {
-      dev->dmarx.nbytes = 0;
-      uart_recvchars_done(dev);
-      return;
-    }
-
-  /* Console expects a continuous byte stream. UDP/ISO-TP recv returns one
-   * datagram, and any bytes that do not fit in this DMA window are lost.
-   * Keep one datagram here and drain it over multiple DMA windows.
-   */
-
-  if (priv->rxdgram_off >= priv->rxdgram_len)
-    {
-      ret = psock_recv(&priv->psock, priv->rxdgram, sizeof(priv->rxdgram),
-                       MSG_DONTWAIT);
-      if (ret <= 0)
-        {
-          dev->dmarx.nbytes = 0;
-          uart_recvchars_done(dev);
-          return;
-        }
-
-      priv->rxdgram_off = 0;
-      priv->rxdgram_len = ret;
-    }
-
-  copylen = space;
+  copylen = dev->dmarx.length + dev->dmarx.nlength;
   if (copylen > priv->rxdgram_len - priv->rxdgram_off)
     {
       copylen = priv->rxdgram_len - priv->rxdgram_off;
@@ -452,20 +517,38 @@ static void netdev_console_dmareceive(FAR struct uart_dev_s *dev)
 
 /****************************************************************************
  * Name: netdev_console_dmarxfree
+ *
+ * Description:
+ *   Called with the serial lock held.  Defer the socket receive to the
+ *   work queue.
+ *
  ****************************************************************************/
 
 static void netdev_console_dmarxfree(FAR struct uart_dev_s *dev)
 {
-  uart_recvchars_dma(dev);
+  FAR struct netdev_consol_s *priv = (FAR struct netdev_consol_s *)dev;
+
+  if (work_available(&priv->rxwork))
+    {
+      work_queue(LPWORK, &priv->rxwork, netdev_console_rxwork, priv, 0);
+    }
 }
 
 /****************************************************************************
  * Name: netdev_console_dmatxavail
+ *
+ * Description:
+ *   Called with the serial lock held.  Start a TX DMA window unless one is
+ *   already in flight.
+ *
  ****************************************************************************/
 
 static void netdev_console_dmatxavail(FAR struct uart_dev_s *dev)
 {
-  uart_xmitchars_dma(dev);
+  if (dev->dmatx.length == 0)
+    {
+      uart_xmitchars_dma(dev);
+    }
 }
 
 /****************************************************************************
