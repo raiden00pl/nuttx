@@ -848,8 +848,10 @@ static void netdev_upper_rxpoll_work(FAR struct netdev_upperhalf_s *upper)
         }
 #endif
 
+      netdev_lock(dev);
       netpkt_put(dev, pkt, NETPKT_RX);
       netdev_upper_input(dev);
+      netdev_unlock(dev);
     }
 }
 
