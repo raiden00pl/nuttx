@@ -1451,8 +1451,17 @@ skip_rtt:
                   return;
                 }
             }
-          else if ((conn->tcpstateflags & TCP_STATE_MASK) <= TCP_FIN_WAIT_2)
+          else if (((conn->tcpstateflags & TCP_STATE_MASK) <=
+                    TCP_FIN_WAIT_2) &&
+                   (dev->d_len > 0 || (tcp->flags & (TCP_SYN | TCP_FIN)) ||
+                    !TCP_SEQ_LT(seq, conn->rcv_adv)))
             {
+              /* The segment takes sequence space beyond RCV.NXT: it is out
+               * of order.  A segment without data, SYN or FIN is acceptable
+               * if RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND (RFC 9293, 3.10.7.4)
+               * and is not answered.
+               */
+
 #ifdef CONFIG_NET_TCP_OUT_OF_ORDER
               /* Queue out-of-order segments. */
 
