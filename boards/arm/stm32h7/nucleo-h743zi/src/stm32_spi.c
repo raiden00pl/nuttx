@@ -167,6 +167,7 @@ void stm32_spi3select(struct spi_dev_s *dev,
 uint8_t stm32_spi3status(struct spi_dev_s *dev, uint32_t devid)
 {
   uint8_t status = 0;
+
   switch (devid)
     {
 #ifdef CONFIG_WL_NRF24L01
