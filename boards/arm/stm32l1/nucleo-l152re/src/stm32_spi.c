@@ -73,7 +73,10 @@
 
 void weak_function stm32_spiinitialize(void)
 {
+#ifdef CONFIG_SPI_DRIVER
   int ret;
+#endif
+
 #ifdef CONFIG_STM32_SPI1
   /* Initialize the SPI1 bus */
 
