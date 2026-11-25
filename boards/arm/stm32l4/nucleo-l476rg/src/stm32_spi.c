@@ -157,12 +157,12 @@ uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)
 {
   uint8_t status = 0;
 
-  #ifdef HAVE_MMCSD_SPI
+#ifdef HAVE_MMCSD_SPI
   if (devid == SPIDEV_MMCSD(0))
     {
-       status |= SPI_STATUS_PRESENT;
+      status |= SPI_STATUS_PRESENT;
     }
-  #endif
+#endif
 
   return status;
 }
