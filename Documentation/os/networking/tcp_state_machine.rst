@@ -149,6 +149,19 @@ sends FIN and transitions:
 		-> TCP_TIME_WAIT           (FIN from peer)
 		-> TCP_CLOSED              (timer expiry)
 
+The FIN goes after the data that the application queued before ``close()``
+or ``shutdown(SHUT_WR)``.  A ``close()`` with received data that the
+application did not read, or with ``SO_LINGER`` on and a time of zero, sends
+a RST instead and drops the queued data (RFC 1122, section 4.2.2.13).
+
+After ``close()`` the connection keeps one callback (``tcp_close.c``) until it
+ends; it is then freed.  When the device of the connection goes down, the
+connection is closed at once.  When ``socket()`` or a new connection from a
+listener finds no free connection structure, or ``close()`` finds no free
+callback, the oldest connection that no socket uses and that only waits for
+the end of its close (for example in ``TCP_TIME_WAIT``) is freed to make room
+(``tcp_reclaim()`` in ``tcp_conn.c``).
+
 Simultaneous close
 ------------------
 
@@ -306,6 +319,24 @@ The TCP timer handler in ``net/tcp/tcp_timer.c`` drives:
 		connection is closed, the socket is notified (``TCP_TIMEDOUT``), and a
 		RST may be sent.
 
+Retransmission timer
+--------------------
+
+* The retransmission timer starts when a segment that takes sequence space
+	(data, SYN or FIN) is sent while data is unacknowledged.  A segment without
+	data (an ACK) does not restart it (RFC 6298, section 5).
+* An incoming ACK restarts the timer only when it acknowledges new data.  An
+	ACK that is not beyond the highest ACK so far gives no RTT sample and does
+	not reset the count of retransmissions.
+* At each expiry the timeout doubles (RFC 6298, section 5.5): the next timeout
+	is the initial timeout (``NET_TCP_RTO``) times 2, 4, 8 and then 16.  With
+	``NET_TCP_FIXED_RTO`` it does not change.
+* The first SYN of ``connect()`` is not a retransmission: it goes out with the
+	initial timeout and is not counted.  ``NET_TCP_MAXSYNRTX`` limits the
+	resends of the SYN, as ``NET_TCP_MAXRTX`` limits the resends of data.
+* A duplicate ACK carries no data (RFC 5681, section 2).  A segment with data
+	that repeats the ACK number does not count toward a fast retransmission.
+
 Reset by the peer
 -----------------
 
@@ -320,6 +351,24 @@ gives end-of-file and a send gives ``EPIPE`` (and ``SIGPIPE`` without
 ``POLLERR`` while the ``ECONNRESET`` is not yet reported.  After the FIN of
 the peer the application already read the end of the stream: a RST does not
 change what a receive (end-of-file) or a send (``EPIPE``) gives.
+
+Close or reset before accept() or connect() returns
+---------------------------------------------------
+
+The peer can close (FIN) or reset (RST) the connection after the handshake,
+before ``accept()`` or ``connect()`` returns.  After a FIN (``TCP_CLOSE_WAIT``)
+``accept()`` and ``connect()`` succeed: a receive gives the data that came,
+then end-of-file, and a send still reaches the peer.  After a RST
+``accept()`` gives the socket, and the reset is reported as above (the data
+that came before the RST, then ``ECONNRESET`` once, then end-of-file).
+``connect()`` fails with ``ECONNRESET``, and the socket is not connected.  A
+connection that the peer resets while it waits in the backlog of the
+listener is freed: ``accept()`` waits for the next connection.
+
+``tcp_start_monitor()`` sets the connection state of the socket
+(``_SF_CONNECTED``, ``_SF_CLOSED``) with the device locked, where the monitor
+changes it for an event of the peer.  ``accept()`` and ``connect()`` do not
+change it after that (``SOCKCAP_CONNSTATE``).
 
 Deviations and Notable Simplifications
 ======================================

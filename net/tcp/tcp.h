@@ -35,6 +35,7 @@
 #include <nuttx/queue.h>
 #include <nuttx/semaphore.h>
 #include <nuttx/mm/iob.h>
+#include <nuttx/mutex.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/tcp.h>
@@ -100,6 +101,36 @@
 #define TCP_SEQ_ADD(a, b)   ((uint32_t)((a) + (b)))
 #define TCP_SEQ_SUB(a, b)   ((uint32_t)((a) - (b)))
 
+/* The send and receive buffer size of a connection.  When
+ * CONFIG_NET_SEND_BUFSIZE or CONFIG_NET_RECV_BUFSIZE is 0, a connection
+ * may queue in its write buffers and in its read-ahead 1/8 of the IOBs
+ * above the throttle each, but at least one segment of the largest MSS.
+ * So one connection cannot take all free IOBs.
+ */
+
+#define TCP_IOB_BUFSIZE \
+  ((CONFIG_IOB_NBUFFERS - CONFIG_IOB_THROTTLE) * CONFIG_IOB_BUFSIZE / 8)
+#define TCP_DEFAULT_BUFSIZE \
+  (TCP_IOB_BUFSIZE > MAX_TCP_MSS ? TCP_IOB_BUFSIZE : MAX_TCP_MSS)
+
+#if CONFIG_NET_RECV_BUFSIZE > 0
+#  define TCP_RECV_BUFSIZE  CONFIG_NET_RECV_BUFSIZE
+#else
+#  define TCP_RECV_BUFSIZE  TCP_DEFAULT_BUFSIZE
+#endif
+
+#if CONFIG_NET_SEND_BUFSIZE > 0
+#  define TCP_SEND_BUFSIZE  CONFIG_NET_SEND_BUFSIZE
+#else
+#  define TCP_SEND_BUFSIZE  TCP_DEFAULT_BUFSIZE
+#endif
+
+/* True if the connection with list id a entered the list of active
+ * connections after the one with list id b (the ids wrap).
+ */
+
+#define TCP_LISTID_AFTER(a, b) ((int32_t)((uint32_t)(a) - (uint32_t)(b)) > 0)
+
 /* The error of a send on a TCP socket that is not connected: -ECONNRESET
  * if the peer reset the connection and this is not yet reported, -EPIPE if
  * the connection was closed (POSIX: the socket is no longer connected),
@@ -126,6 +157,7 @@
 
 #define TCP_RESET             0x20U /* The peer reset the connection */
 #define TCP_RESETERR          0x40U /* ECONNRESET of it not yet reported */
+#define TCP_SYNFIRST          0x80U /* The first SYN of connect() not sent */
 
 /* The Max Range count of TCP Selective ACKs */
 
@@ -226,6 +258,8 @@ struct tcp_conn_s
                            * receive next */
   uint8_t  sndseq[4];     /* The sequence number that was last sent by us */
   uint32_t rexmit_seq;    /* The sequence number to be retrasmitted */
+  uint32_t listid;        /* The order of entry in the list of active
+                           * connections (tcp_add_active_conn()) */
   uint8_t  crefs;         /* Reference counts on this instance */
 #if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
   uint8_t  domain;        /* IP domain: PF_INET or PF_INET6 */
@@ -256,6 +290,10 @@ struct tcp_conn_s
                            * connection */
 #endif
   uint32_t rcv_adv;       /* The right edge of the recv window advertised */
+  uint32_t rcv_clamp;     /* Recv window limit after a loss, 0: none */
+  uint32_t rcv_clampseq;  /* rcvseq to grow rcv_clamp at */
+  uint32_t rcv_lossseq;   /* rcv_adv at the last loss */
+  uint32_t rcv_clampmax;  /* rcv_clamp limit below the lost windows */
 #ifdef CONFIG_NET_TCP_CC_NEWRENO
   uint32_t last_ackno;    /* The ack number at the last receive ack */
   uint32_t dupacks;       /* The number of duplicate ack */
@@ -276,10 +314,8 @@ struct tcp_conn_s
 #endif
   uint32_t snd_wl1;
   uint32_t snd_wl2;
-#if CONFIG_NET_RECV_BUFSIZE > 0
   int32_t  rcv_bufs;      /* Maximum amount of bytes queued in recv */
-#endif
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   int32_t  snd_bufs;      /* Maximum amount of bytes queued in send */
   sem_t    snd_sem;       /* Semaphore signals send completion */
 #endif
@@ -332,8 +368,6 @@ struct tcp_conn_s
 
   sq_queue_t write_q;     /* Write buffering for segments */
   sq_queue_t unacked_q;   /* Write buffering for un-ACKed segments */
-  uint16_t   expired;     /* Number segments retransmitted but not yet ACKed,
-                           * it can only be updated at TCP_ESTABLISHED state */
   uint32_t   sent;        /* The number of bytes sent (ACKed and un-ACKed) */
   uint32_t   isn;         /* Initial sequence number */
   uint32_t   sndseq_max;  /* The sequence number of next not-retransmitted
@@ -400,6 +434,10 @@ struct tcp_conn_s
    *     accept() handler when it is invoked with a point to this structure
    *     as an argument.
    *   accept: This is the pointer to the accept handler.
+   *
+   *   tcp_accept_connection() calls accept() with the device of the new
+   *   connection and the TCP connection list locked, so accept() must not
+   *   take a device lock.
    */
 
   FAR void *accept_private;
@@ -467,6 +505,38 @@ extern "C"
 {
 #endif
 
+extern rmutex_t g_tcp_connections_lock;
+
+/****************************************************************************
+ * Inline Functions
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: tcp_conn_list_lock
+ *
+ * Description:
+ *   Lock the TCP connection list.
+ *
+ ****************************************************************************/
+
+static inline_function void tcp_conn_list_lock(void)
+{
+  nxrmutex_lock(&g_tcp_connections_lock);
+}
+
+/****************************************************************************
+ * Name: tcp_conn_list_unlock
+ *
+ * Description:
+ *   Unlock the TCP connection list.
+ *
+ ****************************************************************************/
+
+static inline_function void tcp_conn_list_unlock(void)
+{
+  nxrmutex_unlock(&g_tcp_connections_lock);
+}
+
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
@@ -483,6 +553,25 @@ extern "C"
  ****************************************************************************/
 
 FAR struct tcp_conn_s *tcp_alloc(uint8_t domain);
+
+/****************************************************************************
+ * Name: tcp_reclaim
+ *
+ * Description:
+ *   Free the oldest connection that no socket refers to and that only
+ *   waits for the end of its close (for example in TIME_WAIT).  This gives
+ *   back the connection structure and the callbacks that it holds.
+ *
+ * Input Parameters:
+ *   dev - The device whose lock the caller holds, or NULL if it holds no
+ *         device lock and no connection lock.
+ *
+ * Returned Value:
+ *   true if a connection was freed.
+ *
+ ****************************************************************************/
+
+bool tcp_reclaim(FAR struct net_driver_s *dev);
 
 /****************************************************************************
  * Name: tcp_free_rx_buffers
@@ -725,6 +814,20 @@ int tcp_connect(FAR struct tcp_conn_s *conn,
 void tcp_add_active_conn(FAR struct tcp_conn_s *conn);
 
 /****************************************************************************
+ * Name: tcp_conn_lastid
+ *
+ * Description:
+ *   Return the list id of the connection that entered the list of active
+ *   TCP connections last.
+ *
+ * Assumptions:
+ *   The TCP connection list is locked.
+ *
+ ****************************************************************************/
+
+uint32_t tcp_conn_lastid(void);
+
+/****************************************************************************
  * Name: tcp_removeconn
  *
  * Description:
@@ -744,29 +847,17 @@ void tcp_removeconn(FAR struct tcp_conn_s *conn);
  *   This function is used to remove the currently SYN_RCVD connection
  *   created by the listener
  *
- ****************************************************************************/
-
-void tcp_remove_syn_backlog(FAR struct tcp_conn_s *listener);
-
-/****************************************************************************
- * Name: tcp_conn_list_lock
+ *   Only the connections up to the list id lastid are freed.
  *
- * Description:
- *   Lock the TCP connection list.
+ * Assumptions:
+ *   The listener is no longer in the table of listeners.  lastid is the
+ *   value of tcp_conn_lastid() when it was taken out.  The caller holds no
+ *   lock of the network.
  *
  ****************************************************************************/
 
-void tcp_conn_list_lock(void);
-
-/****************************************************************************
- * Name: tcp_conn_list_unlock
- *
- * Description:
- *   Unlock the TCP connection list.
- *
- ****************************************************************************/
-
-void tcp_conn_list_unlock(void);
+void tcp_remove_syn_backlog(FAR struct tcp_conn_s *listener,
+                            uint32_t lastid);
 
 /****************************************************************************
  * Name: psock_tcp_connect
@@ -801,8 +892,8 @@ int psock_tcp_connect(FAR struct socket *psock,
  * Returned Value:
  *   On success, tcp_start_monitor returns OK; On any failure,
  *   tcp_start_monitor will return a negated errno value.  The only failure
- *   that can occur is if the socket has already been closed and, in this
- *   case, -ENOTCONN is returned.
+ *   that can occur is if the connection has already been lost:
+ *   -ECONNRESET if the peer reset it, else -ENOTCONN.
  *
  * Assumptions:
  *   The caller holds the network lock (if not, it will be locked momentarily
@@ -1208,8 +1299,12 @@ int tcp_listen(FAR struct tcp_conn_s *conn);
  * Description:
  *   Accept the new connection for the specified listening port.
  *
+ *   The listener's accept() handler, or the TCP_BACKLOG event of its
+ *   callbacks, runs with the TCP connection list locked: they must not
+ *   take a device lock, which comes before the list lock.
+ *
  * Assumptions:
- *   Called from network stack logic with the network stack locked
+ *   Called from the input path with the device locked.
  *
  ****************************************************************************/
 
@@ -1222,12 +1317,15 @@ int tcp_accept_connection(FAR struct net_driver_s *dev,
  * Description:
  *   Fill in the sequence and acknowledgment numbers, the ports, the receive
  *   window and the urgent pointer of an outgoing TCP header, and start the
- *   retransmission timer if there is unacknowledged data.
+ *   retransmission timer if there is unacknowledged data and the segment
+ *   takes sequence space.
  *
  * Input Parameters:
- *   dev  - The device driver structure to use in the send operation
- *   conn - The TCP connection structure holding connection information
- *   tcp  - The TCP header to fill in
+ *   dev   - The device driver structure to use in the send operation
+ *   conn  - The TCP connection structure holding connection information
+ *   tcp   - The TCP header to fill in
+ *   timer - True if the segment carries data, SYN or FIN.  A segment
+ *           without them (an ACK) does not restart the timer.
  *
  * Returned Value:
  *   None
@@ -1239,7 +1337,7 @@ int tcp_accept_connection(FAR struct net_driver_s *dev,
 
 void tcp_fill_header(FAR struct net_driver_s *dev,
                      FAR struct tcp_conn_s *conn,
-                     FAR struct tcp_hdr_s *tcp);
+                     FAR struct tcp_hdr_s *tcp, bool timer);
 
 /****************************************************************************
  * Name: tcp_send
@@ -1533,24 +1631,44 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg);
 #endif
 
 /****************************************************************************
- * Name: tcp_backlogdestroy
+ * Name: tcp_backlogdetach
  *
  * Description:
- *   (1) Called from tcp_free() whenever a connection is freed.
- *   (2) Called from tcp_backlogcreate() to destroy any old backlog
+ *   Take the backlog of a connection away from it, with the pending
+ *   connections in it: their blparent is set to NULL.  tcp_backlogfree()
+ *   frees them later.  (1) Called from tcp_free() whenever a connection is
+ *   freed, with the TCP connection list locked.  (2) Called from
+ *   tcp_backlogcreate() for the old backlog, with the connection locked.
  *
- *   NOTE: This function may re-enter tcp_free when a connection that
- *   is freed that has pending connections.
- *
- * Assumptions:
- *   Called from network socket logic with the network stack locked
+ * Returned Value:
+ *   The backlog that was detached, or NULL if there was none.
  *
  ****************************************************************************/
 
 #ifdef CONFIG_NET_TCPBACKLOG
-int tcp_backlogdestroy(FAR struct tcp_conn_s *conn);
+FAR struct tcp_backlog_s *tcp_backlogdetach(FAR struct tcp_conn_s *conn);
 #else
-#  define tcp_backlogdestroy(conn)     (-ENOSYS)
+#  define tcp_backlogdetach(conn)      (NULL)
+#endif
+
+/****************************************************************************
+ * Name: tcp_backlogfree
+ *
+ * Description:
+ *   Free a backlog that tcp_backlogdetach() returned, and the pending
+ *   connections in it.
+ *
+ *   NOTE: This function re-enters tcp_free() for each pending connection,
+ *   which takes the device lock of that connection.  So the caller holds
+ *   no lock of the network: not the TCP connection list lock, which the
+ *   input path takes under a device lock, and not the lock of a connection.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NET_TCPBACKLOG
+void tcp_backlogfree(FAR struct tcp_backlog_s *blg);
+#else
+#  define tcp_backlogfree(blg)
 #endif
 
 /****************************************************************************
@@ -1826,6 +1944,22 @@ int tcp_getsockopt(FAR struct socket *psock, int option,
 #endif
 
 /****************************************************************************
+ * Name: tcp_recvwindow_loss
+ *
+ * Description:
+ *   A segment arrived after a gap: the frames in front of it were lost.
+ *   Limit the receive window that the connection advertises.
+ *
+ * Input Parameters:
+ *   dev  - The device that received the segment.
+ *   conn - The TCP connection.
+ *
+ ****************************************************************************/
+
+void tcp_recvwindow_loss(FAR struct net_driver_s *dev,
+                         FAR struct tcp_conn_s *conn);
+
+/****************************************************************************
  * Name: tcp_get_recvwindow
  *
  * Description:
@@ -1963,7 +2097,7 @@ void tcp_wrbuffer_release(FAR struct tcp_wrbuffer_s *wrb);
  *
  ****************************************************************************/
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
 uint32_t tcp_wrbuffer_inqueue_size(FAR struct tcp_conn_s *conn);
 #endif
 
@@ -2289,9 +2423,9 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg);
  *
  ****************************************************************************/
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
 void tcp_sendbuffer_notify(FAR struct tcp_conn_s *conn);
-#endif /* CONFIG_NET_SEND_BUFSIZE */
+#endif
 
 /****************************************************************************
  * Name: tcpip_hdrsize
@@ -2398,8 +2532,9 @@ void tcp_cc_update(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp);
  *   Update congestion control variables
  *
  * Input Parameters:
- *   conn   - The TCP connection of interest
- *   tcp    - The TCP header.
+ *   conn    - The TCP connection of interest
+ *   tcp     - The TCP header.
+ *   datalen - The number of data bytes in the segment
  *
  * Returned Value:
  *   None
@@ -2409,7 +2544,8 @@ void tcp_cc_update(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp);
  *
  ****************************************************************************/
 
-void tcp_cc_recv_ack(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp);
+void tcp_cc_recv_ack(FAR struct tcp_conn_s *conn, FAR struct tcp_hdr_s *tcp,
+                     uint16_t datalen);
 #endif
 
 #ifdef __cplusplus

@@ -27,20 +27,27 @@
 #include <nuttx/config.h>
 
 #include <dirent.h>
-#include <stdio.h>
 #include <string.h>
-#include <fcntl.h>
 #include <assert.h>
 #include <nuttx/debug.h>
 #include <errno.h>
+#include <sys/inotify.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/list.h>
 #include <nuttx/mutex.h>
+#include <nuttx/nuttx.h>
+#include <nuttx/semaphore.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/rpmsg/rpmsg.h>
 
 #include "rpmsgfs.h"
 #include "fs_heap.h"
+#include "vfs/vfs.h"
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
 
 /****************************************************************************
  * Private Types
@@ -54,7 +61,31 @@ struct rpmsgfs_server_s
   int                   file_rows;
   int                   dir_nums;
   mutex_t               lock;
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+  struct list_node      lock_waiters; /* Deferred FIOC_SETLKW requests */
+  sem_t                 lock_drained; /* Posted when lock_waiters drains */
+  bool                  lock_closing; /* ept_release waits on lock_drained */
+#endif
+#ifdef CONFIG_FS_RPMSGFS_SERVER_NOTIFY
+  struct file           notify_file;  /* In-kernel inotify instance */
+  bool                  notify_open;  /* notify_file is initialized */
+#endif
 };
+
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+/* One blocked FIOC_SETLKW: holds a copy of the request so its reply can be
+ * sent once file_setlk_async() grants the lock.
+ */
+
+struct rpmsgfs_lockctx_s
+{
+  struct list_node          node;
+  struct file_lock_waiter_s waiter;
+  FAR struct rpmsg_endpoint *ept;
+  size_t                    len;
+  char                      msg[1];
+};
+#endif
 
 /****************************************************************************
  * Private Function Prototypes
@@ -140,6 +171,9 @@ static int rpmsgfs_lstat_handler(FAR struct rpmsg_endpoint *ept,
                                  FAR void *data, size_t len,
                                  uint32_t src, FAR void *priv);
 #endif
+static int rpmsgfs_watch_handler(FAR struct rpmsg_endpoint *ept,
+                                 FAR void *data, size_t len,
+                                 uint32_t src, FAR void *priv);
 static bool rpmsgfs_ns_match(FAR struct rpmsg_device *rdev,
                              FAR void *priv_, FAR const char *name,
                              uint32_t dest);
@@ -149,6 +183,9 @@ static void rpmsgfs_ns_bind(FAR struct rpmsg_device *rdev,
 static int  rpmsgfs_server_ept_cb(FAR struct rpmsg_endpoint *ept,
                                   FAR void *data, size_t len, uint32_t src,
                                   FAR void *priv);
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+static void rpmsgfs_lock_done(FAR void *arg, int result);
+#endif
 
 /****************************************************************************
  * Private Data
@@ -184,6 +221,7 @@ static const rpmsg_ept_cb g_rpmsgfs_handler[] =
   [RPMSGFS_LINK]      = rpmsgfs_link_handler,
   [RPMSGFS_LSTAT]     = rpmsgfs_lstat_handler,
 #endif
+  [RPMSGFS_WATCH]     = rpmsgfs_watch_handler,
 };
 
 /****************************************************************************
@@ -547,6 +585,80 @@ static int rpmsgfs_lseek_handler(FAR struct rpmsg_endpoint *ept,
   return rpmsg_send(ept, msg, sizeof(*msg));
 }
 
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+/* file_setlk_async() grant callback: reply to the client that has been
+ * blocked in FIOC_SETLKW.  Runs on whichever thread released the lock, and
+ * ctx stays on lock_waiters until the reply is sent so that ept_release
+ * cannot free the endpoint underneath it.
+ */
+
+static void rpmsgfs_lock_done(FAR void *arg, int result)
+{
+  FAR struct rpmsgfs_lockctx_s *ctx = arg;
+  FAR struct rpmsgfs_server_s *server = ctx->ept->priv;
+  FAR struct rpmsgfs_ioctl_s *msg = (FAR struct rpmsgfs_ioctl_s *)ctx->msg;
+
+  msg->header.result = result;
+  rpmsg_send(ctx->ept, msg, ctx->len);
+
+  nxmutex_lock(&server->lock);
+  list_delete(&ctx->node);
+  if (server->lock_closing && list_is_empty(&server->lock_waiters))
+    {
+      nxsem_post(&server->lock_drained);
+    }
+
+  nxmutex_unlock(&server->lock);
+  fs_heap_free(ctx);
+}
+
+/* Wait for the lock without blocking the rx thread: file_setlk_async()
+ * grants it later and rpmsgfs_lock_done() sends the deferred reply.
+ */
+
+static int rpmsgfs_lock_handler(FAR struct rpmsg_endpoint *ept,
+                                FAR struct rpmsgfs_server_s *server,
+                                FAR struct file *filep,
+                                FAR void *data, size_t len)
+{
+  FAR struct rpmsgfs_ioctl_s *msg = data;
+  FAR struct rpmsgfs_lockctx_s *ctx;
+  int ret;
+
+  ctx = fs_heap_malloc(sizeof(*ctx) + len - 1);
+  if (ctx == NULL)
+    {
+      ret = -ENOMEM;
+      goto reply;
+    }
+
+  ctx->waiter.cb  = rpmsgfs_lock_done;
+  ctx->waiter.arg = ctx;
+  ctx->ept        = ept;
+  ctx->len        = len;
+  memcpy(ctx->msg, data, len);
+
+  nxmutex_lock(&server->lock);
+  list_add_tail(&server->lock_waiters, &ctx->node);
+  nxmutex_unlock(&server->lock);
+
+  ret = file_setlk_async(filep, (FAR struct flock *)msg->buf, &ctx->waiter);
+  if (ret == -EINPROGRESS)
+    {
+      return 0;
+    }
+
+  nxmutex_lock(&server->lock);
+  list_delete(&ctx->node);
+  nxmutex_unlock(&server->lock);
+  fs_heap_free(ctx);
+
+reply:
+  msg->header.result = ret;
+  return rpmsg_send(ept, msg, len);
+}
+#endif
+
 static int rpmsgfs_ioctl_handler(FAR struct rpmsg_endpoint *ept,
                                  FAR void *data, size_t len,
                                  uint32_t src, FAR void *priv)
@@ -556,6 +668,13 @@ static int rpmsgfs_ioctl_handler(FAR struct rpmsg_endpoint *ept,
   int ret = -ENOENT;
 
   filep = rpmsgfs_get_file(priv, msg->fd);
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+  if (filep != NULL && msg->request == FIOC_SETLKW)
+    {
+      return rpmsgfs_lock_handler(ept, priv, filep, data, len);
+    }
+#endif
+
   if (filep != NULL)
     {
       ret = file_ioctl(filep, msg->request, msg->arglen > 0 ?
@@ -1018,6 +1137,123 @@ static int rpmsgfs_lstat_handler(FAR struct rpmsg_endpoint *ept,
 }
 #endif
 
+#ifdef CONFIG_FS_RPMSGFS_SERVER_NOTIFY
+
+/****************************************************************************
+ * Name: rpmsgfs_notify_cb
+ *
+ * Description: Forward one inotify event to the client (unsolicited).
+ *   Invoked by the in-kernel inotify instance in the context that
+ *   generated the event, so it must not block: a tx buffer is taken
+ *   without waiting and the notification is dropped if none is free.
+ *
+ ****************************************************************************/
+
+static void rpmsgfs_notify_cb(FAR void *arg, int wd, uint32_t mask,
+                              FAR const char *name)
+{
+  FAR struct rpmsgfs_server_s *priv = arg;
+  FAR struct rpmsgfs_notify_s *msg;
+  uint32_t space;
+  size_t len;
+
+  len = sizeof(*msg) + (name != NULL ? strlen(name) : 0) + 1;
+
+  msg = rpmsg_get_tx_payload_buffer(&priv->ept, &space, false);
+  if (msg == NULL || len > space)
+    {
+      return;
+    }
+
+  msg->header.command = RPMSGFS_NOTIFY;
+  msg->header.result  = 0;
+  msg->header.cookie  = 0;
+  msg->wd             = wd;
+  msg->mask           = mask;
+  strlcpy(msg->name, name != NULL ? name : "", space - sizeof(*msg));
+
+  if (rpmsg_send_nocopy(&priv->ept, msg, len) < 0)
+    {
+      rpmsg_release_tx_buffer(&priv->ept, msg);
+    }
+}
+
+/****************************************************************************
+ * Name: rpmsgfs_watch_handler
+ *
+ * Description: Add or remove a watch on the in-kernel inotify instance.
+ *   ADD is answered with the watch descriptor; RM is fire and forget.
+ *
+ ****************************************************************************/
+
+static int rpmsgfs_watch_handler(FAR struct rpmsg_endpoint *ept,
+                                 FAR void *data, size_t len,
+                                 uint32_t src, FAR void *priv_)
+{
+  FAR struct rpmsgfs_server_s *priv = priv_;
+  FAR struct rpmsgfs_watch_s *msg = data;
+  int ret;
+
+  if (msg->action != NOTIFY_WATCH_ADD)
+    {
+      nxmutex_lock(&priv->lock);
+      if (priv->notify_open)
+        {
+          file_notify_rm_watch(&priv->notify_file, msg->wd);
+        }
+
+      nxmutex_unlock(&priv->lock);
+      return 0;
+    }
+
+  nxmutex_lock(&priv->lock);
+  if (!priv->notify_open)
+    {
+      ret = file_notify_open(&priv->notify_file, rpmsgfs_notify_cb, priv);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&priv->lock);
+          msg->header.result = ret;
+          return rpmsg_send(ept, msg, len);
+        }
+
+      priv->notify_open = true;
+    }
+
+  ret = file_notify_add_watch(&priv->notify_file, msg->pathname,
+                              msg->mask & IN_ALL_EVENTS);
+  nxmutex_unlock(&priv->lock);
+
+  msg->header.result = ret;
+  return rpmsg_send(ept, msg, len);
+}
+
+#else
+
+/****************************************************************************
+ * Name: rpmsgfs_watch_handler
+ *
+ * Description: Without inotify forwarding, answer ADD with -ENOSYS so that
+ *   the client keeps a local-only watch.  RM expects no reply.
+ *
+ ****************************************************************************/
+
+static int rpmsgfs_watch_handler(FAR struct rpmsg_endpoint *ept,
+                                 FAR void *data, size_t len,
+                                 uint32_t src, FAR void *priv)
+{
+  FAR struct rpmsgfs_watch_s *msg = data;
+
+  if (msg->action != NOTIFY_WATCH_ADD)
+    {
+      return 0;
+    }
+
+  msg->header.result = -ENOSYS;
+  return rpmsg_send(ept, msg, len);
+}
+#endif /* CONFIG_FS_RPMSGFS_SERVER_NOTIFY */
+
 static bool rpmsgfs_ns_match(FAR struct rpmsg_device *rdev,
                              FAR void *priv_, FAR const char *name,
                              uint32_t dest)
@@ -1028,8 +1264,50 @@ static bool rpmsgfs_ns_match(FAR struct rpmsg_device *rdev,
 static void rpmsgfs_ept_release(FAR struct rpmsg_endpoint *ept)
 {
   FAR struct rpmsgfs_server_s *priv = ept->priv;
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+  FAR struct rpmsgfs_lockctx_s *ctx;
+  FAR struct rpmsgfs_lockctx_s *tmp;
+  bool drain;
+#endif
   int i;
   int j;
+
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+  /* The client is gone; cancel any deferred FIOC_SETLKW and drop its
+   * context without replying.  Cancel before closing the backing files so
+   * the lock bucket still resolves the path.  A request that can no longer
+   * be cancelled was already granted, so wait for its callback to finish.
+   */
+
+  nxmutex_lock(&priv->lock);
+  priv->lock_closing = true;
+  list_for_every_entry_safe(&priv->lock_waiters, ctx, tmp,
+                            struct rpmsgfs_lockctx_s, node)
+    {
+      if (file_setlk_cancel(&ctx->waiter) == OK)
+        {
+          list_delete(&ctx->node);
+          fs_heap_free(ctx);
+        }
+    }
+
+  drain = !list_is_empty(&priv->lock_waiters);
+  nxmutex_unlock(&priv->lock);
+
+  if (drain)
+    {
+      nxsem_wait_uninterruptible(&priv->lock_drained);
+    }
+
+  nxsem_destroy(&priv->lock_drained);
+#endif
+
+#ifdef CONFIG_FS_RPMSGFS_SERVER_NOTIFY
+  if (priv->notify_open)
+    {
+      file_notify_close(&priv->notify_file);
+    }
+#endif
 
   for (i = 0; i < priv->file_rows; i++)
     {
@@ -1075,12 +1353,19 @@ static void rpmsgfs_ns_bind(FAR struct rpmsg_device *rdev,
   priv->ept.priv = priv;
   priv->ept.release_cb = rpmsgfs_ept_release;
   nxmutex_init(&priv->lock);
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+  list_initialize(&priv->lock_waiters);
+  nxsem_init(&priv->lock_drained, 0, 0);
+#endif
 
   ret = rpmsg_create_ept(&priv->ept, rdev, name,
                          RPMSG_ADDR_ANY, dest,
                          rpmsgfs_server_ept_cb, rpmsg_destroy_ept);
   if (ret)
     {
+#if CONFIG_FS_LOCK_BUCKET_SIZE > 0
+      nxsem_destroy(&priv->lock_drained);
+#endif
       nxmutex_destroy(&priv->lock);
       fs_heap_free(priv);
     }
@@ -1094,7 +1379,8 @@ static int rpmsgfs_server_ept_cb(FAR struct rpmsg_endpoint *ept,
   uint32_t command = header->command;
   int ret;
 
-  if (command >= nitems(g_rpmsgfs_handler))
+  if (command >= nitems(g_rpmsgfs_handler) ||
+      g_rpmsgfs_handler[command] == NULL)
     {
       return -EINVAL;
     }

@@ -50,6 +50,10 @@
 
 #define SOCKCAP_NONBLOCKING (1 << 0)  /* Bit 0: Socket supports non-blocking
                                        *        operation. */
+#define SOCKCAP_CONNSTATE   (1 << 1)  /* Bit 1: The address family sets the
+                                       *        connection state of the
+                                       *        socket in accept() and
+                                       *        connect(). */
 
 /* Definitions of 8-bit socket flags */
 
@@ -251,6 +255,10 @@ struct socket_conn_s
 #define s_tclass s_tos       /* IPv6 traffic class definition */
 #if defined(CONFIG_NET_IPv4) || defined(CONFIG_NET_IPv6)
   uint8_t       s_ttl;       /* Default time-to-live */
+#endif
+
+#ifdef CONFIG_NET_TIMESTAMP
+  struct iob_queue_s s_errahead; /* TX timestamp error queue */
 #endif
 
   /* Connection-specific content may follow */

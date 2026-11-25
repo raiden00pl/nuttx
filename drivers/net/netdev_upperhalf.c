@@ -85,11 +85,13 @@ struct netdev_upperhalf_s
 {
   FAR struct netdev_lowerhalf_s *lower;
 
-  /* TX queue for re-queueing replies */
+  /* TX queue for pending packets.  Packets are queued here when:
+   *   - eth_input / ip_input generates a reply (e.g. ARP, ICMP echo)
+   *   - A transient transmit error causes a packet to be re-queued
+   *     for later retry (head-inserted to preserve ordering).
+   */
 
-#if CONFIG_IOB_NCHAINS > 0
   struct iob_queue_s txq;
-#endif
 
 #ifdef CONFIG_NET_VLAN
   struct netdev_vlan_entry_s vlan[CONFIG_NET_VLAN_COUNT];
@@ -323,26 +325,44 @@ static int netdev_upper_txpoll(FAR struct net_driver_s *dev)
 
   if (netpkt_getdatalen(lower, pkt) > NETDEV_PKTSIZE(dev))
     {
-      nerr("ERROR: Packet too long to send!\n");
-      ret = -EMSGSIZE;
-    }
-  else
-    {
-      ret = lower->ops->transmit(lower, pkt);
+      nerr("ERROR: Packet too long to send!, dropping\n");
+      goto drop;
     }
 
-  if (ret != OK)
+  ret = lower->ops->transmit(lower, pkt);
+
+  if (ret == OK)
     {
-      /* Stop polling on any error
-       * REVISIT: maybe store the pkt in upper half and retry later?
+      return NETDEV_TX_CONTINUE;
+    }
+
+  if (ret == -EBUSY)
+    {
+      /* Transient error -- re-queue to txq head for retry.  Head-insert
+       * preserves packet ordering.  The retry will be driven by the
+       * txdone callback from the lower half driver.
+       *
+       * Note: We manually restore quota instead of using netpkt_put()
+       * because the pkt is moved to txq, not back to dev->d_iob.
+       * After netpkt_get(), dev->d_iob is already NULL.
        */
 
-      NETDEV_TXERRORS(dev);
-      nerr("ERROR: Transmit failed: %d\n", ret);
-      netpkt_put(dev, pkt, NETPKT_TX);
+      nwarn("WARNING: Transmit busy (%d), re-queue pkt\n", ret);
+      iob_add_queue_head(pkt, &upper->txq);
+      atomic_add(&upper->lower->quota_ptr[NETPKT_TX], 1);
       return ret;
     }
 
+  nerr("ERROR: Transmit failed: %d, dropping pkt\n", ret);
+
+  /* Permanent error -- drop the packet to avoid infinite retry.
+   * netpkt_put() restores quota and places pkt back into dev->d_iob so
+   * the caller can release it.
+   */
+
+drop:
+  NETDEV_TXERRORS(dev);
+  netpkt_put(dev, pkt, NETPKT_TX);
   return NETDEV_TX_CONTINUE;
 }
 
@@ -367,17 +387,25 @@ static int netdev_upper_txpoll(FAR struct net_driver_s *dev)
 
 static int netdev_upper_tx(FAR struct net_driver_s *dev)
 {
-#if CONFIG_IOB_NCHAINS > 0
   FAR struct netdev_upperhalf_s *upper = dev->d_private;
+  int ret;
 
   if (!IOB_QEMPTY(&upper->txq))
     {
-      /* Put the packet back to the device */
-
       netdev_iob_replace_l2(dev, iob_remove_queue(&upper->txq));
-      return netdev_upper_txpoll(dev);
+      ret = netdev_upper_txpoll(dev);
+
+      /* Release dev->d_iob if txpoll left it non-NULL.
+       * This happens when txpoll drops an oversize packet via
+       * netpkt_put() -- the txq path does not go through devif_poll
+       * which would otherwise manage the iob lifecycle.
+       * For success / transient-error, dev->d_iob is already NULL,
+       * so this is a safe no-op.
+       */
+
+      netdev_iob_release(dev);
+      return ret;
     }
-#endif
 
   /* No more TX packets in queue, poll the net stack to get more packets */
 
@@ -435,7 +463,6 @@ static void netdev_upper_txavail_work(FAR struct netdev_upperhalf_s *upper)
     defined(CONFIG_DRIVERS_IEEE80211) || defined(CONFIG_NET_MBIM)
 static void netdev_upper_queue_tx(FAR struct net_driver_s *dev)
 {
-#if CONFIG_IOB_NCHAINS > 0
   FAR struct netdev_upperhalf_s *upper = dev->d_private;
   int ret;
 
@@ -448,11 +475,6 @@ static void netdev_upper_queue_tx(FAR struct net_driver_s *dev)
     {
       nwarn("WARNING: Failed to queue TX packet, dropping: %d\n", ret);
     }
-#else
-  /* Fall back to send the packet directly if we don't have IOB queue. */
-
-  netdev_upper_txpoll(dev);
-#endif
 }
 #endif
 
@@ -1001,6 +1023,80 @@ static int netdev_upper_txavail(FAR struct net_driver_s *dev)
 }
 
 /****************************************************************************
+ * Name: netdev_upper_ethtool_ioctl
+ *
+ * Description:
+ *   Handle upper layer ethtool IOCTL commands for a network device.
+ *   This function processes ethtool-related IOCTL requests that are handled
+ *   at the upper network layer, interacting with the specified network
+ *   device.
+ *
+ * Input Parameters:
+ *   dev - Pointer to the network driver structure (struct net_driver_s)
+ *         representing the network device to operate on.
+ *   arg - IOCTL command argument. The specific type and interpretation
+ *         depend on the ethtool command being processed (e.g., may point to
+ *         an struct ethtool_cmd or other ethtool-related data structure).
+ *
+ * Returned Value:
+ *   On success, returns 0.
+ *   On failure, returns a negative error code.
+ ****************************************************************************/
+
+#ifdef CONFIG_NETDEV_ETHTOOL_IOCTL
+static int netdev_upper_ethtool_ioctl(FAR struct net_driver_s *dev,
+                                      unsigned long arg)
+{
+  FAR struct netdev_upperhalf_s *upper = dev->d_private;
+  FAR struct netdev_lowerhalf_s *lower = upper->lower;
+  uint32_t cmd = *(FAR const uint32_t *)arg;
+  int ret = -EOPNOTSUPP;
+
+  switch (cmd)
+    {
+      case ETHTOOL_GCHANNELS:
+        if (lower->eth_ops->get_channels)
+          {
+            ret = lower->eth_ops->get_channels(lower,
+                                  (FAR struct ethtool_chns *)arg);
+          }
+        break;
+
+      case ETHTOOL_SCHANNELS:
+        if (lower->eth_ops->set_channels)
+          {
+            ret = lower->eth_ops->set_channels(lower,
+                                  (FAR struct ethtool_chns *)arg);
+          }
+        break;
+
+      case ETHTOOL_GCHANNELS2:
+        if (lower->eth_ops->get_channels2)
+          {
+            ret = lower->eth_ops->get_channels2(lower,
+                                  (FAR struct ethtool_chns2 *)arg);
+          }
+        break;
+
+      case ETHTOOL_SCHANNELS2:
+        if (lower->eth_ops->set_channels2)
+          {
+            ret = lower->eth_ops->set_channels2(lower,
+                                  (FAR struct ethtool_chns2 *)arg);
+          }
+        break;
+
+      default:
+        ret = -ENOTTY;
+        nerr("ERROR: No such cmd in ethtool opt!");
+        break;
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
  * Name: netdev_upper_wireless_ioctl
  *
  * Description:
@@ -1390,6 +1486,10 @@ static int netdev_upper_ifdown(FAR struct net_driver_s *dev)
 {
   FAR struct netdev_upperhalf_s *upper = dev->d_private;
 
+  /* Drain the TX queue before tearing down the interface. */
+
+  iob_free_queue(&upper->txq);
+
   switch (upper->lower->rxtype)
     {
       case NETDEV_RX_WORK:
@@ -1451,6 +1551,17 @@ static int netdev_upper_ioctl(FAR struct net_driver_s *dev, int cmd,
   if (lower->phydev != NULL)
     {
       ret = phy_ioctl(lower->phydev, cmd, arg);
+      if (ret != -ENOTTY)
+        {
+          return ret;
+        }
+    }
+#endif
+
+#ifdef CONFIG_NETDEV_ETHTOOL_IOCTL
+  if (cmd == SIOCETHTOOL && lower->eth_ops)
+    {
+      ret = netdev_upper_ethtool_ioctl(dev, arg);
       if (ret != -ENOTTY)
         {
           return ret;
@@ -1661,9 +1772,7 @@ int netdev_lower_unregister(FAR struct netdev_lowerhalf_s *dev)
         break;
     }
 
-#if CONFIG_IOB_NCHAINS > 0
   iob_free_queue(&upper->txq);
-#endif
 
   kmm_free(upper);
   dev->netdev.d_private = NULL;
@@ -1761,17 +1870,11 @@ void netdev_lower_rxready(FAR struct netdev_lowerhalf_s *dev)
 
 void netdev_lower_txdone(FAR struct netdev_lowerhalf_s *dev)
 {
-  if (dev->txdone)
+  FAR struct netdev_upperhalf_s *upper = dev->netdev.d_private;
+
+  if (dev->txdone || !IOB_QEMPTY(&upper->txq))
     {
-#if defined(CONFIG_NET_VLAN) || defined(CONFIG_NET_BRIDGE)
-      FAR struct netdev_upperhalf_s *upper = dev->netdev.d_private;
-#endif
-
       dev->txdone = false;
-
-#ifdef CONFIG_NET_VLAN
-      netdev_upper_vlan_foreach(upper, netdev_lower_txdone);
-#endif
 
 #ifdef CONFIG_NET_BRIDGE
       /* The bridge device may wait for room on its ports */
@@ -1784,6 +1887,9 @@ void netdev_lower_txdone(FAR struct netdev_lowerhalf_s *dev)
 
       if (dev->rxtype == NETDEV_RX_DIRECT)
         {
+#ifdef CONFIG_NET_VLAN
+          netdev_upper_vlan_foreach(upper, netdev_lower_txdone);
+#endif
           netdev_upper_txavail_work(dev->netdev.d_private);
         }
       else

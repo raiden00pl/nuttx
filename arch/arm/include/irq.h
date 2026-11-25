@@ -36,6 +36,7 @@
 #  include <stdbool.h>
 #  include <arch/syscall.h>
 #endif
+#include <arch/arch.h>
 
 /****************************************************************************
  * Public Function Prototypes
@@ -63,12 +64,8 @@
 #  include <arch/armv7-r/irq.h>
 #elif defined(CONFIG_ARCH_ARMV8R)
 #  include <arch/armv8-r/irq.h>
-#elif defined(CONFIG_ARCH_ARMV7M)
-#  include <arch/armv7-m/irq.h>
-#elif defined(CONFIG_ARCH_ARMV8M)
-#  include <arch/armv8-m/irq.h>
-#elif defined(CONFIG_ARCH_ARMV6M)
-#  include <arch/armv6-m/irq.h>
+#elif defined(CONFIG_ARCH_ARM_M)
+#  include <arch/arm_m/irq.h>
 #else
 #  include <arch/arm/irq.h>
 #endif
@@ -80,6 +77,12 @@
 #if defined(__ghs__) && defined(__ARM_DSP__)
 #  define __ARM_FEATURE_DSP 1
 #endif
+
+/* For use with EABI and floating point, the stack must be aligned to 8-byte
+ * addresses.
+ */
+
+#define STACKFRAME_ALIGN 8
 
 #ifndef __ASSEMBLY__
 
@@ -93,12 +96,6 @@
       UNUSED(rtcb);                    \
   } while (0)
 #endif
-
-/* For use with EABI and floating point, the stack must be aligned to 8-byte
- * addresses.
- */
-
-#define STACKFRAME_ALIGN 8
 
 #ifdef __cplusplus
 extern "C"

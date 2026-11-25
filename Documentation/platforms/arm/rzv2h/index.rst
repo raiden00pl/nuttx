@@ -2,10 +2,9 @@
 Renesas RZ/V2H
 ==============
 
-The RZ/V2H is a Renesas AI-accelerated multicore MPU built around a
-heterogeneous set of Arm cores: dual Cortex-A55 (application cores) plus
-dual Cortex-R8 (real-time cores), alongside a DSP and an AI-MAC (DRP-AI3)
-accelerator.
+The RZ/V2H is a heterogeneous multicore MPU integrating dual Cortex-A55,
+dual Cortex-R8, and Cortex-M33 cores, together with a DSP and the DRP-AI3
+AI accelerator.
 
 .. image:: RZV2H-block-chart-DRP-AI3.png
    :alt: RZV2H block chart DRP-AI3
@@ -39,7 +38,12 @@ MPU         Yes      Static PMSAv7 region table (ITCM/DTCM/SRAM/code)
 TIMER       Yes      MPCore Private Timer used as the system tick source
 SCI         Yes      Interrupt-driven SCI-B asynchronous UART on channels 0-9
 GPIO        Yes      Basic operations (config/read/write), no interrupt support
+RIIC I2C    Yes      Interrupt-driven RIIC master on channels 0-8
+SCI I2C     Yes      Interrupt-driven SCI simple I2C master on channels 0-9
+PWM         Yes      GPT (General PWM Timer) PWM on channels 0-15
+CAN         Yes      CAN-FD on channels 0-5
 QSPI        Yes      xSPI controller in QSPI mode, manual-command transfers only
+RTC         Yes      Calendar, one-shot alarm, periodic wakeup, system clock.
 ==========  =======  ============================================================
 
 CLOCK
@@ -88,11 +92,28 @@ Runtime baud-rate changes are supported through the standard termios
 
 Hardware flow control and DMA are not implemented yet.
 
+An SCI channel can be used for UART or for simple I2C (see SCI I2C
+below), but not for both at once.
+
 GPIO
 ----
 
 The GPIO driver provides fundamental support for pin configuration, read,
 and write operations. GPIO interrupt support is currently unavailable.
+
+RTC
+---
+
+The RTC driver provides a calendar clock (date and time) through the
+standard NuttX RTC lower-half. ``CONFIG_RZV2H_RTC`` enables it and requires
+``CONFIG_RTC``, ``CONFIG_RTC_DATETIME``, ``CONFIG_RTC_DRIVER`` and
+``CONFIG_RTC_ARCH``. It exposes ``/dev/rtc0`` and seeds the NuttX system
+clock at boot. The supported calendar range is 2000-2099. If the RTC has
+never been set, the system clock falls back to the build-time default date.
+
+``CONFIG_RTC_ALARM`` adds a single one-shot alarm (``CONFIG_RTC_NALARMS``
+must be 1) supporting absolute, relative, read-back and cancel operations.
+``CONFIG_RTC_PERIODIC`` adds a periodic wakeup at rates from `1/128s` to `2s`.
 
 INTC SEL (Interrupt Select) Lines
 ---------------------------------
@@ -110,11 +131,96 @@ Default SEL IDs
 The 127-line SEL pool (SEL0-SEL126, IRQ 353-479) is conventionally
 partitioned by module, allocated from the top of the range downward:
 
-======  ==================  ================================
-Module  Count                IRQ range (>= 353)
-======  ==================  ================================
-TINT    32 (tint0-tint31)    479-448
-======  ==================  ================================
+========  ==================  ================================
+Module    Count                IRQ range (>= 353)
+========  ==================  ================================
+TINT      32 (tint0-tint31)    479-448
+RIIC I2C  9 (riic0-riic8)      447-430 (txi/rxi only)
+CAN       6 (can0-can5)        419-400 (gerr/grecc, rec/trx/err)
+========  ==================  ================================
+
+Changing interrupt-select IDs (RIIC2 as an example)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When the default interrupt-select ID needs to change, e.g. to move
+RIIC2 off its default TXI/RXI SEL IDs (443/442) and onto SEL IDs
+397/396 instead:
+
+#. Run ``make menuconfig`` and navigate to
+   ``System Type -> RZ/V2H Configuration Options -> RIIC I2C support ->
+   RIIC 2``.
+#. Set ``RIIC2 TXI interrupt-select (SEL) IRQ number`` to ``397``.
+#. Set ``RIIC2 RXI interrupt-select (SEL) IRQ number`` to ``396``.
+
+Rebuild and reflash after changing either option so the new INTSEL
+values are picked up.
+
+
+RIIC I2C
+--------
+
+The RIIC driver provides interrupt-driven I2C master
+operation on channels 0 through 8.
+
+``CONFIG_RZV2H_RIIC_I2C`` enables the driver and
+``CONFIG_RZV2H_RIICn`` selects each required channel. Each channel has
+independent Kconfig options for bus bitrate, SCL rise/fall times, duty
+cycle, noise filter stages, TXI/RXI interrupt-select (SEL) IRQ numbers,
+and interrupt priority.
+
+I2C bus reset recovery (``CONFIG_I2C_RESET``) is supported. The driver
+bit-bangs SCL to clock out stuck slaves, then generates a START+STOP
+sequence to reset slave state machines.
+
+SCI I2C
+-------
+
+The SCI I2C driver provides interrupt-driven I2C master operation (SCI simple
+I2C mode, up to 400 kHz) on channels 0 through 9.
+
+``CONFIG_RZV2H_SCI_I2C`` enables the driver and
+``CONFIG_RZV2H_SCI_I2Cn`` selects each required channel; the channel's
+SCI UART must be disabled. Each channel has independent Kconfig options
+for bus bitrate, SDA output delay, noise filter clock, bit-rate modulation,
+and interrupt priority. Channel ``n`` is registered as
+``/dev/i2c<CONFIG_RZV2H_SCI_I2C_BUS_OFFSET + n>``.
+
+I2C bus reset recovery (``CONFIG_I2C_RESET``) is supported, using the same
+method as RIIC I2C.
+
+PWM
+---
+
+The RZ/V2H use the pulsed output control
+implemented using the GPT (General PWM Timer). The driver supports PWM with
+configurable frequency and duty cycle on channels 0 through 15.
+
+``CONFIG_RZV2H_GPT_PWM`` enables the GPT PWM driver. Each channel is
+individually selectable via ``CONFIG_RZV2H_GPTn_PWM``.
+The output pin (GTIOCA or GTIOCB) for each channel is defined in the
+board's ``board.h`` (``BOARD_GPTn_GTIOC_GPIO`` and ``BOARD_GPTn_USE_GTIOCA``).
+
+CAN
+------
+
+The CAN-FD driver supports CAN FD operation on channels 0 through 5.
+
+``CONFIG_RZV2H_CANFD`` enables the driver and ``CONFIG_RZV2H_CANFDn``
+selects each required channel. Each channel has independent Kconfig
+options for the nominal and data bit rates (computed from the rates and
+sample point, or set manually), delay compensation, the receive FIFO,
+the number of TX message buffers, channel error interrupts, REC/TRX/ERR
+interrupt-select (SEL) IRQ numbers, and interrupt priority.
+
+Error reporting (``CONFIG_CAN_ERRORS``) is supported.
+
+With ``CONFIG_CAN_LOOPBACK``, each channel enters internal or external
+loopback mode when opened, as selected by
+``CONFIG_RZV2H_CANFD_LOOPBACK_INTERNAL`` or
+``CONFIG_RZV2H_CANFD_LOOPBACK_EXTERNAL``.
+
+With ``CONFIG_RZV2H_CANFD_SOCKET``, the channels are SocketCAN network
+interfaces (``can0`` to ``can5``) instead of character devices.
 
 QSPI
 ----

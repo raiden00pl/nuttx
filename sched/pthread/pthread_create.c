@@ -269,7 +269,7 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   if (attr->detachstate == PTHREAD_CREATE_DETACHED)
     {
-      ptcb->flags |= TCB_FLAG_DETACHED;
+      atomic_or(&ptcb->shared_flags, TCB_FLAG_DETACHED);
     }
 
   if (attr->stackaddr)
@@ -447,25 +447,24 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
 
   /* Set the appropriate scheduling policy in the TCB */
 
-  ptcb->flags &= ~TCB_FLAG_POLICY_MASK;
   switch (policy)
     {
       default:
       case SCHED_FIFO:
-        ptcb->flags    |= TCB_FLAG_SCHED_FIFO;
+        nxsched_set_policy(ptcb, TCB_FLAG_SCHED_FIFO);
         break;
 
 #if CONFIG_RR_INTERVAL > 0
       case SCHED_OTHER:
       case SCHED_RR:
-        ptcb->flags    |= TCB_FLAG_SCHED_RR;
+        nxsched_set_policy(ptcb, TCB_FLAG_SCHED_RR);
         ptcb->timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
         break;
 #endif
 
 #ifdef CONFIG_SCHED_SPORADIC
       case SCHED_SPORADIC:
-        ptcb->flags    |= TCB_FLAG_SCHED_SPORADIC;
+        nxsched_set_policy(ptcb, TCB_FLAG_SCHED_SPORADIC);
         break;
 #endif
     }
@@ -484,6 +483,21 @@ int nx_pthread_create(pthread_trampoline_t trampoline, FAR pthread_t *thread,
   return OK;
 
 errout_with_tcb:
+
+#ifdef CONFIG_SCHED_SPORADIC
+  /* Stop sporadic scheduling before releasing the TCB referenced by its
+   * replenishment timers.
+   */
+
+  if (ptcb->sporadic != NULL)
+    {
+      irqstate_t flags = enter_critical_section();
+
+      DEBUGVERIFY(nxsched_stop_sporadic(ptcb));
+
+      leave_critical_section(flags);
+    }
+#endif
 
   /* Since we do not join the group, assign group to NULL to clear binding */
 

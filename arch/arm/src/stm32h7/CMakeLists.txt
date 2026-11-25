@@ -90,10 +90,6 @@ if(CONFIG_STM32_RTC_LSECLOCK)
   list(APPEND SRCS stm32_lse.c)
 endif()
 
-if(CONFIG_STM32_I2C)
-  list(APPEND SRCS stm32_i2c.c)
-endif()
-
 if(CONFIG_STM32_PWR)
   list(APPEND SRCS stm32_pwr.c)
 endif()
@@ -137,21 +133,6 @@ endif()
 
 if(CONFIG_STM32_LTDC)
   list(APPEND SRCS stm32_ltdc.c)
-endif()
-
-if(CONFIG_USBDEV)
-  list(APPEND SRCS stm32_otgdev.c)
-endif()
-
-if(CONFIG_USBHOST)
-  list(APPEND SRCS stm32_otghost.c)
-  if(CONFIG_USBHOST_TRACE)
-    list(APPEND SRCS stm32_usbhost.c)
-  else()
-    if(CONFIG_DEBUG_USB)
-      list(APPEND SRCS stm32_usbhost.c)
-    endif()
-  endif()
 endif()
 
 if(CONFIG_STM32_PWM)

@@ -405,6 +405,7 @@ mempool_multiple_init(FAR const char *name,
   FAR struct mempool_s *pools;
   size_t maxpoolszie;
   size_t minpoolsize;
+  size_t mempoolsize;
   int ret;
   int i;
 
@@ -428,15 +429,15 @@ mempool_multiple_init(FAR const char *name,
         }
     }
 
-  ret = sizeof(struct mempool_multiple_s) +
-        npools * sizeof(struct mempool_s);
-  mpool = alloc(arg, sizeof(uintptr_t), ret);
+  mempoolsize = sizeof(struct mempool_multiple_s) +
+                npools * sizeof(struct mempool_s);
+  mpool = alloc(arg, sizeof(uintptr_t), mempoolsize);
   if (mpool == NULL)
     {
       return NULL;
     }
 
-  memset(mpool, 0, ret);
+  memset(mpool, 0, mempoolsize);
 
   pools = (FAR struct mempool_s *)
           ((uintptr_t)mpool + sizeof(struct mempool_multiple_s));
@@ -900,4 +901,25 @@ void mempool_multiple_deinit(FAR struct mempool_multiple_s *mpool)
   mpool->dict = NULL;
   nxrmutex_destroy(&mpool->lock);
   mpool->free(mpool->arg, mpool);
+}
+
+/****************************************************************************
+ * Name: mempool_multiple_member
+ *
+ * Description:
+ *   Check if an address lies in the mempool.
+ *
+ * Input Parameters:
+ *   mpool - The handle of the multiple memory pool to be used.
+ *   blk   - The pointer of memory block.
+ *
+ * Returned Value:
+ *   true if the address is a member of the mempool.  false if not.
+ *
+ ****************************************************************************/
+
+bool mempool_multiple_member(FAR struct mempool_multiple_s *mpool,
+                             FAR void *blk)
+{
+  return mempool_multiple_get_dict(mpool, blk) != NULL;
 }

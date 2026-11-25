@@ -58,6 +58,7 @@
 
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mm/mempool.h>
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
@@ -83,18 +84,30 @@
 #endif
 
 /****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+/* The TCP connections rmutex */
+
+rmutex_t g_tcp_connections_lock = NXRMUTEX_INITIALIZER;
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
 /* The array containing all TCP connections. */
 
-NET_BUFPOOL_DECLARE(g_tcp_connections, sizeof(struct tcp_conn_s),
-                    CONFIG_NET_TCP_PREALLOC_CONNS,
-                    CONFIG_NET_TCP_ALLOC_CONNS, CONFIG_NET_TCP_MAX_CONNS);
+MEMPOOL_DEFINE(g_tcp_connections, sizeof(struct tcp_conn_s),
+               CONFIG_NET_TCP_PREALLOC_CONNS, CONFIG_NET_TCP_MAX_CONNS,
+               CONFIG_NET_TCP_ALLOC_CONNS);
 
 /* A list of all connected TCP connections */
 
 static dq_queue_t g_active_tcp_connections;
+
+/* The list id of the connection that entered the list last */
+
+static uint32_t g_tcp_listid;
 
 /****************************************************************************
  * Private Functions
@@ -520,6 +533,38 @@ static inline int tcp_ipv6_bind(FAR struct tcp_conn_s *conn,
 #endif /* CONFIG_NET_IPv6 */
 
 /****************************************************************************
+ * Name: tcp_reclaimable
+ *
+ * Description:
+ *   Return true if the connection can be freed to make room: no socket
+ *   refers to it, and it is closed with its close work still queued, or
+ *   it only waits for the end of its close with its close callback.  Any
+ *   other connection without a socket is freed by tcp_close_work() or by
+ *   tcp_close(), maybe at this moment.
+ *
+ ****************************************************************************/
+
+static bool tcp_reclaimable(FAR struct tcp_conn_s *conn)
+{
+  if (conn->crefs != 0 || conn->dev == NULL)
+    {
+      return false;
+    }
+
+  if (conn->tcpstateflags == TCP_CLOSED)
+    {
+      return (conn->flags & TCP_CLOSE_ARRANGED) != 0;
+    }
+
+  return conn->clscb != NULL &&
+         (conn->tcpstateflags == TCP_CLOSING    ||
+          conn->tcpstateflags == TCP_FIN_WAIT_1 ||
+          conn->tcpstateflags == TCP_FIN_WAIT_2 ||
+          conn->tcpstateflags == TCP_TIME_WAIT  ||
+          conn->tcpstateflags == TCP_LAST_ACK);
+}
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -618,17 +663,147 @@ int tcp_selectport(uint8_t domain,
 }
 
 /****************************************************************************
- * Name: tcp_alloc
+ * Name: tcp_reclaim
  *
  * Description:
- *   Find a free TCP/IP connection structure and allocate it
- *   for use.  This is normally something done by the implementation of the
- *   socket() API but is also called from the event processing logic when a
- *   TCP packet is received while "listening"
+ *   Free the oldest connection that no socket refers to and that only
+ *   waits for the end of its close (for example in TIME_WAIT).  This gives
+ *   back the connection structure and the callbacks that it holds.
+ *
+ * Input Parameters:
+ *   dev - The device whose lock the caller holds, or NULL if it holds no
+ *         device lock and no connection lock.
+ *
+ * Returned Value:
+ *   true if a connection was freed.
  *
  ****************************************************************************/
 
-FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
+bool tcp_reclaim(FAR struct net_driver_s *dev)
+{
+  FAR struct devif_callback_s *cb;
+  FAR struct devif_callback_s *next;
+  FAR struct net_driver_s *conndev;
+  FAR struct tcp_conn_s *conn = NULL;
+  FAR struct tcp_conn_s *tmp;
+
+  /* Search the active connection list for the oldest connection that is
+   * about to be closed anyway.
+   */
+
+  tcp_conn_list_lock();
+  for (tmp = (FAR struct tcp_conn_s *)g_active_tcp_connections.head;
+       tmp != NULL;
+       tmp = (FAR struct tcp_conn_s *)tmp->sconn.s_node.flink)
+    {
+      if (tcp_reclaimable(tmp) &&
+          (conn == NULL || tmp->timer < conn->timer))
+        {
+          conn = tmp;
+        }
+    }
+
+  conndev = conn != NULL ? conn->dev : NULL;
+  tcp_conn_list_unlock();
+
+  if (conn == NULL)
+    {
+      return false;
+    }
+
+  /* The poll takes the device lock, then the list lock: do the same here.
+   * With the lock of another device held, only try it: two such callers
+   * could wait for each other.
+   */
+
+  if (dev == NULL || dev == conndev)
+    {
+      netdev_lock(conndev);
+    }
+  else if (netdev_trylock(conndev) < 0)
+    {
+      return false;
+    }
+
+  /* The connection may be gone meanwhile: look again */
+
+  tcp_conn_list_lock();
+  for (tmp = (FAR struct tcp_conn_s *)g_active_tcp_connections.head;
+       tmp != NULL && tmp != conn;
+       tmp = (FAR struct tcp_conn_s *)tmp->sconn.s_node.flink)
+    {
+    }
+
+  tcp_conn_list_unlock();
+
+  if (tmp == NULL || conn->dev != conndev || !tcp_reclaimable(conn))
+    {
+      netdev_unlock(conndev);
+      return false;
+    }
+
+  /* A closed connection: take its close work from the queue.  If the work
+   * runs already, it frees the connection itself.
+   */
+
+  if ((conn->flags & TCP_CLOSE_ARRANGED) != 0)
+    {
+      if (work_cancel(LPWORK, &conn->clswork) < 0)
+        {
+          netdev_unlock(conndev);
+          return false;
+        }
+
+      conn->flags &= ~TCP_CLOSE_ARRANGED;
+    }
+
+  nwarn("WARNING: Closing unestablished connection: %p\n", conn);
+
+  /* No other path frees the connection now: its close work is not queued,
+   * and the events that start it need the device lock.  Take its
+   * callbacks and mark it closed: then no event uses it, and its close
+   * never starts tcp_close_work().  Release the locks taken here before
+   * tcp_free(), as tcp_close_work() does.  A caller in the input path
+   * (tcp_alloc_accept()) still holds the lock of its own device.
+   */
+
+  conn_lock(&conn->sconn);
+  tcp_stop_monitor(conn, TCP_ABORT);
+  for (cb = conn->sconn.s_list; cb != NULL; cb = next)
+    {
+      next = cb->nxtconn;
+      tcp_callback_free(conn, cb);
+    }
+
+  conn->clscb = NULL;
+  conn->shdcb = NULL;
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
+  conn->sndcb = NULL;
+#endif
+  conn->tcpstateflags = TCP_CLOSED;
+  conn_unlock(&conn->sconn);
+  netdev_unlock(conndev);
+
+  /* No socket refers to it any more (crefs == 0) and close() does not
+   * wait for the close callback, also not with SO_LINGER, so nobody needs
+   * to be informed.
+   */
+
+  tcp_free(conn);
+  return true;
+}
+
+/****************************************************************************
+ * Name: tcp_alloc_conn
+ *
+ * Description:
+ *   Find a free TCP/IP connection structure and allocate it for use.  dev
+ *   is the device whose lock the caller holds, or NULL.
+ *
+ ****************************************************************************/
+
+static FAR struct tcp_conn_s *tcp_alloc_conn(uint8_t domain,
+                                             FAR struct net_driver_s *dev)
 {
   FAR struct tcp_conn_s *conn;
 
@@ -641,79 +816,26 @@ FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
 
   /* Return the entry from the head of the free list */
 
-  conn = NET_BUFPOOL_TRYALLOC(g_tcp_connections);
+  conn = mempool_allocate(&g_tcp_connections, 0);
+  tcp_conn_list_unlock();
 
-  /* Is the free list empty? */
+  /* Is the free list empty?  As a fall-back, free the oldest connection
+   * that is about to be closed anyway.
+   */
 
-  if (!conn)
+  if (!conn && tcp_reclaim(dev))
     {
-      /* As a fall-back, check for connection structures which can be
-       * stalled.
-       * Search the active connection list for the oldest connection
-       * that is about to be closed anyway.
+      /* Now there should be one free connection. If dynamic connections
+       * allocation is disabled, it is guaranteed so. In case that
+       * dynamic connections are used, it may be already in the free
+       * list, or at least there should be enough space in the heap for
+       * a new connection.
        */
 
-      FAR struct tcp_conn_s *tmp =
-        (FAR struct tcp_conn_s *)g_active_tcp_connections.head;
-
-      while (tmp)
-        {
-          ninfo("conn: %p state: %02x\n", tmp, tmp->tcpstateflags);
-
-          /* Is this connection in a state we can sacrifice. */
-
-          if ((tmp->crefs == 0) &&
-              (tmp->tcpstateflags == TCP_CLOSED    ||
-              tmp->tcpstateflags == TCP_CLOSING    ||
-              tmp->tcpstateflags == TCP_FIN_WAIT_1 ||
-              tmp->tcpstateflags == TCP_FIN_WAIT_2 ||
-              tmp->tcpstateflags == TCP_TIME_WAIT  ||
-              tmp->tcpstateflags == TCP_LAST_ACK))
-            {
-              /* Yes.. Is it the oldest one we have seen so far? */
-
-              if (!conn || tmp->timer < conn->timer)
-                {
-                  /* Yes.. remember it */
-
-                  conn = tmp;
-                }
-            }
-
-          /* Look at the next active connection */
-
-          tmp = (FAR struct tcp_conn_s *)tmp->sconn.s_node.flink;
-        }
-
-      /* Did we find a connection that we can reuse? */
-
-      if (conn != NULL)
-        {
-          nwarn("WARNING: Closing unestablished connection: %p\n", conn);
-
-          /* Yes... free it.  This will remove the connection from the list
-           * of active connections and release all resources held by the
-           * connection.
-           *
-           * No socket refers to it any more (crefs == 0) and close()
-           * does not wait for the close callback, also not with
-           * SO_LINGER, so nobody needs to be informed.
-           */
-
-          tcp_free(conn);
-
-          /* Now there should be one free connection. If dynamic connections
-           * allocation is disabled, it is guaranteed so. In case that
-           * dynamic connections are used, it may be already in the free
-           * list, or at least there should be enough space in the heap for
-           * a new connection.
-           */
-
-          conn = NET_BUFPOOL_TRYALLOC(g_tcp_connections);
-        }
+      tcp_conn_list_lock();
+      conn = mempool_allocate(&g_tcp_connections, 0);
+      tcp_conn_list_unlock();
     }
-
-  tcp_conn_list_unlock();
 
   /* Mark the connection allocated */
 
@@ -730,11 +852,9 @@ FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
       conn->keepintvl     = 2 * DSEC_PER_SEC;
       conn->keepcnt       = 3;
 #endif
-#if CONFIG_NET_RECV_BUFSIZE > 0
-      conn->rcv_bufs      = CONFIG_NET_RECV_BUFSIZE;
-#endif
-#if CONFIG_NET_SEND_BUFSIZE > 0
-      conn->snd_bufs      = CONFIG_NET_SEND_BUFSIZE;
+      conn->rcv_bufs      = TCP_RECV_BUFSIZE;
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
+      conn->snd_bufs      = TCP_SEND_BUFSIZE;
 
       nxsem_init(&conn->snd_sem, 0, 0);
 #endif
@@ -766,6 +886,22 @@ FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
     }
 
   return conn;
+}
+
+/****************************************************************************
+ * Name: tcp_alloc
+ *
+ * Description:
+ *   Find a free TCP/IP connection structure and allocate it
+ *   for use.  This is normally something done by the implementation of the
+ *   socket() API but is also called from the event processing logic when a
+ *   TCP packet is received while "listening"
+ *
+ ****************************************************************************/
+
+FAR struct tcp_conn_s *tcp_alloc(uint8_t domain)
+{
+  return tcp_alloc_conn(domain, NULL);
 }
 
 /****************************************************************************
@@ -815,6 +951,9 @@ void tcp_free(FAR struct tcp_conn_s *conn)
   FAR struct devif_callback_s *next;
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
   FAR struct tcp_wrbuffer_s *wrbuffer;
+#endif
+#ifdef CONFIG_NET_TCPBACKLOG
+  FAR struct tcp_backlog_s *blg;
 #endif
 
   DEBUGASSERT(conn->crefs == 0);
@@ -880,34 +1019,31 @@ void tcp_free(FAR struct tcp_conn_s *conn)
       tcp_wrbuffer_release(wrbuffer);
     }
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
   /* Notify the send buffer available */
 
   tcp_sendbuffer_notify(conn);
-#endif /* CONFIG_NET_SEND_BUFSIZE */
-
+  nxsem_destroy(&conn->snd_sem);
 #endif
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
-  nxsem_destroy(&conn->snd_sem);
+#ifdef CONFIG_NET_TCPBACKLOG
+  /* Remove any backlog attached to this connection.  Take it away with the
+   * list locked: tcp_input() looks at the blparent of a pending connection
+   * under the same lock, and then locks this connection, so do it before
+   * conn_uninit() destroys that lock.  Free the pending connections after
+   * the list is unlocked: tcp_free() takes their device locks, and the
+   * input path takes the list lock under a device lock.
+   */
+
+  tcp_conn_list_lock();
+  blg = tcp_backlogdetach(conn);
+  tcp_conn_list_unlock();
+
+  tcp_backlogfree(blg);
 #endif
 
   /* Use conn_uninit to release all connection resources */
 
   conn_uninit(&conn->sconn);
-
-#ifdef CONFIG_NET_TCPBACKLOG
-  tcp_conn_list_lock();
-
-  /* Remove any backlog attached to this connection */
-
-  if (conn->backlog)
-    {
-      tcp_backlogdestroy(conn);
-    }
-
-  tcp_conn_list_unlock();
-#endif
 
   nxrmutex_destroy(&conn->sconn.s_lock);
 
@@ -917,7 +1053,7 @@ void tcp_free(FAR struct tcp_conn_s *conn)
 
   /* Free the connection structure */
 
-  NET_BUFPOOL_FREE(g_tcp_connections, conn);
+  mempool_release(&g_tcp_connections, conn);
 }
 
 /****************************************************************************
@@ -1077,7 +1213,7 @@ FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct net_driver_s *dev,
 
   /* Allocate the connection structure */
 
-  conn = tcp_alloc(domain);
+  conn = tcp_alloc_conn(domain, dev);
   if (conn)
     {
       /* Set up the local address (laddr) and the remote address (raddr)
@@ -1171,10 +1307,8 @@ FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct net_driver_s *dev,
 
       conn->sconn.s_tos      = listener->sconn.s_tos;
       conn->sconn.s_ttl      = listener->sconn.s_ttl;
-#if CONFIG_NET_RECV_BUFSIZE > 0
       conn->rcv_bufs         = listener->rcv_bufs;
-#endif
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#ifdef CONFIG_NET_TCP_WRITE_BUFFERS
       conn->snd_bufs         = listener->snd_bufs;
 #endif
       conn->mss              = listener->mss;
@@ -1204,7 +1338,6 @@ FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct net_driver_s *dev,
 
       conn->tx_unacked       = 1;
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-      conn->expired          = 0;
       conn->isn              = 0;
       conn->sent             = 0;
       conn->sndseq_max       = tcp_getsequence(conn->sndseq) + 1;
@@ -1422,18 +1555,24 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
       FAR const struct sockaddr_in6 *inaddr =
         (FAR const struct sockaddr_in6 *)addr;
 
+      /* A TCP socket is IPv6-only: an IPv4-mapped address is not
+       * reachable (as Linux with IPV6_V6ONLY).
+       */
+
+      if (ip6_is_ipv4addr(&inaddr->sin6_addr))
+        {
+          return -ENETUNREACH;
+        }
+
       conn->rport   = inaddr->sin6_port;
 
       /* The sockaddr address is 128-bits in network order.
        * Note: ::0 is mapped to ::1 by convention.
        */
 
-      if (net_ipv6addr_cmp(addr, g_ipv6_unspecaddr))
+      if (net_ipv6addr_cmp(inaddr->sin6_addr.s6_addr16, g_ipv6_unspecaddr))
         {
-          struct in6_addr loopback_sin6_addr = IN6ADDR_LOOPBACK_INIT;
-
-          net_ipv6addr_copy(conn->u.ipv6.raddr,
-                            loopback_sin6_addr.s6_addr16);
+          net_ipv6addr_copy(conn->u.ipv6.raddr, g_ipv6_loopback);
         }
       else
         {
@@ -1505,6 +1644,7 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
   conn->tx_unacked = 1;    /* TCP length of the SYN is one. */
   conn->nrtx       = 0;
   conn->timeout    = true; /* Send the SYN immediately. */
+  conn->flags     |= TCP_SYNFIRST;
   conn->rto        = TCP_RTO;
   conn->sa         = 0;
   conn->sv         = 16;   /* Initial value of the RTT variance. */
@@ -1515,7 +1655,6 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
   tcp_initsequence(conn);
 
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-  conn->expired    = 0;
   conn->isn        = 0;
   conn->sent       = 0;
   conn->sndseq_max = tcp_getsequence(conn->sndseq) + 1;
@@ -1545,36 +1684,11 @@ int tcp_connect(FAR struct tcp_conn_s *conn, FAR const struct sockaddr *addr)
 }
 
 /****************************************************************************
- * Name: tcp_conn_list_lock
- *
- * Description:
- *   Lock the TCP connection list.
- *
- ****************************************************************************/
-
-void tcp_conn_list_lock(void)
-{
-  NET_BUFPOOL_LOCK(g_tcp_connections);
-}
-
-/****************************************************************************
- * Name: tcp_conn_list_unlock
- *
- * Description:
- *   Unlock the TCP connection list.
- *
- ****************************************************************************/
-
-void tcp_conn_list_unlock(void)
-{
-  NET_BUFPOOL_UNLOCK(g_tcp_connections);
-}
-
-/****************************************************************************
  * Name: tcp_add_active_conn
  *
  * Description:
- *   Add the connection to the list of active TCP connections
+ *   Add the connection to the list of active TCP connections, at its tail,
+ *   with the next list id.  So the list ids grow from the head to the tail.
  *
  * Assumptions:
  *   This function is called from normal user level code.
@@ -1584,8 +1698,27 @@ void tcp_conn_list_unlock(void)
 void tcp_add_active_conn(FAR struct tcp_conn_s *conn)
 {
   tcp_conn_list_lock();
+  conn->listid = ++g_tcp_listid;
   dq_addlast(&conn->sconn.s_node, &g_active_tcp_connections);
   tcp_conn_list_unlock();
+}
+
+/****************************************************************************
+ * Name: tcp_conn_lastid
+ *
+ * Description:
+ *   Return the list id of the connection that entered the list of active
+ *   TCP connections last.  A connection with a later list id
+ *   (TCP_LISTID_AFTER()) entered the list after this call.
+ *
+ * Assumptions:
+ *   The TCP connection list is locked.
+ *
+ ****************************************************************************/
+
+uint32_t tcp_conn_lastid(void)
+{
+  return g_tcp_listid;
 }
 
 /****************************************************************************
@@ -1605,29 +1738,28 @@ void tcp_removeconn(FAR struct tcp_conn_s *conn)
 }
 
 /****************************************************************************
- * Name: tcp_remove_syn_backlog
+ * Name: tcp_syn_backlog_conn
  *
  * Description:
- *   This function is used to remove the currently SYN_RCVD connection
- *   created by the listener
+ *   Return the first connection in TCP_SYN_RCVD that the listener created,
+ *   or NULL.  Only connections up to the list id lastid count.
  *
  * Assumptions:
- *   This function is called from network logic with the tcp conn list
- *   locked.
+ *   The TCP connection list is locked.
  *
  ****************************************************************************/
 
-void tcp_remove_syn_backlog(FAR struct tcp_conn_s *listener)
+static FAR struct tcp_conn_s *
+tcp_syn_backlog_conn(FAR struct tcp_conn_s *listener, uint32_t lastid)
 {
   FAR struct tcp_conn_s *conn;
-  FAR struct tcp_conn_s *next;
 
-  next = (FAR struct tcp_conn_s *)g_active_tcp_connections.head;
-  while (next)
+  for (conn = (FAR struct tcp_conn_s *)g_active_tcp_connections.head;
+       conn != NULL;
+       conn = (FAR struct tcp_conn_s *)conn->sconn.s_node.flink)
     {
-      conn = next;
-      next = (FAR struct tcp_conn_s *)conn->sconn.s_node.flink;
       if (conn->tcpstateflags == TCP_SYN_RCVD &&
+          !TCP_LISTID_AFTER(conn->listid, lastid) &&
 #if defined(CONFIG_NET_IPv4) && defined(CONFIG_NET_IPv6)
           tcp_conn_cmp(listener->domain,
                        (FAR const union ip_addr_u *)&listener->u,
@@ -1638,8 +1770,75 @@ void tcp_remove_syn_backlog(FAR struct tcp_conn_s *listener)
 #endif
          )
         {
+          return conn;
+        }
+    }
+
+  return NULL;
+}
+
+/****************************************************************************
+ * Name: tcp_remove_syn_backlog
+ *
+ * Description:
+ *   This function is used to remove the currently SYN_RCVD connection
+ *   created by the listener
+ *
+ *   Only the connections up to the list id lastid are freed: the ones that
+ *   were there when the listener left the table.  A new listener on the
+ *   same address and port can come meanwhile, and its connections in
+ *   TCP_SYN_RCVD match too.
+ *
+ * Assumptions:
+ *   The listener is no longer in the table of listeners.  lastid is the
+ *   value of tcp_conn_lastid() when it was taken out.  The caller holds no
+ *   lock of the network.
+ *
+ ****************************************************************************/
+
+void tcp_remove_syn_backlog(FAR struct tcp_conn_s *listener,
+                            uint32_t lastid)
+{
+  FAR struct net_driver_s *dev;
+  FAR struct tcp_conn_s *conn;
+
+  /* tcp_free() takes the device lock of the connection, and the input path
+   * takes the list lock under the device lock.  So find the connection
+   * with the list locked, then lock its device and the list again, and
+   * free it if it is still there in TCP_SYN_RCVD on the same device.  The
+   * loop ends: each step frees a connection up to lastid, or finds that
+   * one has gone.
+   */
+
+  for (; ; )
+    {
+      tcp_conn_list_lock();
+      conn = tcp_syn_backlog_conn(listener, lastid);
+      dev  = conn != NULL ? conn->dev : NULL;
+      tcp_conn_list_unlock();
+
+      if (conn == NULL)
+        {
+          break;
+        }
+
+      if (dev != NULL)
+        {
+          netdev_lock(dev);
+        }
+
+      tcp_conn_list_lock();
+      if (tcp_syn_backlog_conn(listener, lastid) == conn &&
+          conn->dev == dev)
+        {
           conn->crefs = 0;
           tcp_free(conn);
+        }
+
+      tcp_conn_list_unlock();
+      if (dev != NULL)
+        {
+          netdev_unlock(dev);
         }
     }
 }

@@ -304,11 +304,15 @@ static inline void nxtask_save_parent(FAR struct tcb_s *tcb, uint8_t ttype)
             {
               /* Yes.. Initialize the structure */
 
-              child->ch_flags  = ttype;
-              child->ch_pid    = tcb->pid;
-              child->ch_status = 0;
+              child->ch_flags   = ttype;
+              child->ch_stopsig = 0;
+              child->ch_pid     = tcb->pid;
+#ifdef CONFIG_SCHED_PROCESS_GROUPS
+              child->ch_pgid    = 0;
+#endif
+              child->ch_status  = 0;
 #ifdef CONFIG_SCHED_USER_IDENTITY
-              child->ch_uid    = 0;
+              child->ch_uid     = 0;
 #endif
 
               /* Add the entry into the group's list of children */
@@ -430,12 +434,11 @@ static int nxthread_setup_scheduler(FAR struct tcb_s *tcb, int priority,
 
       /* Set the appropriate scheduling policy in the TCB */
 
-      tcb->flags         &= ~TCB_FLAG_POLICY_MASK;
 #if CONFIG_RR_INTERVAL > 0
-      tcb->flags         |= TCB_FLAG_SCHED_RR;
+      nxsched_set_policy(tcb, TCB_FLAG_SCHED_RR);
       tcb->timeslice      = MSEC2TICK(CONFIG_RR_INTERVAL);
 #else
-      tcb->flags         |= TCB_FLAG_SCHED_FIFO;
+      nxsched_set_policy(tcb, TCB_FLAG_SCHED_FIFO);
 #endif
 
       /* Save the task ID of the parent task in the TCB and allocate

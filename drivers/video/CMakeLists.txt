@@ -81,6 +81,10 @@ if(CONFIG_DRIVERS_VIDEO)
       endforeach()
     endif()
 
+    if(CONFIG_VIDEO_IMX335)
+      list(APPEND SRCS imx335.c)
+    endif()
+
   endif()
 
   if(CONFIG_GOLDFISH_FB)
@@ -93,6 +97,10 @@ if(CONFIG_DRIVERS_VIDEO)
 
   if(CONFIG_GOLDFISH_CAMERA)
     list(APPEND SRCS goldfish_camera.c)
+  endif()
+
+  if(CONFIG_VIDEO_FAKE)
+    list(APPEND SRCS video_fake.c)
   endif()
   # These video drivers depend on SPI support
 

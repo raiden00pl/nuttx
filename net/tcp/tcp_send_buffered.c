@@ -177,68 +177,47 @@ static void psock_writebuffer_notify(FAR struct tcp_conn_s *conn)
 static void retransmit_segment(FAR struct tcp_conn_s *conn,
                                FAR struct tcp_wrbuffer_s *wrb)
 {
-  /* Free any write buffers that have exceed the retry count */
+  uint16_t sent;
 
-  if (++TCP_WBNRTX(wrb) >= TCP_MAXRTX)
+  /* Count the retransmission.  The write buffer stays until its data is
+   * acknowledged: tcp_timer() closes the connection when the retry count
+   * of the connection reaches TCP_MAXRTX.
+   */
+
+  if (TCP_WBNRTX(wrb) < UINT8_MAX)
     {
-      nwarn("WARNING: Expiring wrb=%p nrtx=%u\n",
-            wrb, TCP_WBNRTX(wrb));
+      TCP_WBNRTX(wrb)++;
+    }
 
-      /* Return the write buffer to the free list */
+  sent = TCP_WBSENT(wrb);
 
-      tcp_wrbuffer_release(wrb);
+  ninfo("REXMIT: wrb=%p sent=%u, "
+        "conn tx_unacked=%" PRId32 " sent=%" PRId32 "\n",
+        wrb, TCP_WBSENT(wrb), conn->tx_unacked, conn->sent);
 
-      /* Notify any waiters if the write buffers have been
-       * drained.
-       */
+  /* Reset the number of bytes sent sent from the write buffer */
 
-      psock_writebuffer_notify(conn);
-
-      /* NOTE expired is different from un-ACKed, it is designed
-       * to represent the number of segments that have been sent,
-       * retransmitted, and un-ACKed, if expired is not zero, the
-       * connection will be closed.
-       *
-       * field expired can only be updated at TCP_ESTABLISHED and
-       * TCP_CLOSE_WAIT state.
-       */
-
-      conn->expired++;
+  if (conn->sent > sent)
+    {
+      conn->sent -= sent;
     }
   else
     {
-      uint16_t sent;
-
-      sent = TCP_WBSENT(wrb);
-
-      ninfo("REXMIT: wrb=%p sent=%u, "
-            "conn tx_unacked=%" PRId32 " sent=%" PRId32 "\n",
-            wrb, TCP_WBSENT(wrb), conn->tx_unacked, conn->sent);
-
-      /* Reset the number of bytes sent sent from the write buffer */
-
-      if (conn->sent > sent)
-        {
-          conn->sent -= sent;
-        }
-      else
-        {
-          conn->sent = 0;
-        }
-
-      TCP_WBSENT(wrb) = 0;
-
-      /* Insert the write buffer into the write_q (in sequence
-       * number order).  The retransmission will occur below
-       * when the write buffer with the lowest sequence number
-       * is pulled from the write_q again.
-       */
-
-      ninfo("REXMIT: Moving wrb=%p nrtx=%u\n",
-            wrb, TCP_WBNRTX(wrb));
-
-      psock_insert_segment(wrb, &conn->write_q);
+      conn->sent = 0;
     }
+
+  TCP_WBSENT(wrb) = 0;
+
+  /* Insert the write buffer into the write_q (in sequence
+   * number order).  The retransmission will occur below
+   * when the write buffer with the lowest sequence number
+   * is pulled from the write_q again.
+   */
+
+  ninfo("REXMIT: Moving wrb=%p nrtx=%u\n",
+        wrb, TCP_WBNRTX(wrb));
+
+  psock_insert_segment(wrb, &conn->write_q);
 }
 
 /****************************************************************************
@@ -284,11 +263,9 @@ static inline void psock_lost_connection(FAR struct tcp_conn_s *conn,
       tcp_wrbuffer_release((FAR struct tcp_wrbuffer_s *)entry);
     }
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
   /* Notify the send buffer available */
 
   tcp_sendbuffer_notify(conn);
-#endif /* CONFIG_NET_SEND_BUFSIZE */
 
   /* Reset write buffering variables */
 
@@ -581,8 +558,13 @@ static uint32_t psock_send_eventhandler(FAR struct net_driver_s *dev,
                         wrb, TCP_WBSEQNO(wrb), TCP_WBPKTLEN(wrb));
                 }
             }
-          else if (ackno == TCP_WBSEQNO(wrb))
+          else if (ackno == TCP_WBSEQNO(wrb) && (flags & TCP_NEWDATA) == 0)
             {
+              /* A duplicate ACK carries no data (RFC 5681, section 2): a
+               * segment with data that repeats the ACK number was sent
+               * before the peer received the segment.
+               */
+
 #ifdef CONFIG_NET_TCP_CC_NEWRENO
               if (conn->dupacks >= TCP_FAST_RETRANSMISSION_THRESH)
 #elif defined(CONFIG_NET_TCP_FAST_RETRANSMIT)
@@ -597,40 +579,6 @@ static uint32_t psock_send_eventhandler(FAR struct net_driver_s *dev,
                   /* Reset counter */
 
                   TCP_WBNACK(wrb) = 0;
-#endif
-
-#ifdef CONFIG_NET_TCP_FAST_RETRANSMIT
-                  if ((flags & TCP_NEWDATA) != 0)
-                    {
-                      FAR uint8_t *buf = dev->d_buf;
-                      FAR uint8_t *appdata = dev->d_appdata;
-                      uint16_t len = dev->d_len;
-#  ifdef CONFIG_NET_TCPURGDATA
-                      FAR uint8_t *urgdata = dev->d_urgdata;
-                      uint16_t urglen = dev->d_urglen;
-#  endif
-                      FAR struct iob_s *iob = dev->d_iob;
-
-                      dev->d_buf = NULL;
-                      dev->d_iob = NULL;
-
-                      /* The current receive data needs to be handled by
-                       * following tcp_recvhandler or tcp_data_event. Notify
-                       * driver to send the message and marked as rexmit
-                       */
-
-                      conn->timeout = true;
-                      netdev_txnotify_dev(conn->dev, TCP_POLL);
-                      netdev_iob_replace(dev, iob);
-                      dev->d_buf = buf;
-                      dev->d_appdata = appdata;
-                      dev->d_len = len;
-#  ifdef CONFIG_NET_TCPURGDATA
-                      dev->d_urgdata = urgdata;
-                      dev->d_urglen = urglen;
-#  endif
-                      return flags;
-                    }
 #endif
 
 #ifdef CONFIG_NET_TCP_SELECTIVE_ACK
@@ -898,68 +846,34 @@ static uint32_t psock_send_eventhandler(FAR struct net_driver_s *dev,
 
       if (wrb != NULL && TCP_WBSENT(wrb) > 0)
         {
-          FAR struct tcp_wrbuffer_s *tmp;
+          uint16_t sent;
 
           /* Increment the retransmit count on this write buffer. */
 
-          if (++TCP_WBNRTX(wrb) >= TCP_MAXRTX)
+          if (TCP_WBNRTX(wrb) < UINT8_MAX)
             {
-              nwarn("WARNING: Expiring wrb=%p nrtx=%u\n",
-                    wrb, TCP_WBNRTX(wrb));
+              TCP_WBNRTX(wrb)++;
+            }
 
-              /* The maximum retry count as been exhausted. Remove the write
-               * buffer at the head of the queue.
-               */
+          sent = TCP_WBSENT(wrb);
+          ninfo("REXMIT: wrb=%p sent=%u, "
+                "conn tx_unacked=%" PRId32 " sent=%" PRId32 "\n",
+                wrb, TCP_WBSENT(wrb), conn->tx_unacked, conn->sent);
 
-              tmp = (FAR struct tcp_wrbuffer_s *)sq_remfirst(&conn->write_q);
-              DEBUGASSERT(tmp == wrb);
-              UNUSED(tmp);
+          /* Yes.. Reset the number of bytes sent sent from
+           * the write buffer
+           */
 
-              /* And return the write buffer to the free list */
-
-              tcp_wrbuffer_release(wrb);
-
-              /* Notify any waiters if the write buffers have been
-               * drained.
-               */
-
-              psock_writebuffer_notify(conn);
-
-              /* NOTE expired is different from un-ACKed, it is designed to
-               * represent the number of segments that have been sent,
-               * retransmitted, and un-ACKed, if expired is not zero, the
-               * connection will be closed.
-               *
-               * field expired can only be updated at TCP_ESTABLISHED and
-               * TCP_CLOSE_WAIT state.
-               */
-
-              conn->expired++;
+          if (conn->sent > sent)
+            {
+              conn->sent -= sent;
             }
           else
             {
-              uint16_t sent;
-
-              sent = TCP_WBSENT(wrb);
-              ninfo("REXMIT: wrb=%p sent=%u, "
-                    "conn tx_unacked=%" PRId32 " sent=%" PRId32 "\n",
-                    wrb, TCP_WBSENT(wrb), conn->tx_unacked, conn->sent);
-
-              /* Yes.. Reset the number of bytes sent sent from
-               * the write buffer
-               */
-
-              if (conn->sent > sent)
-                {
-                  conn->sent -= sent;
-                }
-              else
-                {
-                  conn->sent = 0;
-                }
-
-              TCP_WBSENT(wrb) = 0;
+              conn->sent = 0;
             }
+
+          TCP_WBSENT(wrb) = 0;
         }
 
       /* Move all segments that have been sent but not ACKed to the write
@@ -973,11 +887,9 @@ static uint32_t psock_send_eventhandler(FAR struct net_driver_s *dev,
         }
     }
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
   /* Notify the send buffer available if wrbbuffer drained */
 
   tcp_sendbuffer_notify(conn);
-#endif /* CONFIG_NET_SEND_BUFSIZE */
 
   /* Check if the outgoing packet is available (it may have been claimed
    * by a sendto event serving a different thread).
@@ -1400,6 +1312,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
   while (len > 0)
     {
       uint32_t max_wrb_size;
+      uint32_t room;
       unsigned int off;
       size_t chunk_len = len;
       ssize_t chunk_result;
@@ -1449,7 +1362,6 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
       conn->sndcb->priv  = (FAR void *)conn;
       conn->sndcb->event = psock_send_eventhandler;
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
       /* If the send buffer size exceeds the send limit,
        * wait for the write buffer to be released
        */
@@ -1487,7 +1399,16 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
               goto errout_with_lock;
             }
         }
-#endif /* CONFIG_NET_SEND_BUFSIZE */
+
+      /* Queue no more than the limit allows: one write buffer can take
+       * four segments (tcp_max_wrb_size()), more than the limit.
+       */
+
+      room = conn->snd_bufs - tcp_wrbuffer_inqueue_size(conn);
+      if (chunk_len > room)
+        {
+          chunk_len = room;
+        }
 
       while (true)
         {
@@ -1768,11 +1689,8 @@ int psock_tcp_cansend(FAR struct tcp_conn_s *conn)
    * but we don't know how many more.
    */
 
-  if (tcp_wrbuffer_test() < 0 || iob_navail(true) <= 0
-#if CONFIG_NET_SEND_BUFSIZE > 0
-      || tcp_wrbuffer_inqueue_size(conn) >= conn->snd_bufs
-#endif
-     )
+  if (tcp_wrbuffer_test() < 0 || iob_navail(true) <= 0 ||
+      tcp_wrbuffer_inqueue_size(conn) >= conn->snd_bufs)
     {
       return -EWOULDBLOCK;
     }
@@ -1794,17 +1712,20 @@ int psock_tcp_cansend(FAR struct tcp_conn_s *conn)
  *
  ****************************************************************************/
 
-#if CONFIG_NET_SEND_BUFSIZE > 0
 void tcp_sendbuffer_notify(FAR struct tcp_conn_s *conn)
 {
   int val = 0;
 
+  /* Post also when no thread waits yet: a sender can be between its check
+   * of the limit and its wait, with the locks released.  A count that no
+   * sender waited for only makes a sender check the limit once more.
+   */
+
   nxsem_get_value(&conn->snd_sem, &val);
-  if (val < 0)
+  if (val <= 0)
     {
       nxsem_post(&conn->snd_sem);
     }
 }
-#endif /* CONFIG_NET_SEND_BUFSIZE */
 
 #endif /* CONFIG_NET && CONFIG_NET_TCP && CONFIG_NET_TCP_WRITE_BUFFERS */

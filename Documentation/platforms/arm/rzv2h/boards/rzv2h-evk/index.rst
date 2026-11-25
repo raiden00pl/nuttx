@@ -1,15 +1,15 @@
-=========
-RZV2H-EVK
-=========
+==========
+RZ/V2H EVK
+==========
 
 .. tags:: arch:arm, arch:armv7-r, arch:cortex-r8, chip:rzv2h, vendor:renesas
 
-The RZV2H-EVK is an evaluation board for the Renesas RZ/V2H (R9A09G057)
+The RZ/V2H EVK is an evaluation board for the Renesas RZ/V2H (R9A09G057)
 MPU. NuttX is ported to run on one of the two Cortex-R8 real-time cores
 (``CR8_0``).
 
 Board Overview
-===============
+==============
 
 .. figure:: rzv2h-evk-overview.png
    :align: center
@@ -148,8 +148,8 @@ Release the button and repeat the command; the value must return to ``0``.
 Each invocation of the standard ``apps/examples/gpio`` application performs
 one read and exits, so the button must remain pressed for the second command.
 
-Current limitations
-~~~~~~~~~~~~~~~~~~~
+GPIO limitations
+~~~~~~~~~~~~~~~~
 
 The current GPIO implementation supports synchronous read and write only.
 GPIO interrupt attachment and enablement are placeholders, so ``gpio -w``
@@ -185,24 +185,7 @@ The ``nsh`` configuration enables ``CONFIG_DEV_GPIO`` and
 NuttX application repository at ``apps/examples/gpio``; it is not an
 RZ/V2H-specific application.  The RZ/V2H board port only configures the pins,
 registers ``/dev/gpio0`` through ``/dev/gpio2``, and enables the example in
-the board configuration.  The upstream example source is used without
-board-specific polling logic.
-
-The GPIO application uses the following command format::
-
-   gpio [-t <pintype>] [-w <signo>] [-o <value>] <driver-path>
-
-.. note::
-
-   At this stage, the RZ/V2H GPIO driver supports only GPIO read and write
-   operations for application testing.  Changing the pin type is not
-   supported: ``GPIOC_SETPINTYPE`` does not reconfigure the hardware.
-   GPIO interrupt attachment and enablement are also placeholders, so
-   interrupt notification is not available.
-
-   Consequently, use only ``gpio <driver-path>`` for reading and
-   ``gpio -o <0|1> <driver-path>`` for writing.  Do not use the ``-t``
-   pin-type option or the ``-w`` interrupt-wait option on this board.
+the board configuration.
 
 For these LED outputs, only ``-o`` and the device path are needed.  The
 ``-o`` option writes the logical pin level (zero or one), while the device
@@ -213,27 +196,6 @@ LED on and one to turn it off.  For example::
    nsh> gpio -o 1 /dev/gpio1
    nsh> gpio -o 0 /dev/gpio2
    nsh> gpio -o 1 /dev/gpio2
-
-For each command, the application reports the previous output level, the
-level being written, and the level read back from the driver.  For example,
-if LED output 1 is currently off::
-
-   nsh> gpio -o 0 /dev/gpio1
-   Driver: /dev/gpio1
-     Output pin:    Value=1
-     Writing:       Value=0
-     Verify:        Value=0
-
-Omit ``-o`` to read the current output level without changing it::
-
-   nsh> gpio /dev/gpio1
-
-Each invocation performs a single GPIO operation and then exits.  This is
-sufficient for the manual button and LED validation described here.
-
-Use ``gpio -h`` to display the generic application's command syntax.  Some
-options shown by that help text are not yet supported by the RZ/V2H GPIO
-driver, as described above.
 
 Using the NuttX user-LED application
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -292,21 +254,6 @@ The current button and LED tests both reuse the standard NuttX GPIO example:
      - Reused unchanged; it controls both active-low outputs through
        ``/dev/userleds``
 
-.. important::
-
-   No RZ/V2H-specific test application is required for the current manual
-   validation.  Use the standard NuttX ``gpio`` example to read the button
-   through ``/dev/gpio0`` and to control the LEDs through ``/dev/gpio1`` and
-   ``/dev/gpio2``.  A separate polling application is needed only if
-   continuous monitoring, transition detection, or debounce testing is
-   required later.
-
-   The GPIO devices are registered from the board late-initialization path, so
-   ``CONFIG_BOARD_LATE_INITIALIZE`` must remain enabled.
-
-   The user-controlled ``board_userled_*()`` hooks and ``/dev/userleds`` are
-   supported.  The automatic ``board_autoled_*()`` hooks selected by
-   ``CONFIG_ARCH_LEDS`` remain placeholders.
 
 Serial Consoles
 ===============
@@ -372,6 +319,539 @@ Additional enabled SCI channels are registered as later ``/dev/ttyS*``
 devices in ascending hardware-channel order. Their TX and RX pin choices are
 board-specific and are defined by ``BOARD_SCIn_TXD_GPIO`` and
 ``BOARD_SCIn_RXD_GPIO`` in ``boards/arm/rzv2h/rzv2h-evk/include/board.h``.
+
+RIIC I2C
+========
+
+The RZV2H-EVK exposes nine RIIC I2C master channels (RIIC0-RIIC8).
+
+RIIC Pin Assignments
+--------------------
+
+Each RIIC channel is routed to the following board pins.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - SCL Pin
+     - SDA Pin
+   * - RIIC0
+     - ``P3_1``
+     - ``P3_0``
+   * - RIIC1
+     - ``P3_3``
+     - ``P3_2``
+   * - RIIC2
+     - ``P2_1``
+     - ``P2_0``
+   * - RIIC3
+     - ``P3_7``
+     - ``P3_6``
+   * - RIIC4
+     - ``P4_1``
+     - ``P4_0``
+   * - RIIC5
+     - ``P4_3``
+     - ``P4_2``
+   * - RIIC6
+     - ``P4_5``
+     - ``P4_4``
+   * - RIIC7
+     - ``P4_7``
+     - ``P4_6``
+   * - RIIC8
+     - ``P0_7``
+     - ``P0_6``
+
+These definitions are in ``boards/arm/rzv2h/rzv2h-evk/include/board.h``.
+
+Default Interrupt Select IDs
+-----------------------------
+
+Each RIIC channel uses eight interrupt sources. TXI and RXI are routed
+through the programmable INTC interrupt-select (SEL) lines; the remaining
+six (TEI, NAKI, SPI, STI, ALI, TMOI) are fixed GIC interrupts.
+
+**TXI / RXI SEL IRQ numbers** (configurable via Kconfig, valid range
+353-479):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - TXI SEL (GIC IRQ)
+     - RXI SEL (GIC IRQ)
+   * - RIIC0
+     - 447 (SEL94)
+     - 446 (SEL93)
+   * - RIIC1
+     - 445 (SEL92)
+     - 444 (SEL91)
+   * - RIIC2
+     - 443 (SEL90)
+     - 442 (SEL89)
+   * - RIIC3
+     - 441 (SEL88)
+     - 440 (SEL87)
+   * - RIIC4
+     - 439 (SEL86)
+     - 438 (SEL85)
+   * - RIIC5
+     - 437 (SEL84)
+     - 436 (SEL83)
+   * - RIIC6
+     - 435 (SEL82)
+     - 434 (SEL81)
+   * - RIIC7
+     - 433 (SEL80)
+     - 432 (SEL79)
+   * - RIIC8
+     - 431 (SEL78)
+     - 430 (SEL77)
+
+The relevant options for enabling RIIC2 as an example are::
+
+   CONFIG_I2C=y
+   CONFIG_RZV2H_RIIC_I2C=y
+   CONFIG_RZV2H_RIIC2=y
+   CONFIG_I2C_RESET=y
+   CONFIG_SYSTEM_I2CTOOL=y
+
+Each channel has additional Kconfig options for bitrate, SCL rise/fall
+times, duty cycle, noise filter stages, TXI/RXI interrupt-select (SEL) IRQ
+numbers, and interrupt priority.
+
+After boot, enabled RIIC I2C channels are registered as ``/dev/i2cN``
+devices.
+Verify with::
+
+   nsh> ls /dev
+   /dev:
+    console
+    i2c2
+    null
+    zero
+
+The ``riic-i2c`` board configuration (``rzv2h-evk:riic-i2c``) enables
+RIIC2 and the ``i2ctool`` application for interactive testing. Other
+channels can be enabled by adding the corresponding ``CONFIG_RZV2H_RIICn``
+options.
+
+Using the ``i2ctool`` Application with RIIC
+-------------------------------------------
+
+Scan for devices on bus 2 from address 0x00 to 0x20::
+
+   nsh> i2c dev -b 2 0 0x20
+
+Get the register at address 0x2D from a device at address 0x1D on bus 2::
+
+   nsh> i2c get -b 2 -a 0x1D -r 0x2D
+
+Set value 0x08 to the register at address 0x2D of a device at address 0x1D
+on bus 2::
+
+   nsh> i2c set -b 2 -a 0x1D -r 0x2D 0x08
+
+Dump 6 consecutive bytes starting at register address 0x32 from a device at
+address 0x1D on bus 2::
+
+   nsh> i2c dump -b 2 -a 0x1D -r 0x32 6
+
+SCI I2C
+=======
+
+The SCI channels listed below can run as I2C masters in simple I2C mode,
+provided that the channel's SCI UART is disabled. SCI channel ``n`` is
+registered as ``/dev/i2c<CONFIG_RZV2H_SCI_I2C_BUS_OFFSET + n>``. The
+default offset is 10, so the SCI I2C buses do not overlap the RIIC I2C
+buses.
+
+SCI I2C Pin Assignments
+-----------------------
+
+SDA uses the TXDn pin and SCL uses the RXDn pin of each SCI channel.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - SDA Pin
+     - SCL Pin
+   * - SCI0
+     - ``P5_0``
+     - ``P5_1``
+   * - SCI1
+     - ``P5_2``
+     - ``P5_3``
+   * - SCI2
+     - ``P5_4``
+     - ``P5_5``
+   * - SCI4
+     - ``P8_4``
+     - ``P8_5``
+   * - SCI5
+     - ``P7_2``
+     - ``P7_3``
+   * - SCI6
+     - ``P7_4``
+     - ``P7_5``
+   * - SCI7
+     - ``P7_6``
+     - ``P7_7``
+   * - SCI8
+     - ``P8_0``
+     - ``P8_1``
+   * - SCI9
+     - ``P8_2``
+     - ``P8_3``
+
+Configuration
+-------------
+
+The relevant options for enabling SCI7 as an example are::
+
+   CONFIG_I2C=y
+   CONFIG_RZV2H_SCI_I2C=y
+   CONFIG_RZV2H_SCI_I2C7=y
+   CONFIG_I2C_RESET=y
+   CONFIG_SYSTEM_I2CTOOL=y
+   CONFIG_I2CTOOL_MAXBUS=19
+
+``CONFIG_I2CTOOL_MAXBUS`` must be at least
+``CONFIG_RZV2H_SCI_I2C_BUS_OFFSET`` plus the SCI channel number, or
+``i2ctool`` rejects the bus number.
+
+Each channel has additional Kconfig options for bit rate, SDA output delay,
+noise filter clock, bit-rate modulation, and interrupt priority. TXI and
+TEI are fixed GIC interrupts, so SCI I2C has no interrupt-select (SEL)
+options.
+
+After boot, verify that the channel is registered::
+
+   nsh> ls /dev
+   /dev:
+    ...
+    i2c17
+    ...
+
+Using the ``i2ctool`` Application with SCI I2C
+----------------------------------------------
+
+The ``sci-i2c`` board configuration (``rzv2h-evk:sci-i2c``) enables
+SCI7 and the ``i2ctool`` application. Use the same ``i2c`` commands as for
+RIIC I2C, with the SCI I2C bus number::
+
+   nsh> i2c bus
+   nsh> i2c dev -b 17 0x03 0x77
+   nsh> i2c get -b 17 -a 0x50 -r 0x00
+   nsh> i2c set -b 17 -a 0x50 -r 0x10 0x5a
+   nsh> i2c reset -b 17
+
+PWM
+===
+
+The RZV2H-EVK exposes GPT-based PWM output on channels 0 through 15.
+
+Pin Assignments
+---------------
+
+Each GPT channel is routed to the following board pin.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - Pin
+   * - GPT0
+     - ``P7_0``
+   * - GPT1
+     - ``P8_0``
+   * - GPT2
+     - ``P4_4``
+   * - GPT3
+     - ``P4_6``
+   * - GPT4
+     - ``P9_4``
+   * - GPT5
+     - ``P9_6``
+   * - GPT6
+     - ``P3_4``
+   * - GPT7
+     - ``P8_6``
+   * - GPT8
+     - ``P9_4``
+   * - GPT9
+     - ``P9_6``
+   * - GPT10
+     - ``PA_4``
+   * - GPT11
+     - ``P6_2``
+   * - GPT12
+     - ``P3_0``
+   * - GPT13
+     - ``P6_4``
+   * - GPT14
+     - ``P3_5``
+   * - GPT15
+     - ``P6_6``
+
+These definitions are in ``boards/arm/rzv2h/rzv2h-evk/include/board.h``.
+
+The relevant options for enabling GPT7 as an example are::
+
+   CONFIG_PWM=y
+   CONFIG_RZV2H_GPT_PWM=y
+   CONFIG_RZV2H_GPT7_PWM=y
+   CONFIG_RZV2H_GPT_PWM_DEFAULT_FREQUENCY=1000
+   CONFIG_EXAMPLES_PWM=y
+
+After boot, enabled PWM channels are registered as ``/dev/pwmN`` devices.
+Verify with::
+
+   nsh> ls /dev
+   /dev:
+    console
+    null
+    pwm7
+    ttyS0
+    zero
+
+The ``pwm`` board configuration (``rzv2h-evk:pwm``) enables GPT7
+(PWM output on P8_6, corresponding to CN1 Pmod pin 9) and the
+``pwm`` application for interactive testing. Other channels can be
+enabled by adding the corresponding ``CONFIG_RZV2H_GPTn_PWM`` options.
+
+Using the ``pwm`` Application
+-----------------------------
+
+Start a 1 Hz PWM signal at 50% duty cycle on channel 7::
+
+   nsh> pwm -p /dev/pwm7 -f 1 -d 50
+
+The ``-f`` option sets the frequency in Hz and ``-d`` sets the duty cycle.
+
+CAN
+===
+
+The RZV2H-EVK board port defines pins for six CAN-FD channels
+(CANFD0-CANFD5).
+
+CAN Pin Assignments
+-------------------
+
+Each CAN-FD channel is routed to the following board pins.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - TX Pin
+     - RX Pin
+   * - CANFD0
+     - ``P8_0``
+     - ``P8_1``
+   * - CANFD1
+     - ``P8_2``
+     - ``P8_3``
+   * - CANFD2
+     - ``P8_4``
+     - ``P8_5``
+   * - CANFD3
+     - ``P8_6``
+     - ``P8_7``
+   * - CANFD4
+     - ``P4_2``
+     - ``P4_3``
+   * - CANFD5
+     - ``P4_6``
+     - ``P4_7``
+
+These definitions are in ``boards/arm/rzv2h/rzv2h-evk/include/board.h``.
+
+CAN Default Interrupt Select IDs
+--------------------------------
+
+All CAN-FD interrupts are routed through the programmable INTC
+interrupt-select (SEL) lines. Each channel uses three: REC (reception
+into a Common FIFO), TRX (transmit complete or abort) and ERR (channel
+error). Two more lines are shared by all channels: GERR (global error)
+and GRECC (reception into an RX FIFO).
+
+**SEL IRQ numbers** (configurable via Kconfig, valid range 353-479):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Channel
+     - REC SEL (GIC IRQ)
+     - TRX SEL (GIC IRQ)
+     - ERR SEL (GIC IRQ)
+   * - CANFD0
+     - 417 (SEL64)
+     - 416 (SEL63)
+     - 415 (SEL62)
+   * - CANFD1
+     - 414 (SEL61)
+     - 413 (SEL60)
+     - 412 (SEL59)
+   * - CANFD2
+     - 411 (SEL58)
+     - 410 (SEL57)
+     - 409 (SEL56)
+   * - CANFD3
+     - 408 (SEL55)
+     - 407 (SEL54)
+     - 406 (SEL53)
+   * - CANFD4
+     - 405 (SEL52)
+     - 404 (SEL51)
+     - 403 (SEL50)
+   * - CANFD5
+     - 402 (SEL49)
+     - 401 (SEL48)
+     - 400 (SEL47)
+
+The shared lines default to 419 (SEL66) for GERR
+(``CONFIG_RZV2H_CANFD_GERR_INTSEL``) and 418 (SEL65) for GRECC
+(``CONFIG_RZV2H_CANFD_GREEC_INTSEL``).
+
+The relevant options for enabling CANFD0 in external loopback mode, as in
+the ``can-loopback`` configuration, are::
+
+   CONFIG_CAN=y
+   CONFIG_CAN_EXTID=y
+   CONFIG_CAN_FD=y
+   CONFIG_CAN_ERRORS=y
+   CONFIG_CAN_LOOPBACK=y
+   CONFIG_RZV2H_CANFD=y
+   CONFIG_RZV2H_CANFD_LOOPBACK_EXTERNAL=y
+   CONFIG_RZV2H_CANFD0=y
+   CONFIG_RZV2H_CANFD_RXFIFO0_ENABLED=y
+   CONFIG_EXAMPLES_CAN=y
+   CONFIG_EXAMPLES_CAN_NMSGS=100
+
+By default channel n receives in RX FIFO n, so RX FIFO n must be enabled
+(``CONFIG_RZV2H_CANFD_RXFIFOn_ENABLED``) for each enabled channel. Each
+channel has additional Kconfig options for bit rates, receive FIFO, TX
+message buffers, error interrupts, REC/TRX/ERR interrupt-select (SEL) IRQ
+numbers, and interrupt priority.
+
+After boot, enabled CAN-FD channels are registered as ``/dev/canX``
+devices, where X is the channel number. Verify with ``ls /dev`` that
+``can0`` is listed.
+
+The ``can-loopback`` board configuration (``rzv2h-evk:can-loopback``)
+enables CANFD0 in external loopback mode and the ``can`` example. Other
+channels can be enabled by adding the corresponding
+``CONFIG_RZV2H_CANFDn`` options.
+
+Using the ``can`` Application
+-----------------------------
+
+In the ``can-loopback`` configuration CANFD0 runs in external loopback
+mode: it receives its own frames back through the CAN transceiver and
+sends its own acknowledge, so no other node is needed on the bus. CANFD0
+TX and RX (``P8_0`` and ``P8_1``) must be connected to a powered CAN
+transceiver.
+
+Send and check 100 frames (``CONFIG_EXAMPLES_CAN_NMSGS``)::
+
+   nsh> can
+
+Send and check 20 frames::
+
+   nsh> can -n 20
+
+Use standard IDs instead of extended IDs::
+
+   nsh> can -s
+
+Send CAN FD frames without bit rate switching::
+
+   nsh> can -e
+
+Each frame is printed when it is sent, then again with ``-- OK`` when the
+frame read back matches it.
+
+SocketCAN
+---------
+
+With ``CONFIG_RZV2H_CANFD_SOCKET`` (CAN-FD option "CAN character driver or
+SocketCAN support"), channel n is the SocketCAN network interface
+``can<n>`` instead of ``/dev/can<n>``.
+The ``can-socketcan`` board configuration (``rzv2h-evk:can-socketcan``)
+enables CANFD0 (``can0``) and CANFD1 (``can1``) with the ``candump`` and
+``cansend`` tools. With the transceivers of CANFD0 and CANFD1 on the same
+bus, then::
+
+   nsh> ifup can0
+   nsh> ifup can1
+   nsh> candump can1 &
+   nsh> cansend can0 123#DEADBEEF
+   nsh> cansend can0 12345678#1122
+   nsh> cansend can0 456##1DEADBEEF
+
+The last command sends a CAN FD frame with bit rate switching. Bit rates
+(``SIOCSCANBITRATE``, while the interface is down), filters
+(``SIOCACANSTDFILTER``, ``SIOCACANEXTFILTER``) and bus-off recovery
+(``SIOCCANRECOVERY``) are set with ioctl() on a CAN socket.
+
+DroneCAN
+--------
+
+The ``can-dronecan`` board configuration (``rzv2h-evk:can-dronecan``)
+enables CANFD0 (``/dev/can0``) and CANFD1 (``/dev/can1``) with the
+``dronecan`` example. With the transceivers of CANFD0 and CANFD1 on the
+same bus, listen on ``/dev/can1`` and start the example::
+
+   nsh> hexdump /dev/can1 &
+   nsh> dronecan
+
+OpenCyphal
+----------
+
+The ``can-opencyphal`` board configuration (``rzv2h-evk:can-opencyphal``)
+enables CANFD0 (``can0``) and CANFD1 (``can1``) with the ``opencyphal``
+example and the ``candump`` and ``cansend`` tools. With the transceivers
+of CANFD0 and CANFD1 on the same bus, bring up both interfaces, listen on
+``can1`` and start the example::
+
+   nsh> ifup can0
+   nsh> ifup can1
+   nsh> candump can1 &
+   nsh> opencyphal
+
+SLCAN
+-----
+
+The ``can-slcan`` board configuration (``rzv2h-evk:can-slcan``) enables
+CANFD0 (``can0``), CANFD1 (``can1``) and SCI1 (``/dev/ttyS1``, TXD1 on
+``P5_2``, RXD1 on ``P5_3``) with the ``slcan`` tool, which bridges a CAN
+interface to a serial line using the SLCAN protocol. Put the transceivers
+of CANFD0 and CANFD1 on the same bus, and connect a host serial terminal
+to SCI1. Bridge ``can1`` to ``/dev/ttyS1`` and listen on ``can0``, both in
+the background::
+
+   nsh> ifup can0
+   nsh> ifup can1
+   nsh> slcan can1 /dev/ttyS1 &
+   nsh> candump can0 &
+
+On the terminal, send ``O`` to open the channel so ``slcan`` accepts send
+commands. Frames typed after that are sent on ``can1``. ``t`` sends a
+standard ID frame and ``T`` an extended ID frame, each followed by the ID
+(3 or 8 hex digits), the data length and the data bytes::
+
+   O
+   t7FF3010299
+   t1238DEADBEEF11223344
+
+``candump`` shows each frame received on ``can0``::
+
+   can0  7FF   [3]  01 02 99
+   can0  123   [8]  DE AD BE EF 11 22 33 44
 
 QSPI Flash
 ==========
@@ -459,13 +939,87 @@ once it is mounted, so log messages persist across resets. This requires
 / flight-log partition described above, not in the firmware or parameter
 partitions.
 
+Real-Time Clock (RTC)
+=====================
+
+The RZ/V2H RTC provides a calendar clock, a one-shot alarm and a periodic
+wakeup.  It is registered through ``CONFIG_RTC_ARCH`` so a single driver both
+exposes ``/dev/rtc0`` and seeds the NuttX system clock at boot.  If the RTC
+has never been set, the system clock falls back to the build-time default
+date.
+
+RTC Clock source
+----------------
+
+On the RZ/V2H-EVK the RTC sub-clock is driven from a 32.768 kHz crystal.
+Alarm and periodic wakeup have been verified running on the EVK.
+
+RTC configuration
+-----------------
+
+Enable the RTC on top of an existing configuration (for example
+``rzv2h-evk:nsh``) with the following options::
+
+   CONFIG_RTC=y
+   CONFIG_RTC_DATETIME=y
+   CONFIG_RTC_DRIVER=y
+   CONFIG_RTC_ARCH=y
+   CONFIG_RTC_ALARM=y
+   CONFIG_RTC_NALARMS=1
+   CONFIG_RTC_PERIODIC=y
+   CONFIG_RZV2H_RTC=y
+   CONFIG_NSH_DISABLE_DATE=n
+   CONFIG_SIG_EVTHREAD=y
+   CONFIG_SCHED_LPWORK=y
+   CONFIG_EXAMPLES_ALARM=y
+   CONFIG_BOARD_LATE_INITIALIZE=y
+
+With these options the board registers ``/dev/rtc0`` during board
+initialization.
+
+RTC NSH
+-------
+
+Read and set the calendar with the NSH ``date`` builtin
+(``CONFIG_NSH_DISABLE_DATE=n``).  If the RTC has never been set, the boot
+log reports the fallback and ``date`` shows the build-time default:
+
+.. code-block:: console
+
+   rzv2h_rtc: RTC not set; using build-time default date
+   NuttShell (NSH) NuttX-13.0.0
+   nsh> date -s "Jul 29 15:30:00 2026"
+   nsh> date
+   Wed, Jul 29 15:30:01 2026
+
+Arm a relative alarm with the standard ``apps/examples/alarm`` application
+(``CONFIG_EXAMPLES_ALARM``).  The example starts an ``alarm_daemon`` on first
+use; the daemon prints when the alarm signal is received:
+
+.. code-block:: console
+
+   nsh> alarm 5
+   alarm_daemon started
+   alarm_daemon: Running
+   Opening /dev/rtc0
+   Alarm 0 set in 5 seconds
+   nsh> alarm_daemon: alarm 0 received
+
+A pending alarm can be read back, and an armed alarm can be cancelled:
+
+.. code-block:: console
+
+   nsh> alarm 30
+   Opening /dev/rtc0
+   Alarm 0 set in 30 seconds
+   nsh> alarm -c -a 0
+   Opening /dev/rtc0
+   Alarm 0 has been canceled
+
 Bring-up
 ========
 
-This section describes what has been brought up so far for the CR8_0 core.
-Clock, MPU, GIC, timer, GPIO, and SCI-B UART support described on this
-page are implemented.  Board options not described here may still be
-placeholders.
+This section describes what has been brought up so far.
 
 Clock control
 -------------
@@ -518,6 +1072,41 @@ as the system tick source. Its clock is ``BSP_CFG_CLOCK_I6CLK_HZ / 2``, and
 the reload value is derived from ``CLK_TCK`` so the timer fires every system
 tick. The Private Timer interrupt (BSP IRQn -3) maps to GIC INTID 29.
 
+
+RTC
+---
+
+When ``CONFIG_RZV2H_RTC`` is enabled, ``rzv2h_bringup()``
+(``boards/arm/rzv2h/rzv2h-evk/src/rzv2h_bringup.c``) initializes the RTC
+during board late-initialization. It configures the RTC hardware, routes the
+interrupt sources.
+``/dev/rtc0`` and publishes the lower half to the ``CONFIG_RTC_ARCH`` bridge
+so that a single driver both serves ``/dev/rtc0`` and seeds the NuttX system
+clock.
+
+The system clock is seeded from the RTC at boot. If the RTC has never been
+started it falls back to the build-time default date and the boot log prints
+``rzv2h_rtc: RTC not set; using build-time default date``. See the Real-Time
+Clock (RTC) section above for configuration and NSH usage.
+
+Linker script
+-------------
+
+``boards/arm/rzv2h/rzv2h-evk/scripts/rzv2h-evk_cr8_0.ld`` defines the memory
+map for CR8_0:
+
+- ``ITCM``  0x00000000, 128 KB
+- ``DTCM``  0x00020000, 128 KB
+- ``RAM``   0x08180000, 512 KB (RCPU-SRAM; holds .vectors, .text, .data,
+  .bss, heap and stack)
+
+The exception vector table is linked into RAM (an LMA of 0 could not be
+written by the debugger before ITCM is mapped) and copied into ITCM by
+``arm_boot()`` at runtime. The read-only code region
+(``__mpu_code_start``..``__mpu_code_end``) is padded up to a power of two so
+the MPU code window above can be programmed as an exact-fit region with no
+sub-region mask.
+
 Loading Code
 ============
 
@@ -544,6 +1133,59 @@ active-low ``P0_0`` and ``P0_1`` LED outputs.  The generic ``/dev/gpio1`` and
 testing.  Automatic OS-status LED control through ``CONFIG_ARCH_LEDS`` is
 not yet implemented.
 
+riic-i2c
+--------
+
+RIIC I2C configuration enabling RIIC2 with the
+``i2ctool`` application for interactive bus scanning and device
+read/write testing.  The channel is registered as ``/dev/i2c2`` at boot.
+Bus reset recovery (``CONFIG_I2C_RESET``) is enabled.
+
+sci-i2c
+-------
+
+SCI I2C configuration enabling SCI channel 7 in simple I2C mode with the
+``i2ctool`` application. The channel is registered as ``/dev/i2c17`` at
+boot. SDA is on ``P7_6`` (CN3 pin 9) and SCL on ``P7_7`` (CN3 pin 10);
+external pull-up resistors are required. Bus reset recovery
+(``CONFIG_I2C_RESET``) is enabled. RIIC is not enabled.
+
+can-loopback
+------------
+
+CAN configuration enabling CANFD0 in external loopback mode with the
+``can`` example, which sends 100 CAN FD frames and checks that each one is
+read back unchanged. The channel is registered as ``/dev/can0`` at boot.
+A CAN transceiver must be connected to CANFD0 (``P8_0`` and ``P8_1``); no
+other node is needed on the bus.
+
+can-socketcan
+-------------
+
+SocketCAN configuration: CANFD0 and CANFD1 are the network interfaces
+``can0`` and ``can1``, with the ``candump`` and ``cansend`` tools. Bring
+them up with ``ifup can0`` and ``ifup can1``.
+
+can-dronecan
+------------
+
+DroneCAN configuration: CANFD0 and CANFD1 are the character devices
+``/dev/can0`` and ``/dev/can1``, with the ``dronecan`` example node on
+``/dev/can0``.
+
+can-opencyphal
+--------------
+
+OpenCyphal configuration: CANFD0 and CANFD1 are the network interfaces
+``can0`` and ``can1``, with the ``opencyphal`` example node on ``can0`` and
+the ``candump`` and ``cansend`` tools.
+
+can-slcan
+---------
+
+SLCAN configuration: CANFD0 and CANFD1 are the network interfaces ``can0``
+and ``can1``, with the ``slcan`` tool on SCI1 (``/dev/ttyS1``).
+
 nsh-xspi
 --------
 
@@ -555,3 +1197,9 @@ mounted as a single flat LittleFS volume at ``/mnt/qspi``. Partitioning
 enabled by this defconfig. As with the other configurations, there is no
 working console driver yet, so this is intended for bring-up validation
 with a debugger.
+
+alarm
+-----
+
+NSH + RTC alarm example: enables RTC with alarm support and the
+``apps/examples/alarm`` application.

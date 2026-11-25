@@ -69,10 +69,26 @@ extern "C"
  *
  ****************************************************************************/
 
-#ifndef CONFIG_DISABLE_MOUNTPOINT
+#ifdef CONFIG_BLOCK_PARTITION
 int register_partition_with_inode(FAR const char *partition,
                                   mode_t mode, FAR struct inode *parent,
                                   off_t firstsector, off_t nsectors);
+#endif
+
+/****************************************************************************
+ * Name: unique_devname
+ *
+ * Description:
+ *   Build a temporary device name "/dev/tmp<prefix><6 hex digits>" that
+ *   is not in use: prefix 'c' for block_proxy(), 'b' for mtd_proxy().
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_FS_BLOCK_DRIVER
+int unique_devname(char prefix, FAR char *devbuf, size_t len);
 #endif
 
 /****************************************************************************
@@ -94,7 +110,8 @@ int register_partition_with_inode(FAR const char *partition,
  *
  ****************************************************************************/
 
-#ifndef CONFIG_DISABLE_MOUNTPOINT
+#if defined(CONFIG_BCH) && defined(CONFIG_FS_BLOCK_DRIVER) && \
+    !defined(CONFIG_DISABLE_PSEUDOFS_OPERATIONS)
 int block_proxy(FAR struct file *filep, FAR const char *blkdev, int oflags);
 #endif
 
@@ -121,7 +138,7 @@ int block_proxy(FAR struct file *filep, FAR const char *blkdev, int oflags);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_MTD
+#ifdef CONFIG_MTD_PARTITION
 int register_partition_with_mtd(FAR const char *partition,
                                 mode_t mode, FAR struct mtd_dev_s *parent,
                                 off_t firstblock, off_t nblocks);

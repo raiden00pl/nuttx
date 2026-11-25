@@ -297,12 +297,18 @@ void weak_function arm_initialize_stack(void);
 /* Interrupt acknowledge and dispatch */
 
 void arm_ack_irq(int irq);
+
 uint32_t *arm_doirq(int irq, uint32_t *regs);
+
+/* System call handling */
+
+#ifdef CONFIG_LIB_SYSCALL
+void arm_dispatch_syscall(void);
+#endif
 
 /* Exception handling logic unique to the Cortex-M family */
 
-#if defined(CONFIG_ARCH_ARMV6M) || defined(CONFIG_ARCH_ARMV7M) || \
-    defined(CONFIG_ARCH_ARMV8M)
+#ifdef CONFIG_ARCH_ARM_M
 
 /* This is the address of the  exception vector table (determined by the
  * linker script).
@@ -314,10 +320,6 @@ uint32_t *arm_doirq(int irq, uint32_t *regs);
 extern const void *__vector_table[];
 #else
 extern const void * const _vectors[];
-#endif
-
-#ifdef CONFIG_LIB_SYSCALL
-void arm_dispatch_syscall(void);
 #endif
 
 /* Exception Handlers */
@@ -360,7 +362,6 @@ uint32_t *arm_va2pte(uintptr_t vaddr);
 uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr);
 uint32_t *arm_prefetchabort(uint32_t *regs, uint32_t ifar, uint32_t ifsr);
 uint32_t *arm_syscall(uint32_t *regs);
-uint32_t *arm_undefinedinsn(uint32_t *regs);
 
 /* Exception handling logic common to other ARM7 and ARM9 family. */
 
@@ -371,20 +372,22 @@ uint32_t *arm_undefinedinsn(uint32_t *regs);
 #ifdef CONFIG_LEGACY_PAGING
 void arm_pginitialize(void);
 uint32_t *arm_va2pte(uintptr_t vaddr);
-void arm_dataabort(uint32_t *regs, uint32_t far, uint32_t fsr);
 #else /* CONFIG_LEGACY_PAGING */
 #  define arm_pginitialize()
-void arm_dataabort(uint32_t *regs);
 #endif /* CONFIG_LEGACY_PAGING */
+
+uint32_t * arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr);
 
 /* Exception handlers */
 
-void arm_prefetchabort(uint32_t *regs);
+uint32_t *arm_prefetchabort(uint32_t *regs, uint32_t ifar, uint32_t ifsr);
 uint32_t *arm_syscall(uint32_t *regs);
-void arm_undefinedinsn(uint32_t *regs);
 
 #endif /* CONFIG_ARCH_ARMV[6-8]M */
 
+bool arm_fault_kill(uint32_t *regs);
+
+uint32_t *arm_undefinedinsn(uint32_t *regs);
 void arm_vectorundefinsn(void);
 void arm_vectorsvc(void);
 void arm_vectorprefetch(void);
@@ -533,6 +536,9 @@ void arm_stack_check_init(void) noinstrument_function;
 #ifdef CONFIG_ARCH_HAVE_DEBUG
 int arm_enable_dbgmonitor(void);
 int arm_dbgmonitor(int irq, void *context, void *arg);
+#else
+#  define arm_enable_dbgmonitor()
+#  define arm_dbgmonitor(i, c, a)
 #endif
 
 #ifdef __cplusplus

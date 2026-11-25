@@ -235,6 +235,9 @@ config STM32_HAVE_IP_DAC_M3M4_V2
 config STM32_HAVE_IP_DAC_M0_V1
 	bool
 
+config STM32_HAVE_IP_DAC_M33_V1
+	bool
+
 config STM32_HAVE_DAC1
 	bool
 
@@ -470,9 +473,6 @@ config STM32_HAVE_IP_HRTIM_M3M4_V1
 
 # I2C capabilities
 
-config STM32_HAVE_I2C_H5
-	bool
-
 config STM32_HAVE_I2C5
 	bool
 
@@ -482,14 +482,8 @@ config STM32_HAVE_I2C6
 config STM32_HAVE_IP_I2C_M3M4_V1
 	bool
 
-config STM32_HAVE_IP_I2C_M3M4_V2
+config STM32_HAVE_IP_I2C_V2
 	bool
-
-config STM32_HAVE_IP_I2C_M33M55_V2
-	bool
-	---help---
-		I2C v2 of the Cortex-M33 and Cortex-M55 families with the kernel
-		clock from board.h (STM32H5, STM32N6).
 
 config STM32_HAVE_IP_I2C_M0_V1
 	bool
@@ -1266,6 +1260,19 @@ config STM32_HAVE_IP_OTGFS_M3M4_V1
 
 config STM32_HAVE_IP_OTGHS_M3M4_V1
 	bool
+
+config STM32_HAVE_IP_OTG_V2
+	bool
+
+config STM32_HAVE_OTGHS_USBDEV
+	bool
+	---help---
+		The OTG v2 driver supports the OTG HS device role (STM32H7).
+
+config STM32_HAVE_OTGHS_HOST
+	bool
+	---help---
+		The OTG v2 driver supports the OTG HS host role (STM32N6).
 
 config STM32_HAVE_COMMON_USBHOST_DEBUG
 	bool

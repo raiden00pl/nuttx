@@ -68,7 +68,7 @@ static void tcp_path(FAR struct tcp_conn_s *conn, FAR char *buf, size_t len)
 
   snprintf(buf, len, "tcp:["
            "%s:%" PRIu16 "<->%s:%" PRIu16
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#if CONFIG_NET_SEND_BUFSIZE > 0 && defined(CONFIG_NET_TCP_WRITE_BUFFERS)
            ", tx %" PRIu32 "/%" PRId32
 #endif
 #if CONFIG_NET_RECV_BUFSIZE > 0
@@ -84,7 +84,7 @@ static void tcp_path(FAR struct tcp_conn_s *conn, FAR char *buf, size_t len)
            ntohs(conn->lport),
            inet_ntop(domain, raddr, remote, sizeof(remote)),
            ntohs(conn->rport),
-#if CONFIG_NET_SEND_BUFSIZE > 0
+#if CONFIG_NET_SEND_BUFSIZE > 0 && defined(CONFIG_NET_TCP_WRITE_BUFFERS)
            tcp_wrbuffer_inqueue_size(conn),
            conn->snd_bufs,
 #endif
@@ -120,9 +120,16 @@ static void tcp_path(FAR struct tcp_conn_s *conn, FAR char *buf, size_t len)
 
 int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg)
 {
+  FAR struct net_driver_s *dev = conn->dev;
   int ret = OK;
 
-  conn_lock(&conn->sconn);
+  /* The input path changes the read-ahead and the write queues with only
+   * the device locked (an ACK frees a write buffer): take the device lock
+   * too, as the send path does, before FIONREAD, FIONSPACE or the path
+   * look at them.
+   */
+
+  conn_dev_lock(&conn->sconn, dev);
 
   switch (cmd)
     {
@@ -138,13 +145,10 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg)
         break;
       case FIONSPACE:
 #ifdef CONFIG_NET_TCP_WRITE_BUFFERS
-#  if CONFIG_NET_SEND_BUFSIZE == 0
+        /* SO_SNDBUF can be set below the data already queued */
+
         *(FAR int *)((uintptr_t)arg) =
-                                iob_navail(true) * CONFIG_IOB_BUFSIZE;
-#  else
-        *(FAR int *)((uintptr_t)arg) =
-                        conn->snd_bufs - tcp_wrbuffer_inqueue_size(conn);
-#  endif
+          MAX(conn->snd_bufs - (int32_t)tcp_wrbuffer_inqueue_size(conn), 0);
 #else
         *(FAR int *)((uintptr_t)arg) = MIN_TCP_MSS;
 #endif
@@ -157,7 +161,7 @@ int tcp_ioctl(FAR struct tcp_conn_s *conn, int cmd, unsigned long arg)
         break;
     }
 
-  conn_unlock(&conn->sconn);
+  conn_dev_unlock(&conn->sconn, dev);
 
   return ret;
 }

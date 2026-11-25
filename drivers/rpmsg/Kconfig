@@ -57,6 +57,7 @@ config RPMSG_WQUEUE_PRIORITY
 
 config RPMSG_WQUEUE_STACKSIZE
 	int "rpmsg work queue stack size"
+	default 8192 if ARCH_64BIT && DEFAULT_TASK_STACKSIZE < 8192
 	default DEFAULT_TASK_STACKSIZE
 
 config RPMSG_WQUEUE_NUMBER
@@ -66,6 +67,20 @@ config RPMSG_WQUEUE_NUMBER
 	---help---
 		This macro sets the number of rpmsg work queue. It can be
 		customized and the minimum value is 1.
+
+config RPMSG_RECURSIVE_LIMIT
+	int "rpmsg recursive limit"
+	default 8 if ARCH_SIM
+	default 2 if RPMSG_WQUEUE_STACKSIZE <= 4096
+	default 3 if RPMSG_WQUEUE_STACKSIZE <= 5120
+	default 4 if RPMSG_WQUEUE_STACKSIZE <= 6144
+	default 5 if RPMSG_WQUEUE_STACKSIZE <= 7168
+	default 6 if RPMSG_WQUEUE_STACKSIZE <= 8192
+	default 7 if RPMSG_WQUEUE_STACKSIZE <= 9216
+	default 8
+	---help---
+		This macro sets the maximum recursion depth allowed in the
+		rpmsg dispatch function.
 
 config RPMSG_TRACE
 	bool "rpmsg trace"

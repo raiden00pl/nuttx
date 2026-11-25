@@ -37,8 +37,28 @@ if(CONFIG_RZV2H_SCI_B)
   list(APPEND SRCS rzv2h_serial.c)
 endif()
 
+if(CONFIG_RZV2H_RIIC_I2C)
+  list(APPEND SRCS rzv2h_riic_i2c.c)
+endif()
+
+if(CONFIG_RZV2H_SCI_I2C)
+  list(APPEND SRCS rzv2h_sci_i2c.c)
+endif()
+
+if(CONFIG_RZV2H_GPT_PWM)
+  list(APPEND SRCS rzv2h_pwm.c)
+endif()
+
+if(CONFIG_RZV2H_CANFD)
+  list(APPEND SRCS rzv2h_canfd.c)
+endif()
+
 if(CONFIG_RZV2H_QSPI)
   list(APPEND SRCS rzv2h_qspi.c)
+endif()
+
+if(CONFIG_RZV2H_RTC)
+  list(APPEND SRCS rzv2h_rtc.c)
 endif()
 
 target_sources(arch PRIVATE ${SRCS})

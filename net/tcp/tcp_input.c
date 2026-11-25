@@ -1195,6 +1195,15 @@ found:
 
   dev->d_len -= (len + iplen);
 
+  /* No data is queued for the response yet.  d_sndlen can still hold the
+   * length of the last segment that the device sent (over the loopback
+   * device: the segment that is this input).  The paths below that do not
+   * clear it (FIN_WAIT_1, FIN_WAIT_2, a FIN in ESTABLISHED) would then send
+   * that many bytes of the input buffer back to the peer as our data.
+   */
+
+  dev->d_sndlen = 0;
+
 #if defined(CONFIG_NET_STATISTICS) && \
     defined(CONFIG_NET_TCP_DEBUG_DROP_RECV)
 
@@ -1315,6 +1324,21 @@ found:
 
       if (lasttxunacked == 0)
         {
+          goto skip_rtt;
+        }
+
+      if ((conn->tcpstateflags & TCP_STATE_MASK) >= TCP_ESTABLISHED &&
+          !TCP_SEQ_GT(ackseq, conn->snd_wl2))
+        {
+          /* The segment acknowledges no new data (a duplicate ACK: not
+           * beyond snd_wl2, the highest ACK so far): it gives no RTT
+           * sample, does not restart the retransmission timer (RFC 6298,
+           * section 5.3; else a peer that sends data keeps the timer from
+           * expiring) and does not reset the count of retransmissions
+           * (the backoff of section 5.5).
+           */
+
+          flags |= TCP_ACKDATA;
           goto skip_rtt;
         }
 
@@ -1451,8 +1475,21 @@ skip_rtt:
                   return;
                 }
             }
+          else if (((conn->tcpstateflags & TCP_STATE_MASK) <=
+                    TCP_FIN_WAIT_2) && dev->d_len == 0 &&
+                   (tcp->flags & (TCP_SYN | TCP_FIN)) == 0 &&
+                   TCP_SEQ_LT(seq, conn->rcv_adv))
+            {
+              /* A segment without data, SYN or FIN is acceptable if
+               * RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND (RFC 9293, 3.10.7.4).
+               * It goes on to the window update and the state machine, and
+               * gets no ACK.
+               */
+            }
           else if ((conn->tcpstateflags & TCP_STATE_MASK) <= TCP_FIN_WAIT_2)
             {
+              tcp_recvwindow_loss(dev, conn);
+
 #ifdef CONFIG_NET_TCP_OUT_OF_ORDER
               /* Queue out-of-order segments. */
 
@@ -1474,7 +1511,7 @@ skip_rtt:
 #ifdef CONFIG_NET_TCP_CC_NEWRENO
       /* If the packet is ack, update the cc var. */
 
-      tcp_cc_recv_ack(conn, tcp);
+      tcp_cc_recv_ack(conn, tcp, dev->d_len);
 #endif
       if (tcp_snd_wnd_update(conn, tcp))
         {

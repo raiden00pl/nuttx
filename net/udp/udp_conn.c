@@ -64,6 +64,7 @@
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/ip.h>
 #include <nuttx/net/udp.h>
+#include <nuttx/mm/mempool.h>
 
 #include "devif/devif.h"
 #include "inet/inet.h"
@@ -88,13 +89,21 @@
 
 /* The array containing all UDP connections. */
 
-NET_BUFPOOL_DECLARE(g_udp_connections, sizeof(struct udp_conn_s),
-                    CONFIG_NET_UDP_PREALLOC_CONNS,
-                    CONFIG_NET_UDP_ALLOC_CONNS, CONFIG_NET_UDP_MAX_CONNS);
+MEMPOOL_DEFINE(g_udp_connections, sizeof(struct udp_conn_s),
+               CONFIG_NET_UDP_PREALLOC_CONNS, CONFIG_NET_UDP_MAX_CONNS,
+               CONFIG_NET_UDP_ALLOC_CONNS);
+
+/* The list of all allocated UDP connections is protected by this rmutex. */
+
+static rmutex_t g_udp_connections_lock = NXRMUTEX_INITIALIZER;
 
 /* A list of all allocated UDP connections */
 
 static dq_queue_t g_active_udp_connections;
+
+/* The list id of the connection that entered the list last */
+
+static uint32_t g_udp_listid;
 
 /****************************************************************************
  * Private Functions
@@ -684,9 +693,13 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
 
   /* The free list is protected by a mutex. */
 
-  NET_BUFPOOL_LOCK(g_udp_connections);
+  udp_conn_list_lock();
 
-  conn = NET_BUFPOOL_TRYALLOC(g_udp_connections);
+  conn = mempool_allocate(&g_udp_connections, 0);
+  if (conn != NULL)
+    {
+      memset(conn, 0, sizeof(*conn));
+    }
 
   if (conn)
     {
@@ -715,12 +728,15 @@ FAR struct udp_conn_s *udp_alloc(uint8_t domain)
 
       sq_init(&conn->write_q);
 #endif
-      /* Enqueue the connection into the active list */
+      /* Enqueue the connection into the active list, at its tail, with the
+       * next list id.  So the list ids grow from the head to the tail.
+       */
 
+      conn->listid = ++g_udp_listid;
       dq_addlast(&conn->sconn.s_node, &g_active_udp_connections);
     }
 
-  NET_BUFPOOL_UNLOCK(g_udp_connections);
+  udp_conn_list_unlock();
   return conn;
 }
 
@@ -743,7 +759,7 @@ void udp_free(FAR struct udp_conn_s *conn)
 
   DEBUGASSERT(conn->crefs == 0);
 
-  NET_BUFPOOL_LOCK(g_udp_connections);
+  udp_conn_list_lock();
   conn->lport = 0;
 
   /* Remove the connection from the active list */
@@ -781,9 +797,9 @@ void udp_free(FAR struct udp_conn_s *conn)
 
   /* Free the connection. */
 
-  NET_BUFPOOL_FREE(g_udp_connections, conn);
+  mempool_release(&g_udp_connections, conn);
 
-  NET_BUFPOOL_UNLOCK(g_udp_connections);
+  udp_conn_list_unlock();
 }
 
 /****************************************************************************
@@ -834,7 +850,7 @@ FAR struct udp_conn_s *udp_active(FAR struct net_driver_s *dev,
 
 void udp_conn_list_lock(void)
 {
-  NET_BUFPOOL_LOCK(g_udp_connections);
+  nxrmutex_lock(&g_udp_connections_lock);
 }
 
 /****************************************************************************
@@ -850,7 +866,7 @@ void udp_conn_list_lock(void)
 
 void udp_conn_list_unlock(void)
 {
-  NET_BUFPOOL_UNLOCK(g_udp_connections);
+  nxrmutex_unlock(&g_udp_connections_lock);
 }
 
 /****************************************************************************
@@ -874,6 +890,24 @@ FAR struct udp_conn_s *udp_nextconn(FAR struct udp_conn_s *conn)
     {
       return (FAR struct udp_conn_s *)conn->sconn.s_node.flink;
     }
+}
+
+/****************************************************************************
+ * Name: udp_conn_lastid
+ *
+ * Description:
+ *   Return the list id of the connection that entered the list of UDP
+ *   connections last.  A connection with a later list id
+ *   (UDP_LISTID_AFTER()) entered the list after this call.
+ *
+ * Assumptions:
+ *   The UDP connection list is locked.
+ *
+ ****************************************************************************/
+
+uint32_t udp_conn_lastid(void)
+{
+  return g_udp_listid;
 }
 
 /****************************************************************************
