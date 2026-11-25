@@ -67,11 +67,12 @@ struct spi_dev_s *g_spi1;
 void stm32_spiregister(void)
 {
 #ifdef CONFIG_STM32_SPI1
-      int ret = spi_register(g_spi1, 1);
-      if (ret < 0)
-        {
-          spierr("ERROR: FAILED to register driver of SPI port 1\n");
-        }
+  int ret = spi_register(g_spi1, 1);
+
+  if (ret < 0)
+    {
+      spierr("ERROR: FAILED to register driver of SPI port 1\n");
+    }
 #endif
 }
 #endif
