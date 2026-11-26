@@ -148,6 +148,10 @@ if(CONFIG_SENSORS_MLX90614)
   list(APPEND SRCS stm32_mlx90614.c)
 endif()
 
+if(CONFIG_BOARD_STM32_EEPRMA1)
+  list(APPEND SRCS stm32_eeprma1.c)
+endif()
+
 if(CONFIG_SENSORS_MAX31855)
   list(APPEND SRCS stm32_max31855.c)
 endif()

@@ -368,6 +368,26 @@
 #define GPIO_SPI1_MISO  (GPIO_SPI1_MISO_3)                  /* PG9  */
 #define GPIO_SPI1_MOSI  (GPIO_SPI1_MOSI_2|GPIO_SPEED_50MHZ) /* PB5  */
 
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTD|GPIO_PIN14) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTD|GPIO_PIN15) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTG|GPIO_PIN14) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTA|GPIO_PIN6) /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTB|GPIO_PIN1) /* A3 */
+
 /* ADC GPIOs ****************************************************************/
 
 #define GPIO_ADC1_INP3   (GPIO_ADC1_INP3_0)

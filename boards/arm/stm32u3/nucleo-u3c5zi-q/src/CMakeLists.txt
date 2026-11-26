@@ -26,6 +26,10 @@ if(CONFIG_DAC AND CONFIG_STM32_DAC1)
   list(APPEND SRCS stm32_dac.c)
 endif()
 
+if(CONFIG_STM32_SPI)
+  list(APPEND SRCS stm32_spi.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

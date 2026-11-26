@@ -43,6 +43,10 @@
 
 #include "nucleo-f767zi.h"
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
+
 #if defined(CONFIG_SPI)
 
 /****************************************************************************
@@ -219,6 +223,10 @@ void stm32_spi1select(struct spi_dev_s *dev,
     {
       stm32_gpiowrite(g_spi1gpio[index], !selected);
     }
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
+#endif
 }
 
 uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)

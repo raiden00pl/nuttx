@@ -40,6 +40,10 @@
 
 #include "nucleo-h563zi.h"
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/
@@ -146,7 +150,11 @@ void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
   spiinfo("devid: %08X CS: %s\n", (int)devid,
           selected ? "assert" : "de-assert");
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
+#else
   stm32_gpiowrite(GPIO_SPI1_NSS, !selected);
+#endif
 }
 
 uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)

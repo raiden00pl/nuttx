@@ -146,6 +146,26 @@
 #define GPIO_SPI2_MOSI   GPIO_SPI2_MOSI_2
 #define GPIO_SPI2_SCK    GPIO_SPI2_SCK_3
 
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN4) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN9) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN12) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_2MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN1) /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_2MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN4) /* A3 */
+
 /* user buttons
  *
  * There are 3 buttons provided for user to program

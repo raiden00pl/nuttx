@@ -194,6 +194,26 @@
 #define GPIO_SPI1_MOSI GPIO_SPI1_MOSI_1
 #define GPIO_SPI1_SCK  GPIO_SPI1_SCK_1
 
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHz|GPIO_OUTPUT_SET| \
+                                GPIO_PORTB|GPIO_PIN6) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHz|GPIO_OUTPUT_SET| \
+                                GPIO_PORTC|GPIO_PIN7) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHz|GPIO_OUTPUT_SET| \
+                                GPIO_PORTA|GPIO_PIN10) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHz|GPIO_OUTPUT_SET| \
+                                GPIO_PORTA|GPIO_PIN0) /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHz|GPIO_OUTPUT_SET| \
+                                GPIO_PORTB|GPIO_PIN0) /* A3 */
+
 /* TIM */
 
 #define GPIO_TIM2_CH2OUT (GPIO_TIM2_CH2OUT_2|GPIO_SPEED_50MHz)

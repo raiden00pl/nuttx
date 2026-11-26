@@ -85,6 +85,9 @@
 #ifdef CONFIG_BOARD_STM32_IKS01A2
 #  include "stm32_iks01a2.h"
 #endif
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
 
 #include "board_common.h"
 
@@ -248,6 +251,17 @@ int stm32_common_initialize(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: board_iks01a2_initialize() failed: %d\n",
+             ret);
+    }
+#endif
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  /* Register the X-NUCLEO-EEPRMA1 SPI EEPROMs */
+
+  ret = board_eeprma1_initialize(CONFIG_BOARD_STM32_EEPRMA1_SPIBUS);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: board_eeprma1_initialize() failed: %d\n",
              ret);
     }
 #endif

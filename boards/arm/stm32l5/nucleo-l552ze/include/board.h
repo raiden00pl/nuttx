@@ -172,6 +172,32 @@
 #define GPIO_LPUART1_RX  GPIO_LPUART1_RX_4   /* PG8 */
 #define GPIO_LPUART1_TX  GPIO_LPUART1_TX_4   /* PG7 */
 
+/* SPI1 on the Arduino connector */
+
+#define GPIO_SPI1_SCK    (GPIO_SPI1_SCK_2 | GPIO_SPEED_25MHZ)  /* PA5 - D13 */
+#define GPIO_SPI1_MISO   GPIO_SPI1_MISO_1                      /* PA6 - D12 */
+#define GPIO_SPI1_MOSI   (GPIO_SPI1_MOSI_1 | GPIO_SPEED_25MHZ) /* PA7 - D11 */
+
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                GPIO_PORTD | GPIO_PIN14) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                GPIO_PORTD | GPIO_PIN15) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                GPIO_PORTF | GPIO_PIN15) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_2MHZ | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN3)  /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_2MHZ | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN0)  /* A3 */
+
 /* LED definitions **********************************************************/
 
 /* The Nucleo-144 board has numerous LEDs but only three, LD1 a Green LED,

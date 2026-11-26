@@ -208,6 +208,32 @@
 #define GPIO_USART3_TX     GPIO_USART3_TX_3 /* PC10 */
 #define GPIO_USART3_RX     GPIO_USART3_RX_3 /* PC11 */
 
+/* SPI1 on the Arduino connector */
+
+#define GPIO_SPI1_SCK      (GPIO_SPI1_SCK_1 | GPIO_SPEED_50MHz)  /* PA5 - D13 */
+#define GPIO_SPI1_MISO     GPIO_SPI1_MISO_1                      /* PA6 - D12 */
+#define GPIO_SPI1_MOSI     (GPIO_SPI1_MOSI_1 | GPIO_SPEED_50MHz) /* PA7 - D11 */
+
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN6) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTC | GPIO_PIN7) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN10) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_5MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN0) /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_5MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTB | GPIO_PIN0) /* A3 */
+
 /* Pin Multiplexing Disambiguation ******************************************/
 
 #endif /* __BOARDS_ARM_STM32_NUCLEO_G474RE_INCLUDE_BOARD_H */

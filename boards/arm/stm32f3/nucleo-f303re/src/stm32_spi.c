@@ -39,6 +39,10 @@
 #include "stm32.h"
 #include "nucleo-f303re.h"
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
+
 #ifdef CONFIG_SPI
 
 /****************************************************************************
@@ -99,6 +103,10 @@ void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
     {
       stm32_gpiowrite(GPIO_OLED_CS, !selected);
     }
+#endif
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
 #endif
 }
 

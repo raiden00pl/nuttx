@@ -168,6 +168,10 @@ ifeq ($(CONFIG_SENSORS_MLX90614),y)
   CSRCS += stm32_mlx90614.c
 endif
 
+ifeq ($(CONFIG_BOARD_STM32_EEPRMA1),y)
+  CSRCS += stm32_eeprma1.c
+endif
+
 ifeq ($(CONFIG_SENSORS_MAX31855),y)
   CSRCS += stm32_max31855.c
 endif

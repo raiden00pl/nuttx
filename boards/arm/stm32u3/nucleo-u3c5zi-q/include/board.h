@@ -113,6 +113,34 @@
 #define GPIO_DAC1_OUT1               GPIO_DAC1_OUT1_1  /* PA4 */
 #define GPIO_DAC1_OUT2               GPIO_DAC1_OUT2_1  /* PA5 */
 
+/* SPI1 on the Arduino connector: PA5 SCK (D13), PA6 MISO (D12) and
+ * PA7 MOSI (D11)
+ */
+
+#define GPIO_SPI1_SCK                (GPIO_SPI1_SCK_2 | GPIO_SPEED_25MHZ)
+#define GPIO_SPI1_MISO               GPIO_SPI1_MISO_1  /* PA6 - D12 */
+#define GPIO_SPI1_MOSI               (GPIO_SPI1_MOSI_1 | GPIO_SPEED_25MHZ)
+
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01       (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                      GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                      GPIO_PORTD | GPIO_PIN14)
+#define GPIO_EEPRMA1_CS_M95256       (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                      GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                      GPIO_PORTC | GPIO_PIN7)
+#define GPIO_EEPRMA1_CS_M95040       (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                      GPIO_SPEED_25MHZ | GPIO_OUTPUT_SET | \
+                                      GPIO_PORTE | GPIO_PIN13)
+#define GPIO_EEPRMA1_W               (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                      GPIO_SPEED_2MHZ | GPIO_OUTPUT_SET | \
+                                      GPIO_PORTA | GPIO_PIN0)
+#define GPIO_EEPRMA1_HOLD            (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                      GPIO_SPEED_2MHZ | GPIO_OUTPUT_SET | \
+                                      GPIO_PORTB | GPIO_PIN0)
+
 /* User LEDs */
 
 #define GPIO_LED_GREEN               (GPIO_OUTPUT | GPIO_PUSHPULL | \

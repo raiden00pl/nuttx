@@ -28,6 +28,10 @@ else()
   list(APPEND SRCS stm32_userleds.c)
 endif()
 
+if(CONFIG_STM32_SPI)
+  list(APPEND SRCS stm32_spi.c)
+endif()
+
 target_sources(board PRIVATE ${SRCS})
 
 set_property(GLOBAL PROPERTY LD_SCRIPT "${NUTTX_BOARD_DIR}/scripts/flash.ld")

@@ -145,14 +145,27 @@
 #define GPIO_USART1_RX   GPIO_USART1_RX_1    /* PA10 */
 #define GPIO_USART1_TX   GPIO_USART1_TX_1    /* PA9  */
 
-/* SPI1: Arduino Connector CN13 */
+/* SPI1: Arduino connector D10-D13 */
 
 #define GPIO_SPI1_NSS   (GPIO_OUTPUT|GPIO_SPEED_2MHZ| \
                          GPIO_PUSHPULL|GPIO_OUTPUT_SET| \
-                         GPIO_PORTE|GPIO_PIN12)             /* PE12 */
-#define GPIO_SPI1_SCK   (GPIO_SPI1_SCK_4|GPIO_SPEED_25MHZ)  /* PE13 */
-#define GPIO_SPI1_MISO  (GPIO_SPI1_MISO_4)                  /* PE14 */
-#define GPIO_SPI1_MOSI  (GPIO_SPI1_MOSI_4|GPIO_SPEED_25MHZ) /* PE15 */
+                         GPIO_PORTD|GPIO_PIN14)             /* PD14 - D10 */
+#define GPIO_SPI1_SCK   (GPIO_SPI1_SCK_2|GPIO_SPEED_25MHZ)  /* PA5 - D13 */
+#define GPIO_SPI1_MISO  (GPIO_SPI1_MISO_1)                  /* PA6 - D12 */
+#define GPIO_SPI1_MOSI  (GPIO_SPI1_MOSI_1|GPIO_SPEED_25MHZ) /* PA7 - D11 */
+
+/* X-NUCLEO-EEPRMA1 chip selects, write protect and hold */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT|GPIO_SPEED_25MHZ|GPIO_PUSHPULL| \
+                                GPIO_OUTPUT_SET|GPIO_PORTD|GPIO_PIN14) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT|GPIO_SPEED_25MHZ|GPIO_PUSHPULL| \
+                                GPIO_OUTPUT_SET|GPIO_PORTD|GPIO_PIN15) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT|GPIO_SPEED_25MHZ|GPIO_PUSHPULL| \
+                                GPIO_OUTPUT_SET|GPIO_PORTF|GPIO_PIN15) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT|GPIO_SPEED_2MHZ|GPIO_PUSHPULL| \
+                                GPIO_OUTPUT_SET|GPIO_PORTA|GPIO_PIN3)  /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT|GPIO_SPEED_2MHZ|GPIO_PUSHPULL| \
+                                GPIO_OUTPUT_SET|GPIO_PORTB|GPIO_PIN0)  /* A3 */
 
 #define GPIO_I2C1_SCL     GPIO_I2C1_SCL_2 | GPIO_SPEED_50MHZ | GPIO_OPENDRAIN
 #define GPIO_I2C1_SDA     GPIO_I2C1_SDA_2 | GPIO_SPEED_50MHZ | GPIO_OPENDRAIN

@@ -41,6 +41,10 @@
 
 #include "nucleo-l152re.h"
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
+
 #if defined(CONFIG_STM32_SPI1) || defined(CONFIG_STM32_SPI2) || defined(CONFIG_STM32_SPI3)
 
 /****************************************************************************
@@ -176,6 +180,10 @@ void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
     {
       stm32_gpiowrite(GPIO_SPI1_CS, !selected);
     }
+#endif
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
 #endif
 }
 

@@ -411,6 +411,33 @@
 #define GPIO_I2C2_SDA     (GPIO_I2C2_SDA_2  | GPIO_SPEED_50MHz) /* PF0 - D68 */
 #define GPIO_I2C2_SMBA    (GPIO_I2C2_SMBA_2 | GPIO_SPEED_50MHz) /* PF2 - D70 */
 
+/* SPI1 on the Arduino connector */
+
+#define GPIO_SPI1_SCK     (GPIO_SPI1_SCK_1 | GPIO_SPEED_50MHz)  /* PA5 - D13 */
+#define GPIO_SPI1_MISO    (GPIO_SPI1_MISO_1 | GPIO_SPEED_50MHz) /* PA6 - D12 */
+#define GPIO_SPI1_MOSI    (GPIO_SPI1_MOSI_1 | GPIO_SPEED_50MHz) /* PA7 - D11 */
+
+#define DMAMAP_SPI1_RX    DMAMAP_DMA12_SPI1RX_0 /* DMA1 */
+#define DMAMAP_SPI1_TX    DMAMAP_DMA12_SPI1TX_0 /* DMA1 */
+
+/* X-NUCLEO-EEPRMA1 chip selects, write protect and hold */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTD | GPIO_PIN14) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTD | GPIO_PIN15) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTF | GPIO_PIN15) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTA | GPIO_PIN3)  /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                GPIO_PORTF | GPIO_PIN3)  /* A3 */
+
 /* SPI3 */
 
 #define GPIO_SPI3_MISO    (GPIO_SPI3_MISO_1 | GPIO_SPEED_50MHz) /* PB4 */

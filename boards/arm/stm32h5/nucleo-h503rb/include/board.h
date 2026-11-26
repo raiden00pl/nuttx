@@ -84,6 +84,11 @@
 #define STM32_VCO1_FRQ            ((STM32_HSI_FREQUENCY / 8) * 125)
 #define STM32_PLL1P_FREQUENCY     (STM32_VCO1_FRQ / 2)
 #define STM32_PLL1Q_FREQUENCY     (STM32_VCO1_FRQ / 4)
+
+/* Select the SPI1 clock and tell driver the frequency */
+
+#define STM32_RCC_CCIPR3_SPI1SEL  RCC_CCIPR3_SPI1SEL_PLL1QCK
+#define STM32_SPI1_FREQUENCY      STM32_PLL1Q_FREQUENCY
 #define STM32_PLL1R_FREQUENCY     (STM32_VCO1_FRQ / 2)
 
 /* PLL2 config: Needed to use 2 ADC at max speed. */
@@ -224,6 +229,32 @@
 
 #define GPIO_USART3_RX   GPIO_USART3_RX_1    /* PA3 */
 #define GPIO_USART3_TX   GPIO_USART3_TX_1    /* PA4 */
+
+/* SPI1 on the Arduino connector */
+
+#define GPIO_SPI1_SCK    (GPIO_SPI1_SCK_2|GPIO_SPEED_50MHZ)  /* PA5 - D13 */
+#define GPIO_SPI1_MISO   GPIO_SPI1_MISO_3                    /* PA6 - D12 */
+#define GPIO_SPI1_MOSI   (GPIO_SPI1_MOSI_2|GPIO_SPEED_50MHZ) /* PA7 - D11 */
+
+/* X-NUCLEO-EEPRMA1 chip selects (D10, D9, D2), write protect (A0) and
+ * hold (A3)
+ */
+
+#define GPIO_EEPRMA1_CS_M95M01 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTC|GPIO_PIN9) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTC|GPIO_PIN6) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040 (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_50MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTA|GPIO_PIN10) /* D2 */
+#define GPIO_EEPRMA1_W         (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTA|GPIO_PIN0) /* A0 */
+#define GPIO_EEPRMA1_HOLD      (GPIO_OUTPUT|GPIO_PUSHPULL| \
+                                GPIO_SPEED_2MHZ|GPIO_OUTPUT_SET| \
+                                GPIO_PORTB|GPIO_PIN0) /* A3 */
 
 /****************************************************************************
  * Public Data

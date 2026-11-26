@@ -211,6 +211,35 @@
 #define GPIO_USART3_TX          (GPIO_USART3_TX_3 | GPIO_SPEED_100MHz) /* PD8 */
 #define GPIO_USART3_RX          (GPIO_USART3_RX_3 | GPIO_SPEED_100MHz) /* PD9 */
 
+/* SPI1 on the Arduino connector.  Its kernel clock is per_ck (HSI,
+ * 64 MHz): the reset source PLL1Q (300 MHz) is above the 130 MHz SPI1
+ * limit.
+ */
+
+#define STM32_RCC_CCIPR3_SPI1SEL RCC_CCIPR3_SPI1SEL(4)
+
+#define GPIO_SPI1_SCK           (GPIO_SPI1_SCK_1 | GPIO_SPEED_50MHz)  /* PA5 */
+#define GPIO_SPI1_MISO          (GPIO_SPI1_MISO_1 | GPIO_SPEED_50MHz) /* PA6 */
+#define GPIO_SPI1_MOSI          (GPIO_SPI1_MOSI_2 | GPIO_SPEED_50MHz) /* PB5 */
+
+/* X-NUCLEO-EEPRMA1 chip selects, write protect and hold */
+
+#define GPIO_EEPRMA1_CS_M95M01  (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                 GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                 GPIO_PORTD | GPIO_PIN14) /* D10 */
+#define GPIO_EEPRMA1_CS_M95256  (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                 GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                 GPIO_PORTD | GPIO_PIN15) /* D9 */
+#define GPIO_EEPRMA1_CS_M95040  (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                 GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                 GPIO_PORTF | GPIO_PIN15) /* D2 */
+#define GPIO_EEPRMA1_W          (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                 GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                 GPIO_PORTA | GPIO_PIN3)  /* A0 */
+#define GPIO_EEPRMA1_HOLD       (GPIO_OUTPUT | GPIO_PUSHPULL | \
+                                 GPIO_SPEED_50MHz | GPIO_OUTPUT_SET | \
+                                 GPIO_PORTC | GPIO_PIN4)  /* A3 */
+
 /* XSPI2: MX25UW25645G Octal SPI flash. */
 
 #define GPIO_XSPI2_CLK          (GPIO_XSPI2_CLK_1 | GPIO_SPEED_100MHz)

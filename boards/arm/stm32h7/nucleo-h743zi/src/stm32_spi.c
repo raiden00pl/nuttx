@@ -39,6 +39,10 @@
 #include "stm32_spi.h"
 
 #include "nucleo-h743zi.h"
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
 #include <arch/board/board.h>
 
 #ifdef CONFIG_STM32_SPI
@@ -114,6 +118,10 @@ void stm32_spi1select(struct spi_dev_s *dev,
 {
   spiinfo("devid: %08lx CS: %s\n",
           (unsigned long)devid, selected ? "assert" : "de-assert");
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
+#endif
 }
 
 uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)

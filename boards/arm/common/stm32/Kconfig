@@ -115,6 +115,26 @@ config BOARD_STM32_IKS01A2_DEVNO
 
 endif # BOARD_STM32_IKS01A2
 
+menuconfig BOARD_STM32_EEPRMA1
+	bool "X-NUCLEO-EEPRMA1 EEPROM shield"
+	default n
+	depends on SPI && STM32_SPI
+	select EEPROM
+	select SPI_EE_25XX
+	---help---
+		Register the M95M01, M95256 and M95040 SPI EEPROMs of the
+		X-NUCLEO-EEPRMA1 shield as /dev/eeprom0, /dev/eeprom1 and
+		/dev/eeprom2.  The board must define their GPIOs in board.h and
+		call board_eeprma1_select() from its SPI select function.
+
+if BOARD_STM32_EEPRMA1
+
+config BOARD_STM32_EEPRMA1_SPIBUS
+	int "SPI bus of the Arduino connector"
+	default 1
+
+endif # BOARD_STM32_EEPRMA1
+
 config STM32_ROMFS
 	bool "Automount baked-in ROMFS image"
 	default n

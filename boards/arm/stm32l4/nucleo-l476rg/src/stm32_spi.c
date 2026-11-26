@@ -32,6 +32,9 @@
 #include <errno.h>
 
 #include <nuttx/spi/spi.h>
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
 #include <arch/board/board.h>
 
 #include "chip.h"
@@ -150,6 +153,10 @@ void stm32_spi1select(struct spi_dev_s *dev,
     {
       stm32_gpiowrite(STM32_LCD_CS, !selected);
     }
+#endif
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  board_eeprma1_select(devid, selected);
 #endif
 }
 

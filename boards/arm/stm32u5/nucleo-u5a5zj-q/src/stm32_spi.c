@@ -39,6 +39,10 @@
 #include "stm32_spi.h"
 
 #include "nucleo-u5a5zj-q.h"
+
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+#  include "stm32_eeprma1.h"
+#endif
 #include <arch/board/board.h>
 
 #ifdef CONFIG_STM32_SPI
@@ -64,7 +68,7 @@ void stm32_spidev_initialize(void)
    *       architecture.
    */
 
-#ifdef CONFIG_STM32_SPI1
+#if defined(CONFIG_STM32_SPI1) && !defined(CONFIG_BOARD_STM32_EEPRMA1)
   stm32_configgpio(GPIO_SPI1_NSS);
 #endif
 }
@@ -102,7 +106,13 @@ void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
   spiinfo("devid: %08lx CS: %s\n",
           (unsigned long)devid, selected ? "assert" : "de-assert");
 
+#ifdef CONFIG_BOARD_STM32_EEPRMA1
+  /* D10 is the M95M01 chip select of the shield */
+
+  board_eeprma1_select(devid, selected);
+#else
   stm32_gpiowrite(GPIO_SPI1_NSS, !selected);
+#endif
 }
 
 uint8_t stm32_spi1status(struct spi_dev_s *dev, uint32_t devid)
