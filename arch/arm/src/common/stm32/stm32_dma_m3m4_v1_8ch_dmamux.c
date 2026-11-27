@@ -1322,7 +1322,7 @@ size_t stm32_dmaresidual(DMA_HANDLE handle)
  ****************************************************************************/
 
 #ifdef CONFIG_STM32_DMACAPABLE
-bool stm32_dmacapable(uint32_t maddr, uint32_t count, uint32_t ccr)
+bool stm32_dmacapable(uintptr_t maddr, uint32_t count, uint32_t ccr)
 {
   unsigned int msize_shift;
   uint32_t transfer_size;
@@ -1374,14 +1374,11 @@ bool stm32_dmacapable(uint32_t maddr, uint32_t count, uint32_t ccr)
   switch (maddr & STM32_REGION_MASK)
     {
       case STM32_PERIPH_BASE:
-      case STM32_FSMC_BASE:
-      case STM32_FSMC_BANK1:
-      case STM32_FSMC_BANK2:
-      case STM32_FSMC_BANK3:
-      case STM32_QSPI_BANK:
+      case STM32_FMC_QSPI_BASE:
+      case STM32_FMC_BANK1:
+      case STM32_FMC_BANK3:
+      case STM32_QSPI_BANK1:
       case STM32_SRAM_BASE:
-      case STM32_SRAM2_BASE:
-      case STM32_SRAM3_BASE:
       case STM32_CODE_BASE:
 
         /* All RAM and flash is supported */
