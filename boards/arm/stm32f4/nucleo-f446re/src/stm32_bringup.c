@@ -67,6 +67,10 @@
 #ifdef CONFIG_STM32_ROMFS
 #  include "stm32_romfs.h"
 #endif
+#if defined(CONFIG_SPI_DRIVER) && defined(CONFIG_STM32_SPI1)
+#  include <nuttx/spi/spi_transfer.h>
+#endif
+
 #include "nucleo-f446re.h"
 #include "board_common.h"
 
@@ -246,6 +250,16 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
+    }
+#endif
+
+#if defined(CONFIG_SPI_DRIVER) && defined(CONFIG_STM32_SPI1)
+  /* Register the SPI1 character driver as /dev/spi1 */
+
+  ret = spi_register(g_spi1, 1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: spi_register() failed: %d\n", ret);
     }
 #endif
 

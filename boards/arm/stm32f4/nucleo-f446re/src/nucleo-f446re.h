@@ -103,6 +103,14 @@
 #define GPIO_SPI1_SCK_OFF  (GPIO_INPUT | GPIO_PULLDOWN | \
                             GPIO_PORTA | GPIO_PIN5)
 
+/* SPI1 chip select of the SPI character driver (D10) */
+
+#ifdef CONFIG_SPI_DRIVER
+#  define GPIO_SPI1_CS_USER \
+    (GPIO_OUTPUT | GPIO_PUSHPULL | GPIO_SPEED_50MHz | \
+     GPIO_OUTPUT_SET | GPIO_PORTB | GPIO_PIN6)
+#endif
+
 #ifdef HAVE_MMCSD
 #  define GPIO_SPI_CS_SD_CARD_OFF \
     (GPIO_INPUT | GPIO_PULLDOWN | GPIO_SPEED_2MHz | \

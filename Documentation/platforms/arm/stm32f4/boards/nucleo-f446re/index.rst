@@ -493,3 +493,10 @@ pwm
 This is an nsh configuration (see above) with added capability of pulse width
 modulation. PWM output is on Timer 3 channel 1, which is pin PA_6 (D12) on
 Nucleo board. Example program can be stared by "pwm" command.
+
+spimaster
+---------
+
+NSH with the ``spi`` tool on SPI1 (``/dev/spi1``): SCK D13 (PA5), MISO
+D12 (PA6), MOSI D11 (PA7).  The chip select of device ``-n 0`` (the
+default) is D10 (PB6).  Used as the master of ``nucleo-h743zi:spislv``.

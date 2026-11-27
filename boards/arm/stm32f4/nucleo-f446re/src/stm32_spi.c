@@ -90,6 +90,10 @@ void weak_function stm32_spidev_initialize(void)
 #ifdef HAVE_MMCSD
   stm32_configgpio(GPIO_SPI_CS_SD_CARD);
 #endif
+
+#ifdef CONFIG_SPI_DRIVER
+  stm32_configgpio(GPIO_SPI1_CS_USER);
+#endif
 #endif
 
 #ifdef CONFIG_STM32_SPI2
@@ -148,6 +152,13 @@ void stm32_spi1select(struct spi_dev_s *dev, uint32_t devid,
   if (devid == SPIDEV_MMCSD(0))
     {
       stm32_gpiowrite(GPIO_SPI_CS_SD_CARD, !selected);
+    }
+#endif
+
+#ifdef CONFIG_SPI_DRIVER
+  if (devid == SPIDEV_USER(0))
+    {
+      stm32_gpiowrite(GPIO_SPI1_CS_USER, !selected);
     }
 #endif
 
