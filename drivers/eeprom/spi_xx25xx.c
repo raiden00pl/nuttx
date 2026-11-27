@@ -1209,7 +1209,7 @@ static ssize_t ee25xx_write(FAR struct ee25xx_dev_s *eedev, off_t offset,
 
   if (offset >= eedev->size)
     {
-      return 0;
+      return -EFBIG;
     }
 
   /* Clamp nbytes to avoid crossing the end of the memory */
