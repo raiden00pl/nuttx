@@ -71,6 +71,11 @@
 #  include <nuttx/usb/cdcacm.h>
 #endif
 
+#if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_STM32_SPI1_SLAVE)
+#  include <nuttx/spi/slave.h>
+#  include "stm32_spi.h"
+#endif
+
 #include "stm32_gpio.h"
 #include "board_common.h"
 
@@ -195,6 +200,9 @@ int stm32_bringup(void)
   int ret = OK;
 #ifdef HAVE_RTC_DRIVER
   struct rtc_lowerhalf_s *lower;
+#endif
+#if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_STM32_SPI1_SLAVE)
+  struct spi_slave_ctrlr_s *spislv;
 #endif
 
   /* Initialize the board features common to all STM32 boards */
@@ -382,6 +390,25 @@ int stm32_bringup(void)
     {
       syslog(LOG_ERR, "Failed to initialize SD slot %d: %d\n",
              CONFIG_NSH_MMCSDMINOR, ret);
+    }
+#endif
+
+#if defined(CONFIG_SPI_SLAVE_DRIVER) && defined(CONFIG_STM32_SPI1_SLAVE)
+  /* Register the SPI1 slave character driver as /dev/spislv1 */
+
+  spislv = stm32_spi_slave_initialize(1);
+  if (spislv == NULL)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize SPI1 slave\n");
+    }
+  else
+    {
+      ret = spi_slave_register(spislv, 1);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: spi_slave_register() failed: %d\n",
+                 ret);
+        }
     }
 #endif
 
