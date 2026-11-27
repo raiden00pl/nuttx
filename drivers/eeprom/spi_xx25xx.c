@@ -941,6 +941,7 @@ static off_t ee25xx_seek(FAR struct file *filep, off_t offset, int whence)
         newpos = filep->f_pos + offset;
         if (newpos < 0 || newpos > eedev->size)
           {
+            nxmutex_unlock(&eedev->lock);
             return -EINVAL;
           }
         break;
@@ -949,6 +950,7 @@ static off_t ee25xx_seek(FAR struct file *filep, off_t offset, int whence)
         newpos = offset;
         if (newpos < 0 || newpos > eedev->size)
           {
+            nxmutex_unlock(&eedev->lock);
             return -EINVAL;
           }
         break;
@@ -957,6 +959,7 @@ static off_t ee25xx_seek(FAR struct file *filep, off_t offset, int whence)
         newpos = eedev->size + offset;
         if (newpos < 0 || newpos > eedev->size)
           {
+            nxmutex_unlock(&eedev->lock);
             return -EINVAL;
           }
         break;
